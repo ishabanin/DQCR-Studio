@@ -106,3 +106,53 @@ def test_files_create_folder_and_content(api_client: TestClient) -> None:
     )
     assert read_response.status_code == 200
     assert read_response.json()["content"] == "select 1\n"
+
+
+def test_lineage_uses_workflow_order_for_edges(api_client: TestClient) -> None:
+    reorder_response = api_client.put(
+        "/api/v1/projects/demo/models/SampleModel",
+        json={
+            "model": {
+                "target_table": {
+                    "name": "sample_table",
+                    "schema": "dm",
+                    "description": "sample",
+                    "template": "dqcr",
+                    "engine": "oracle",
+                    "attributes": [{"name": "id", "domain_type": "number"}],
+                },
+                "workflow": {
+                    "description": "sample workflow",
+                    "folders": [
+                        {"id": "02_publish", "description": "publish", "enabled": True},
+                        {"id": "01_stage", "description": "stage", "enabled": True},
+                    ],
+                },
+                "cte_settings": {"default": "insert_fc", "by_context": {}},
+            }
+        },
+    )
+    assert reorder_response.status_code == 200
+
+    folder_response = api_client.post(
+        "/api/v1/projects/demo/files/folder",
+        json={"path": "model/SampleModel/workflow/02_publish"},
+    )
+    assert folder_response.status_code == 200
+
+    file_response = api_client.put(
+        "/api/v1/projects/demo/files/content",
+        json={
+            "path": "model/SampleModel/workflow/02_publish/001_publish.sql",
+            "content": "select * from stage\n",
+        },
+    )
+    assert file_response.status_code == 200
+
+    lineage_response = api_client.get("/api/v1/projects/demo/models/SampleModel/lineage")
+    assert lineage_response.status_code == 200
+    lineage = lineage_response.json()
+
+    assert [node["id"] for node in lineage["nodes"][:2]] == ["02_publish", "01_stage"]
+    assert lineage["edges"][0]["source"] == "02_publish"
+    assert lineage["edges"][0]["target"] == "01_stage"

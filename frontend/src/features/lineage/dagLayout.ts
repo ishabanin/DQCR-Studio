@@ -65,6 +65,7 @@ export function toGraphEdges(edges: LineageEdge[]): Edge[] {
     id: edge.id,
     source: edge.source,
     target: edge.target,
+    type: "smoothstep",
     animated: false,
     markerEnd: {
       type: MarkerType.ArrowClosed,
@@ -74,8 +75,7 @@ export function toGraphEdges(edges: LineageEdge[]): Edge[] {
     },
     style: {
       stroke: edgeColor(edge.status),
-      strokeWidth: 1.6,
+      strokeWidth: 2,
     },
   }));
 }
-

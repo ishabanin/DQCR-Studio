@@ -2,8 +2,10 @@ import { useMemo } from "react";
 import ReactFlow, {
   Background,
   Controls,
+  Handle,
   NodeProps,
   NodeTypes,
+  Position,
 } from "reactflow";
 
 import { LineageEdge, LineageNode } from "../../api/projects";
@@ -21,27 +23,45 @@ type FolderNodeData = {
 function FolderNode({ data }: NodeProps<FolderNodeData>) {
   if (data.compact) {
     return (
-      <div className={data.selected ? "lineage-folder-node lineage-folder-node-compact lineage-folder-node-selected" : "lineage-folder-node lineage-folder-node-compact"}>
-        <strong>{data.name}</strong>
-      </div>
+      <>
+        <Handle className="lineage-handle" id="target-left" type="target" position={Position.Left} />
+        <Handle className="lineage-handle" id="target-top" type="target" position={Position.Top} />
+        <div
+          className={
+            data.selected
+              ? "lineage-folder-node lineage-folder-node-compact lineage-folder-node-selected"
+              : "lineage-folder-node lineage-folder-node-compact"
+          }
+        >
+          <strong>{data.name}</strong>
+        </div>
+        <Handle className="lineage-handle" id="source-right" type="source" position={Position.Right} />
+        <Handle className="lineage-handle" id="source-bottom" type="source" position={Position.Bottom} />
+      </>
     );
   }
 
   return (
-    <div className={data.selected ? "lineage-folder-node lineage-folder-node-selected" : "lineage-folder-node"}>
-      <div className="lineage-rf-head">
-        <strong>{data.name}</strong>
-        <span className="lineage-materialized">{data.materialized}</span>
+    <>
+      <Handle className="lineage-handle" id="target-left" type="target" position={Position.Left} />
+      <Handle className="lineage-handle" id="target-top" type="target" position={Position.Top} />
+      <div className={data.selected ? "lineage-folder-node lineage-folder-node-selected" : "lineage-folder-node"}>
+        <div className="lineage-rf-head">
+          <strong>{data.name}</strong>
+          <span className="lineage-materialized">{data.materialized}</span>
+        </div>
+        <div className="lineage-chip-list">
+          {data.queries.slice(0, 4).map((queryName) => (
+            <span key={queryName} className="lineage-sql-chip">
+              {queryName}
+            </span>
+          ))}
+          {data.queries.length > 4 ? <span className="lineage-sql-chip">+{data.queries.length - 4}</span> : null}
+        </div>
       </div>
-      <div className="lineage-chip-list">
-        {data.queries.slice(0, 4).map((queryName) => (
-          <span key={queryName} className="lineage-sql-chip">
-            {queryName}
-          </span>
-        ))}
-        {data.queries.length > 4 ? <span className="lineage-sql-chip">+{data.queries.length - 4}</span> : null}
-      </div>
-    </div>
+      <Handle className="lineage-handle" id="source-right" type="source" position={Position.Right} />
+      <Handle className="lineage-handle" id="source-bottom" type="source" position={Position.Bottom} />
+    </>
   );
 }
 

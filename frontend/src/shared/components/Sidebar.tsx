@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type MouseEvent as ReactMouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { createProjectFolder, deleteProjectPath, fetchProjectTree, fetchProjects, FileNode, renameProjectPath, saveFileContent } from "../../api/projects";
@@ -15,7 +15,7 @@ interface SidebarActionState {
   nodeType: "file" | "directory";
 }
 
-type ActionIconName = "new-file" | "new-folder" | "rename" | "delete";
+type ActionIconName = "new-file" | "new-folder" | "rename" | "delete" | "collapse-all" | "reveal-active";
 type NodeVisualKind =
   | "project"
   | "readme"
@@ -83,52 +83,142 @@ function inferNodeKind(node: FileNode, parentPath: string | null): NodeVisualKin
   return "file";
 }
 
-function IconBase({
-  children,
-  tone,
-  className = "",
-}: {
-  children: ReactNode;
-  tone: string;
-  className?: string;
-}) {
-  return (
-    <span className={`node-glyph ${tone} ${className}`.trim()} aria-hidden="true">
-      {children}
-    </span>
-  );
-}
-
 function NodeIcon({ kind }: { kind: NodeVisualKind }) {
   switch (kind) {
     case "project":
-      return <IconBase tone="node-glyph-project">P</IconBase>;
+      return (
+        <span className="node-glyph node-glyph-project" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <path d="M3 4.2a1.2 1.2 0 0 1 1.2-1.2h7.6A1.2 1.2 0 0 1 13 4.2v7.6a1.2 1.2 0 0 1-1.2 1.2H4.2A1.2 1.2 0 0 1 3 11.8V4.2Z" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M5.2 6h5.6M5.2 8h5.6M5.2 10h3.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        </span>
+      );
     case "readme":
-      return <IconBase tone="node-glyph-readme">R</IconBase>;
+      return (
+        <span className="node-glyph node-glyph-readme" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <path d="M4.2 2.8h5l2.6 2.6v7a.8.8 0 0 1-.8.8H4.2a.8.8 0 0 1-.8-.8V3.6a.8.8 0 0 1 .8-.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            <path d="M9.2 2.8v2.6h2.6M5.5 7h4.8M5.5 9h4.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      );
     case "contexts":
-      return <IconBase tone="node-glyph-contexts">C</IconBase>;
+      return (
+        <span className="node-glyph node-glyph-contexts" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="4.8" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M3.8 8h8.4M8 3.2c1.2 1.3 1.9 3 1.9 4.8S9.2 11.5 8 12.8C6.8 11.5 6.1 9.8 6.1 8S6.8 4.5 8 3.2Z" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+          </svg>
+        </span>
+      );
     case "context-file":
-      return <IconBase tone="node-glyph-context">C</IconBase>;
+      return (
+        <span className="node-glyph node-glyph-context" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <path d="M4.4 3.4h4.2l2.4 2.4v6.2a.8.8 0 0 1-.8.8H4.4a.8.8 0 0 1-.8-.8V4.2a.8.8 0 0 1 .8-.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            <path d="M7.2 6.2a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4Z" stroke="currentColor" strokeWidth="1.1" />
+          </svg>
+        </span>
+      );
     case "parameters":
-      return <IconBase tone="node-glyph-parameters">PRM</IconBase>;
+      return (
+        <span className="node-glyph node-glyph-parameters" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <path d="M4 4h8M4 8h8M4 12h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <circle cx="6" cy="4" r="1.4" fill="currentColor" />
+            <circle cx="10" cy="8" r="1.4" fill="currentColor" />
+            <circle cx="7.5" cy="12" r="1.4" fill="currentColor" />
+          </svg>
+        </span>
+      );
     case "parameter-file":
-      return <IconBase tone="node-glyph-parameter">PRM</IconBase>;
+      return (
+        <span className="node-glyph node-glyph-parameter" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <path d="M4.4 3.4h4.2l2.4 2.4v6.2a.8.8 0 0 1-.8.8H4.4a.8.8 0 0 1-.8-.8V4.2a.8.8 0 0 1 .8-.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            <path d="M5.6 10.8 9.9 6.5M7.2 5.9h3.3v3.3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      );
     case "model":
-      return <IconBase tone="node-glyph-model">M</IconBase>;
+      return (
+        <span className="node-glyph node-glyph-model" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <path d="M8 2.8 12.2 5v6L8 13.2 3.8 11V5L8 2.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            <path d="M3.8 5 8 7.2 12.2 5M8 7.2V13" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+          </svg>
+        </span>
+      );
     case "model-object":
-      return <IconBase tone="node-glyph-model-object">OBJ</IconBase>;
+      return (
+        <span className="node-glyph node-glyph-model-object" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <rect x="3.4" y="3.4" width="9.2" height="9.2" rx="1.6" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M5.7 5.8h4.6M5.7 8h4.6M5.7 10.2h2.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        </span>
+      );
     case "model-file":
-      return <IconBase tone="node-glyph-model-file">CFG</IconBase>;
+      return (
+        <span className="node-glyph node-glyph-model-file" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <path d="M4.3 3.3h4.4l2.5 2.5v6a.9.9 0 0 1-.9.9H4.3a.9.9 0 0 1-.9-.9V4.2a.9.9 0 0 1 .9-.9Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            <path d="M8 7.1a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6Z" stroke="currentColor" strokeWidth="1.1" />
+          </svg>
+        </span>
+      );
     case "folder-config":
-      return <IconBase tone="node-glyph-folder-config">FLD</IconBase>;
+      return (
+        <span className="node-glyph node-glyph-folder-config" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <path d="M3 4.8a1 1 0 0 1 1-1h2.1l1 1H12a1 1 0 0 1 1 1v5.2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            <path d="M6.2 8h3.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        </span>
+      );
     case "sql-folder":
-      return <IconBase tone="node-glyph-sql-folder">SQL</IconBase>;
+      return (
+        <span className="node-glyph node-glyph-sql-folder" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <path d="M3 4.8a1 1 0 0 1 1-1h2.1l1 1H12a1 1 0 0 1 1 1v5.2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            <path d="M5.5 8.2h5M5.5 10h3.7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        </span>
+      );
     case "sql-file":
-      return <IconBase tone="node-glyph-sql-file">SQL</IconBase>;
+      return (
+        <span className="node-glyph node-glyph-sql-file" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <ellipse cx="8" cy="4.8" rx="3.2" ry="1.8" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M4.8 4.8v4.6c0 1 1.4 1.8 3.2 1.8s3.2-.8 3.2-1.8V4.8M5.8 9.4c.5.4 1.3.7 2.2.7.9 0 1.7-.3 2.2-.7" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      );
     case "yaml-file":
-      return <IconBase tone="node-glyph-yaml-file">YML</IconBase>;
+      return (
+        <span className="node-glyph node-glyph-yaml-file" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <path d="M4.4 3.4h4.2l2.4 2.4v6.2a.8.8 0 0 1-.8.8H4.4a.8.8 0 0 1-.8-.8V4.2a.8.8 0 0 1 .8-.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            <path d="M5.6 6.5h4.8M5.6 8.5h4.8M5.6 10.5h3.3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        </span>
+      );
     default:
-      return <IconBase tone="node-glyph-folder">{kind === "folder" ? "DIR" : "FILE"}</IconBase>;
+      return (
+        <span className={`node-glyph ${kind === "folder" ? "node-glyph-folder" : "node-glyph-file"}`} aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            {kind === "folder" ? (
+              <path d="M3 4.8a1 1 0 0 1 1-1h2.1l1 1H12a1 1 0 0 1 1 1v5.2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            ) : (
+              <>
+                <path d="M4.4 3.4h4.2l2.4 2.4v6.2a.8.8 0 0 1-.8.8H4.4a.8.8 0 0 1-.8-.8V4.2a.8.8 0 0 1 .8-.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+                <path d="M9.2 3.4v2.4h2.4" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+              </>
+            )}
+          </svg>
+        </span>
+      );
   }
 }
 
@@ -165,6 +255,24 @@ function ActionGlyph({ name }: { name: ActionIconName }) {
       <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
         <path d="M3 11.8 3.6 9l5.8-5.8 2.8 2.8-5.8 5.8L3 11.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
         <path d="m8.6 4 2.8 2.8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (name === "collapse-all") {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M3 4.5h10M3 8h10M3 11.5h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        <path d="m10.8 3.3-1.8 1.2 1.8 1.2M10.8 6.8 9 8l1.8 1.2M10.8 10.3 9 11.5l1.8 1.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (name === "reveal-active") {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M2.5 8s2-3 5.5-3 5.5 3 5.5 3-2 3-5.5 3-5.5-3-5.5-3Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+        <circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.2" />
       </svg>
     );
   }
@@ -210,6 +318,8 @@ function SidebarTreeNode({
   onToggle,
   onOpen,
   onAction,
+  rootLabel,
+  registerRowRef,
   parentPath = null,
 }: {
   node: FileNode;
@@ -219,6 +329,8 @@ function SidebarTreeNode({
   onToggle: (path: string) => void;
   onOpen: (path: string) => void;
   onAction: (mode: SidebarActionMode, path: string, nodeType: "file" | "directory") => void;
+  rootLabel: string;
+  registerRowRef: (path: string, element: HTMLLIElement | null) => void;
   parentPath?: string | null;
 }) {
   const kind = inferNodeKind(node, parentPath);
@@ -237,7 +349,11 @@ function SidebarTreeNode({
     .join(" ");
 
   return (
-    <li>
+    <li
+      ref={(element) => {
+        registerRowRef(node.path, element);
+      }}
+    >
       <div
         className={rowClassName}
         style={style}
@@ -265,7 +381,7 @@ function SidebarTreeNode({
             <span className="tree-expander tree-expander-spacer" aria-hidden="true" />
           )}
           <NodeIcon kind={kind} />
-          <span className="tree-label">{node.path === "." ? "SampleDQCR" : node.name}</span>
+          <span className="tree-label">{node.path === "." ? rootLabel : node.name}</span>
         </button>
         <div className="tree-row-actions">
           {isDirectory ? (
@@ -295,6 +411,8 @@ function SidebarTreeNode({
               onToggle={onToggle}
               onOpen={onOpen}
               onAction={onAction}
+              rootLabel={rootLabel}
+              registerRowRef={registerRowRef}
               parentPath={node.path}
             />
           ))}
@@ -390,7 +508,9 @@ export default function Sidebar() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const setProject = useProjectStore((state) => state.setProject);
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
+  const sidebarWidth = useUiStore((state) => state.sidebarWidth);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
+  const setSidebarWidth = useUiStore((state) => state.setSidebarWidth);
   const addToast = useUiStore((state) => state.addToast);
   const openFile = useEditorStore((state) => state.openFile);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
@@ -398,6 +518,14 @@ export default function Sidebar() {
   const [actionState, setActionState] = useState<SidebarActionState | null>(null);
   const [actionValue, setActionValue] = useState("");
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({ ".": true });
+  const rowRefs = useRef<Record<string, HTMLLIElement | null>>({});
+  const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      resizeStateRef.current = null;
+    };
+  }, []);
 
   const projectsQuery = useQuery({
     queryKey: ["projects"],
@@ -544,6 +672,49 @@ export default function Sidebar() {
     setExpandedPaths((previous) => ({ ...previous, [path]: !(previous[path] ?? shouldAutoExpand({ name: "", path, type: "directory" })) }));
   };
 
+  const collapseAll = () => {
+    setExpandedPaths({ ".": true });
+  };
+
+  const revealActiveFile = () => {
+    if (!activeFilePath) return;
+    setExpandedPaths((previous) => {
+      const next: Record<string, boolean> = { ...previous, ".": true };
+      for (const path of getAncestorPaths(activeFilePath)) {
+        next[path] = true;
+      }
+      return next;
+    });
+
+    window.requestAnimationFrame(() => {
+      rowRefs.current[activeFilePath]?.scrollIntoView({ block: "nearest" });
+    });
+  };
+
+  const startResize = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (sidebarCollapsed) return;
+
+    resizeStateRef.current = {
+      startX: event.clientX,
+      startWidth: sidebarWidth,
+    };
+
+    const handlePointerMove = (moveEvent: MouseEvent) => {
+      if (!resizeStateRef.current) return;
+      const nextWidth = resizeStateRef.current.startWidth + (moveEvent.clientX - resizeStateRef.current.startX);
+      setSidebarWidth(nextWidth);
+    };
+
+    const stopResize = () => {
+      resizeStateRef.current = null;
+      window.removeEventListener("mousemove", handlePointerMove);
+      window.removeEventListener("mouseup", stopResize);
+    };
+
+    window.addEventListener("mousemove", handlePointerMove);
+    window.addEventListener("mouseup", stopResize);
+  };
+
   const projectName = useMemo(() => projectsQuery.data?.find((project) => project.id === currentProjectId)?.name ?? "Project Explorer", [currentProjectId, projectsQuery.data]);
 
   return (
@@ -559,6 +730,8 @@ export default function Sidebar() {
               <>
                 <TreeActionButton icon="new-file" label="New file" onClick={() => openActionDialog("new-file", ".", "directory")} />
                 <TreeActionButton icon="new-folder" label="New folder" onClick={() => openActionDialog("new-folder", ".", "directory")} />
+                <TreeActionButton icon="collapse-all" label="Collapse all" onClick={collapseAll} />
+                <TreeActionButton icon="reveal-active" label="Reveal active file" onClick={revealActiveFile} />
               </>
             ) : null}
             <Tooltip text={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
@@ -582,9 +755,22 @@ export default function Sidebar() {
                   setActiveTab("sql");
                 }}
                 onAction={openActionDialog}
+                rootLabel={projectName}
+                registerRowRef={(path, element) => {
+                  rowRefs.current[path] = element;
+                }}
               />
             </ul>
           </div>
+        ) : null}
+        {!sidebarCollapsed ? (
+          <div
+            className="sidebar-resize-handle"
+            onMouseDown={startResize}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
+          />
         ) : null}
       </aside>
 

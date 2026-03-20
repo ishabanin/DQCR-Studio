@@ -401,12 +401,37 @@ def _detect_workflow_root(model_path: Path) -> Path:
 def _collect_lineage_nodes(project_path: Path, model_id: str) -> tuple[list[dict[str, object]], int]:
     model_path = _resolve_model_path(project_path, model_id)
     workflow_root = _detect_workflow_root(model_path)
+    model_yml_path = model_path / "model.yml"
     nodes: list[dict[str, object]] = []
     unique_params: set[str] = set()
+    ordered_folders: list[Path] = []
+    seen_folder_names: set[str] = set()
+
+    if model_yml_path.exists() and model_yml_path.is_file():
+        model_obj = _parse_model_yml_to_object(model_yml_path)
+        workflow = model_obj.get("workflow")
+        workflow_folders = workflow.get("folders") if isinstance(workflow, dict) else None
+        if isinstance(workflow_folders, list):
+            for item in workflow_folders:
+                if not isinstance(item, dict):
+                    continue
+                folder_id = str(item.get("id", "")).strip()
+                if not folder_id or folder_id in seen_folder_names:
+                    continue
+                folder_path = workflow_root / folder_id
+                if folder_path.exists() and folder_path.is_dir():
+                    ordered_folders.append(folder_path)
+                    seen_folder_names.add(folder_id)
 
     for folder in sorted(workflow_root.iterdir(), key=lambda p: p.name.lower()):
         if not folder.is_dir():
             continue
+        if folder.name in seen_folder_names:
+            continue
+        ordered_folders.append(folder)
+        seen_folder_names.add(folder.name)
+
+    for folder in ordered_folders:
         sql_files = _collect_sql_files(folder)
         folder_params: set[str] = set()
         folder_ctes: set[str] = set()

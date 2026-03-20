@@ -10,6 +10,7 @@ interface ToastItem {
 
 interface UiStore {
   sidebarCollapsed: boolean;
+  sidebarWidth: number;
   bottomPanelExpanded: boolean;
   bottomPanelTab: "terminal" | "logs" | "output";
   toasts: ToastItem[];
@@ -18,6 +19,7 @@ interface UiStore {
   userRole: "user" | "admin";
   validationAutoRun: boolean;
   toggleSidebar: () => void;
+  setSidebarWidth: (width: number) => void;
   toggleBottomPanel: () => void;
   setBottomPanelTab: (tab: "terminal" | "logs" | "output") => void;
   setProjectWizardOpen: (open: boolean) => void;
@@ -31,6 +33,7 @@ interface UiStore {
 
 export const useUiStore = create<UiStore>((set) => ({
   sidebarCollapsed: false,
+  sidebarWidth: Number(window.localStorage.getItem("dqcr_sidebar_width") ?? 288),
   bottomPanelExpanded: false,
   bottomPanelTab: "terminal",
   toasts: [],
@@ -39,6 +42,11 @@ export const useUiStore = create<UiStore>((set) => ({
   userRole: (window.localStorage.getItem("dqcr_role") as "user" | "admin") || "user",
   validationAutoRun: false,
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+  setSidebarWidth: (width) => {
+    const nextWidth = Math.min(420, Math.max(220, Math.round(width)));
+    window.localStorage.setItem("dqcr_sidebar_width", String(nextWidth));
+    set({ sidebarWidth: nextWidth });
+  },
   toggleBottomPanel: () => set((state) => ({ bottomPanelExpanded: !state.bottomPanelExpanded })),
   setBottomPanelTab: (tab) => set({ bottomPanelTab: tab }),
   setProjectWizardOpen: (open) => set({ projectWizardOpen: open }),
