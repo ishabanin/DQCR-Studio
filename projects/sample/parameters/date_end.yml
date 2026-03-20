@@ -1,0 +1,13 @@
+parameter:
+  name: date_end
+  description: "Дата окончания расчета"
+  domain_type: date
+
+  values:
+    all:
+      type: static
+      value: "TO_DATE('2024-12-31', 'YYYY-MM-DD')"
+
+    vtb:
+      type: dynamic
+      value: "SELECT MAX(calc_date) FROM vtb_calc_dates"

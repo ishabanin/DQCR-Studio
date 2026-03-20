@@ -1,0 +1,8 @@
+name: SampleDQCR
+description: "Пример проекта для открытия в DQCR Studio!!!"
+template: flx
+
+properties:
+  repsysname: sample
+  owner: dq_team
+  version: "1.0.0"

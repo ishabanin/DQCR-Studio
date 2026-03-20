@@ -1,0 +1,39 @@
+target_table:
+  name: SALES_REPORT
+  schema: ANALYTICS
+  attributes:
+    - name: dealid
+      domain_type: number
+      is_key: true
+      constraints: [PRIMARY_KEY]
+    - name: clientid
+      domain_type: number
+      is_key: true
+    - name: amount
+      domain_type: number
+      required: true
+      default_value: 0
+    - name: created_at
+      domain_type: date
+    - name: total_amount
+      domain_type: number
+
+workflow:
+  description: "Демонстрационный workflow загрузки и агрегации продаж"
+
+  folders:
+    001_Load:
+      description: "Загрузка одобренных сделок"
+      enabled: true
+      queries:
+        001_LoadSales:
+          materialized: insert_fc
+          enabled: true
+
+    002_Transform:
+      description: "Агрегация по клиентам"
+      enabled: true
+      queries:
+        001_AggregateSales:
+          materialized: stage_calcid
+          enabled: true

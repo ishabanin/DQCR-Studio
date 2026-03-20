@@ -1,0 +1,9 @@
+parameter:
+  name: date_start
+  description: "Дата начала расчета"
+  domain_type: date
+
+  values:
+    all:
+      type: static
+      value: "TO_DATE('2024-01-01', 'YYYY-MM-DD')"

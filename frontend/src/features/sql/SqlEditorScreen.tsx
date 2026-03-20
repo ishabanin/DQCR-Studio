@@ -1,0 +1,865 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import Editor from "@monaco-editor/react";
+import type * as Monaco from "monaco-editor";
+
+import {
+  fetchBuildPreview,
+  fetchFileContent,
+  fetchModelConfigChain,
+  fetchProjectAutocomplete,
+  fetchProjectTree,
+  runProjectValidation,
+  saveFileContent,
+} from "../../api/projects";
+import { useTheme } from "../../app/providers/ThemeProvider";
+import { useEditorStore } from "../../app/store/editorStore";
+import { useProjectStore } from "../../app/store/projectStore";
+import { useUiStore } from "../../app/store/uiStore";
+import { useValidationStore } from "../../app/store/validationStore";
+import { configureDqcrMonaco, DQCR_LANGUAGE_ID, getDqcrTheme, setDqcrAutocompleteData } from "./dqcrLanguage";
+
+function Breadcrumb({ path }: { path: string }) {
+  const parts = path.split("/").filter(Boolean);
+
+  return (
+    <div className="breadcrumb">
+      {parts.map((part, index) => (
+        <button key={`${part}-${index}`} type="button" className="crumb">
+          {part}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function FileTabs() {
+  const openFiles = useEditorStore((state) => state.openFiles);
+  const activeFilePath = useEditorStore((state) => state.activeFilePath);
+  const setActiveFile = useEditorStore((state) => state.setActiveFile);
+  const closeFile = useEditorStore((state) => state.closeFile);
+  const reorderFiles = useEditorStore((state) => state.reorderFiles);
+  const dirtyFiles = useEditorStore((state) => state.dirtyFiles);
+
+  return (
+    <div className="file-tabs">
+      {openFiles.map((filePath) => {
+        const fileName = filePath.split("/").pop() ?? filePath;
+        const isActive = activeFilePath === filePath;
+        const isDirty = Boolean(dirtyFiles[filePath]);
+        return (
+          <div key={filePath} className={isActive ? "file-tab file-tab-active" : "file-tab"}>
+            <button
+              type="button"
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.setData("text/plain", filePath);
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const fromPath = event.dataTransfer.getData("text/plain");
+                if (!fromPath) return;
+                reorderFiles(fromPath, filePath);
+              }}
+              onClick={() => setActiveFile(filePath)}
+              className="file-tab-name"
+            >
+              {fileName}
+              {isDirty ? " ●" : ""}
+            </button>
+            <button type="button" onClick={() => closeFile(filePath)} className="file-tab-close">
+              x
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function parseSqlParameters(sql: string): string[] {
+  const pattern = /\{\{\s*([^}]+?)\s*\}\}/g;
+  const items = new Set<string>();
+  for (const match of sql.matchAll(pattern)) {
+    const expr = (match[1] ?? "").trim();
+    if (!expr) continue;
+    if (expr.includes("(")) continue;
+    const token = expr.split(/\s|\|/)[0]?.trim();
+    if (!token) continue;
+    if (!/^[A-Za-z_][\w.]*$/.test(token)) continue;
+    items.add(token);
+  }
+  return Array.from(items).sort((a, b) => a.localeCompare(b));
+}
+
+function parseSqlCtes(sql: string): string[] {
+  const items = new Set<string>();
+  for (const match of sql.matchAll(/\bwith\s+([A-Za-z_][\w]*)\s+as\s*\(/gi)) {
+    items.add(match[1]);
+  }
+  for (const match of sql.matchAll(/,\s*([A-Za-z_][\w]*)\s+as\s*\(/gi)) {
+    items.add(match[1]);
+  }
+  return Array.from(items);
+}
+
+function formatSqlBasic(raw: string): string {
+  const source = raw.replace(/\r\n/g, "\n").trim();
+  if (!source) return "";
+  let sql = source.replace(/[ \t]+/g, " ");
+  const breakKeywords = [
+    "from",
+    "where",
+    "group by",
+    "order by",
+    "having",
+    "left join",
+    "right join",
+    "inner join",
+    "outer join",
+    "join",
+    "union all",
+    "union",
+    "limit",
+    "offset",
+  ];
+  for (const keyword of breakKeywords) {
+    const pattern = new RegExp(`\\b${keyword}\\b`, "gi");
+    sql = sql.replace(pattern, `\n${keyword.toUpperCase()}`);
+  }
+  sql = sql
+    .replace(/\bselect\b/gi, "SELECT")
+    .replace(/\bwith\b/gi, "WITH")
+    .replace(/\bas\b/gi, "AS")
+    .replace(/\band\b/gi, "AND")
+    .replace(/\bor\b/gi, "OR");
+
+  return sql
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function extractModelIdFromPath(path: string | null): string | null {
+  if (!path) return null;
+  const parts = path.split("/").filter(Boolean);
+  const modelIndex = parts.findIndex((part) => part === "model");
+  if (modelIndex < 0 || modelIndex + 1 >= parts.length) return null;
+  return parts[modelIndex + 1] ?? null;
+}
+
+function resolveEditorLanguage(path: string | null): string {
+  if (!path) return DQCR_LANGUAGE_ID;
+  if (path.endsWith(".yml") || path.endsWith(".yaml")) return "yaml";
+  if (path.endsWith(".sql")) return DQCR_LANGUAGE_ID;
+  return "plaintext";
+}
+
+function PriorityChainPanel({
+  levels,
+  resolved,
+  parameterUsages,
+  ctes,
+  cteDefault,
+  cteByContext,
+  generatedOutputs,
+  previewLoading,
+  previewEngine,
+  previewContent,
+  onPreview,
+}: {
+  levels: Array<{
+    id: string;
+    label: string;
+    source_path: string | null;
+    values: Record<string, string | null>;
+  }>;
+  resolved: Array<{
+    key: string;
+    value: string | null;
+    source_level: string;
+  }>;
+  parameterUsages: Array<{
+    name: string;
+    domain_type: string | null;
+    value_type: string | null;
+  }>;
+  ctes: string[];
+  cteDefault: string | null;
+  cteByContext: Record<string, string>;
+  generatedOutputs: string[];
+  previewLoading: boolean;
+  previewEngine: string | null;
+  previewContent: string;
+  onPreview: (engine: string) => void;
+}) {
+  const orderedLevels = ["template", "project", "model", "folder", "sql"];
+  const levelById = new Map(levels.map((level) => [level.id, level]));
+
+  return (
+    <aside className="config-chain-panel">
+      <h2>@config Priority Chain</h2>
+      {resolved.map((item) => (
+        <div key={item.key} className="config-row">
+          <div className="config-row-head">
+            <code>{item.key}</code>
+            <span className="config-resolved">
+              resolved: <strong>{item.value ?? "—"}</strong>
+            </span>
+          </div>
+          <div className="config-levels">
+            {orderedLevels.map((levelId) => {
+              const level = levelById.get(levelId);
+              const rawValue = level?.values[item.key] ?? null;
+              const isActive = item.source_level === levelId && rawValue !== null;
+              return (
+                <div
+                  key={`${item.key}-${levelId}`}
+                  className={isActive ? "config-level config-level-active" : "config-level"}
+                  title={level?.source_path ?? ""}
+                >
+                  <span>{level?.label ?? levelId}</span>
+                  <code>{rawValue ?? "—"}</code>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      <section className="inspector-section">
+        <h3>Parameters Used</h3>
+        {parameterUsages.length === 0 ? (
+          <p className="inspector-placeholder">No template parameters in current SQL.</p>
+        ) : (
+          <ul className="inspector-list">
+            {parameterUsages.map((item) => (
+              <li key={item.name}>
+                <code>{item.name}</code>
+                <span>{item.domain_type ?? "—"}</span>
+                <span>{item.value_type ?? "—"}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="inspector-section">
+        <h3>CTE Inspector</h3>
+        <p className="inspector-meta">
+          default: <strong>{cteDefault ?? "—"}</strong>
+        </p>
+        <p className="inspector-meta">
+          by_context:{" "}
+          {Object.keys(cteByContext).length > 0
+            ? Object.entries(cteByContext)
+                .map(([ctx, value]) => `${ctx}=${value}`)
+                .join(", ")
+            : "—"}
+        </p>
+        <p className="inspector-meta">
+          ctes: {ctes.length > 0 ? ctes.join(", ") : "—"}
+        </p>
+      </section>
+
+      <section className="inspector-section">
+        <h3>Generated Output</h3>
+        <div className="generated-output-list">
+          {generatedOutputs.map((engine) => (
+            <button key={engine} type="button" className="generated-output-btn" onClick={() => onPreview(engine)}>
+              Preview {engine}
+            </button>
+          ))}
+        </div>
+        {previewLoading ? <p className="inspector-placeholder">Generating preview...</p> : null}
+        {previewEngine ? <p className="inspector-meta">engine: {previewEngine}</p> : null}
+        {previewContent ? <pre className="generated-preview">{previewContent}</pre> : null}
+      </section>
+    </aside>
+  );
+}
+
+export default function SqlEditorScreen() {
+  const currentProjectId = useProjectStore((state) => state.currentProjectId);
+  const activeFilePath = useEditorStore((state) => state.activeFilePath);
+  const openFile = useEditorStore((state) => state.openFile);
+  const setActiveTab = useEditorStore((state) => state.setActiveTab);
+  const setDirty = useEditorStore((state) => state.setDirty);
+  const pendingNavigationTarget = useEditorStore((state) => state.pendingNavigationTarget);
+  const setPendingNavigationTarget = useEditorStore((state) => state.setPendingNavigationTarget);
+  const addToast = useUiStore((state) => state.addToast);
+  const validationAutoRun = useUiStore((state) => state.validationAutoRun);
+  const setValidationAutoRun = useUiStore((state) => state.setValidationAutoRun);
+  const latestValidationRun = useValidationStore((state) => state.latestRun);
+  const setLatestValidationRun = useValidationStore((state) => state.setLatestRun);
+  const { theme } = useTheme();
+  const [draft, setDraft] = useState("");
+  const [findVisible, setFindVisible] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  const [replaceQuery, setReplaceQuery] = useState("");
+  const [findRegex, setFindRegex] = useState(false);
+  const [quickOpenVisible, setQuickOpenVisible] = useState(false);
+  const [quickOpenQuery, setQuickOpenQuery] = useState("");
+  const [quickOpenIndex, setQuickOpenIndex] = useState(0);
+  const [previewEngine, setPreviewEngine] = useState<string | null>(null);
+  const [previewContent, setPreviewContent] = useState("");
+  const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<typeof Monaco | null>(null);
+  const findInputRef = useRef<HTMLInputElement | null>(null);
+  const quickOpenInputRef = useRef<HTMLInputElement | null>(null);
+  const modelId = useMemo(() => extractModelIdFromPath(activeFilePath), [activeFilePath]);
+  const editorLanguage = useMemo(() => resolveEditorLanguage(activeFilePath), [activeFilePath]);
+
+  const contentQuery = useQuery({
+    queryKey: ["fileContent", currentProjectId, activeFilePath],
+    queryFn: () => fetchFileContent(currentProjectId as string, activeFilePath as string),
+    enabled: Boolean(currentProjectId && activeFilePath),
+  });
+  const autocompleteQuery = useQuery({
+    queryKey: ["autocomplete", currentProjectId],
+    queryFn: () => fetchProjectAutocomplete(currentProjectId as string),
+    enabled: Boolean(currentProjectId),
+  });
+  const configChainQuery = useQuery({
+    queryKey: ["configChain", currentProjectId, modelId, activeFilePath],
+    queryFn: () => fetchModelConfigChain(currentProjectId as string, modelId as string, activeFilePath as string),
+    enabled: Boolean(currentProjectId && modelId && activeFilePath),
+  });
+  const projectTreeQuery = useQuery({
+    queryKey: ["projectTree", currentProjectId],
+    queryFn: () => fetchProjectTree(currentProjectId as string),
+    enabled: Boolean(currentProjectId),
+  });
+
+  const allProjectFiles = useMemo(() => {
+    const root = projectTreeQuery.data;
+    if (!root) return [] as string[];
+    const files: string[] = [];
+    const stack = [root];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) continue;
+      if (current.type === "file") {
+        files.push(current.path);
+        continue;
+      }
+      for (const child of current.children ?? []) {
+        stack.push(child);
+      }
+    }
+    return files.sort((a, b) => a.localeCompare(b));
+  }, [projectTreeQuery.data]);
+  const quickOpenCandidates = useMemo(() => {
+    const query = quickOpenQuery.trim().toLowerCase();
+    if (!query) return allProjectFiles.slice(0, 100);
+    return allProjectFiles.filter((path) => path.toLowerCase().includes(query)).slice(0, 100);
+  }, [allProjectFiles, quickOpenQuery]);
+
+  const parametersByName = useMemo(() => {
+    const entries = autocompleteQuery.data?.parameters ?? [];
+    const map = new Map<
+      string,
+      {
+        name: string;
+        path: string;
+        domain_type: string | null;
+        value_type: string | null;
+      }
+    >();
+    for (const item of entries) {
+      map.set(item.name, {
+        name: item.name,
+        path: item.path,
+        domain_type: item.domain_type,
+        value_type: item.value_type,
+      });
+      map.set(item.name.toLowerCase(), {
+        name: item.name,
+        path: item.path,
+        domain_type: item.domain_type,
+        value_type: item.value_type,
+      });
+    }
+    return map;
+  }, [autocompleteQuery.data?.parameters]);
+  const macroNames = useMemo(
+    () => new Set((autocompleteQuery.data?.macros ?? []).map((item) => item.name.toLowerCase())),
+    [autocompleteQuery.data?.macros],
+  );
+  const parameterUsages = useMemo(() => {
+    return parseSqlParameters(draft).map((name) => {
+      const meta = parametersByName.get(name) ?? parametersByName.get(name.toLowerCase());
+      return {
+        name,
+        domain_type: meta?.domain_type ?? null,
+        value_type: meta?.value_type ?? null,
+      };
+    });
+  }, [draft, parametersByName]);
+  const ctes = useMemo(() => parseSqlCtes(draft), [draft]);
+
+  useEffect(() => {
+    if (!autocompleteQuery.data) return;
+    setDqcrAutocompleteData({
+      parameters: autocompleteQuery.data.parameters.map((item) => item.name),
+      macros: autocompleteQuery.data.macros.map((item) => item.name),
+      configKeys: autocompleteQuery.data.config_keys,
+    });
+  }, [autocompleteQuery.data]);
+
+  useEffect(() => {
+    if (contentQuery.data !== undefined) {
+      setDraft(contentQuery.data);
+      if (activeFilePath) setDirty(activeFilePath, false);
+    }
+  }, [contentQuery.data, activeFilePath, setDirty]);
+
+  useEffect(() => {
+    if (!pendingNavigationTarget) return;
+    if (!activeFilePath || pendingNavigationTarget.path !== activeFilePath) return;
+    if (contentQuery.status !== "success") return;
+
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model) return;
+
+    const maxLine = model.getLineCount();
+    const line = pendingNavigationTarget.line ?? 1;
+    const targetLine = Math.min(Math.max(1, line), Math.max(1, maxLine));
+    editor.setPosition({ lineNumber: targetLine, column: 1 });
+    editor.revealLineInCenter(targetLine);
+    editor.focus();
+    setPendingNavigationTarget(null);
+  }, [activeFilePath, contentQuery.status, pendingNavigationTarget, setPendingNavigationTarget]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    const model = editor?.getModel();
+    if (!editor || !monaco || !model) return;
+
+    const scopedRun = latestValidationRun?.project === currentProjectId ? latestValidationRun : null;
+    const rulesForFile =
+      scopedRun?.rules.filter(
+        (item) => item.file_path === activeFilePath && (item.status === "error" || item.status === "warning"),
+      ) ?? [];
+
+    const markers = rulesForFile.map((item) => {
+      const lineNumber = Math.max(1, item.line ?? 1);
+      return {
+        startLineNumber: lineNumber,
+        startColumn: 1,
+        endLineNumber: lineNumber,
+        endColumn: model.getLineMaxColumn(lineNumber),
+        severity: item.status === "error" ? monaco.MarkerSeverity.Error : monaco.MarkerSeverity.Warning,
+        message: `${item.rule_id}: ${item.message}`,
+        source: "validation",
+      };
+    });
+    monaco.editor.setModelMarkers(model, "validation", markers);
+  }, [activeFilePath, currentProjectId, draft, latestValidationRun]);
+
+  const saveMutation = useMutation({
+    mutationFn: () => saveFileContent(currentProjectId as string, activeFilePath as string, draft),
+    onSuccess: async () => {
+      if (activeFilePath) setDirty(activeFilePath, false);
+      addToast("File saved", "success");
+      if (validationAutoRun && currentProjectId && modelId) {
+        try {
+          const result = await runProjectValidation(currentProjectId, { model_id: modelId });
+          setLatestValidationRun(result);
+          addToast(
+            `Auto validation: ${result.summary.errors} errors, ${result.summary.warnings} warnings, ${result.summary.passed} passed`,
+            result.summary.errors > 0 ? "error" : "success",
+          );
+        } catch {
+          addToast("Auto validation failed", "error");
+        }
+      }
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Failed to save file";
+      addToast(message, "error");
+    },
+  });
+  const previewMutation = useMutation({
+    mutationFn: (engine: string) =>
+      fetchBuildPreview(currentProjectId as string, engine, {
+        model_id: modelId as string,
+        sql_path: activeFilePath as string,
+        inline_sql: draft,
+      }),
+    onSuccess: (payload) => {
+      setPreviewEngine(payload.engine);
+      setPreviewContent(payload.preview);
+    },
+    onError: () => {
+      addToast("Preview generation failed", "error");
+    },
+  });
+
+  const findMatches = () => {
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model || !findQuery) return [];
+    return model.findMatches(findQuery, true, findRegex, false, null, false, 1000);
+  };
+
+  const selectNextMatch = () => {
+    const editor = editorRef.current;
+    if (!editor) return false;
+    const matches = findMatches();
+    if (matches.length === 0) {
+      addToast("No matches found", "error");
+      return false;
+    }
+
+    const position = editor.getPosition();
+    const currentOffset = position ? editor.getModel()?.getOffsetAt(position) ?? 0 : 0;
+    const next = matches.find((item) => {
+      const start = editor.getModel()?.getOffsetAt(item.range.getStartPosition()) ?? 0;
+      return start > currentOffset;
+    });
+    const target = next ?? matches[0];
+    editor.setSelection(target.range);
+    editor.revealRangeInCenter(target.range);
+    editor.focus();
+    return true;
+  };
+
+  const replaceOne = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const selection = editor.getSelection();
+    if (selection && !selection.isEmpty()) {
+      editor.executeEdits("replace-one", [{ range: selection, text: replaceQuery }]);
+      selectNextMatch();
+      return;
+    }
+    if (selectNextMatch()) {
+      const selected = editor.getSelection();
+      if (selected && !selected.isEmpty()) {
+        editor.executeEdits("replace-one", [{ range: selected, text: replaceQuery }]);
+      }
+    }
+  };
+
+  const replaceAll = () => {
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model) return;
+    const matches = findMatches();
+    if (matches.length === 0) {
+      addToast("No matches found", "error");
+      return;
+    }
+    editor.executeEdits(
+      "replace-all",
+      [...matches].reverse().map((match) => ({
+        range: match.range,
+        text: replaceQuery,
+      })),
+    );
+    addToast(`Replaced ${matches.length} matches`, "success");
+  };
+
+  const applyFormatting = async () => {
+    let formatted = formatSqlBasic(draft);
+    try {
+      const prettier = await import("prettier/standalone");
+      const pluginSqlModule = await import("prettier-plugin-sql");
+      const pluginSql = (pluginSqlModule as { default?: unknown }).default ?? pluginSqlModule;
+      formatted = await prettier.format(draft, {
+        parser: "sql",
+        plugins: [pluginSql as never],
+        keywordCase: "upper",
+      });
+    } catch {
+      // fallback formatter is already applied above
+    }
+    setDraft(formatted);
+    if (activeFilePath) {
+      setDirty(activeFilePath, formatted !== (contentQuery.data ?? ""));
+    }
+    addToast("SQL formatted", "success");
+  };
+
+  const handleGoToDefinition = () => {
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    const position = editor?.getPosition();
+    if (!editor || !model || !position) return;
+
+    const word = model.getWordAtPosition(position)?.word;
+    if (!word) return;
+
+    const parameterTarget = parametersByName.get(word) ?? parametersByName.get(word.toLowerCase());
+    if (parameterTarget?.path) {
+      openFile(parameterTarget.path);
+      setActiveTab("sql");
+      addToast(`Opened ${parameterTarget.path}`, "success");
+      return;
+    }
+
+    if (macroNames.has(word.toLowerCase())) {
+      addToast(`Macro '${word}' is built-in (no local definition file)`, "success");
+      return;
+    }
+
+    addToast(`Definition not found for '${word}'`, "error");
+  };
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const isSave = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s";
+      const isFindReplace = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "h";
+      const isQuickOpen = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p";
+      const isFormat = (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "f";
+      const isGotoDefinition = event.key === "F12";
+
+      if (isSave && activeFilePath) {
+        event.preventDefault();
+        saveMutation.mutate();
+        return;
+      }
+      if (isFindReplace) {
+        event.preventDefault();
+        setFindVisible(true);
+        setTimeout(() => findInputRef.current?.focus(), 0);
+        return;
+      }
+      if (isQuickOpen) {
+        event.preventDefault();
+        setQuickOpenVisible(true);
+        setQuickOpenIndex(0);
+        setTimeout(() => quickOpenInputRef.current?.focus(), 0);
+        return;
+      }
+      if (isFormat && activeFilePath) {
+        event.preventDefault();
+        void applyFormatting();
+        return;
+      }
+      if (isGotoDefinition && activeFilePath) {
+        event.preventDefault();
+        handleGoToDefinition();
+      }
+
+      if (quickOpenVisible) {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          setQuickOpenIndex((prev) => Math.min(prev + 1, Math.max(quickOpenCandidates.length - 1, 0)));
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          setQuickOpenIndex((prev) => Math.max(prev - 1, 0));
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          const selected = quickOpenCandidates[quickOpenIndex];
+          if (selected) {
+            openFile(selected);
+            setQuickOpenVisible(false);
+            setQuickOpenQuery("");
+          }
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setQuickOpenVisible(false);
+          setQuickOpenQuery("");
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [
+    activeFilePath,
+    saveMutation,
+    draft,
+    findQuery,
+    findRegex,
+    replaceQuery,
+    parametersByName,
+    macroNames,
+    quickOpenVisible,
+    quickOpenCandidates,
+    quickOpenIndex,
+    openFile,
+  ]);
+
+  const title = useMemo(() => {
+    if (!activeFilePath) return "No file selected";
+    return activeFilePath.split("/").pop() ?? activeFilePath;
+  }, [activeFilePath]);
+
+  if (!activeFilePath) {
+    return (
+      <section className="workbench">
+        <h1>SQL Editor</h1>
+        <p>Select a SQL file in sidebar to start editing.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="workbench">
+      <h1>SQL Editor: {title}</h1>
+      <FileTabs />
+      <Breadcrumb path={activeFilePath} />
+      {quickOpenVisible ? (
+        <div className="sql-quickopen-panel">
+          <div className="sql-quickopen-row">
+            <input
+              ref={quickOpenInputRef}
+              className="ui-input"
+              placeholder="Quick Open (Ctrl+P)"
+              value={quickOpenQuery}
+              onChange={(event) => {
+                setQuickOpenQuery(event.target.value);
+                setQuickOpenIndex(0);
+              }}
+            />
+            <button
+              type="button"
+              className="action-btn"
+              onClick={() => {
+                setQuickOpenVisible(false);
+                setQuickOpenQuery("");
+              }}
+            >
+              Close
+            </button>
+          </div>
+          <ul className="sql-quickopen-list">
+            {quickOpenCandidates.map((filePath, index) => (
+              <li key={filePath}>
+                <button
+                  type="button"
+                  className={index === quickOpenIndex ? "sql-quickopen-item sql-quickopen-item-active" : "sql-quickopen-item"}
+                  onClick={() => {
+                    openFile(filePath);
+                    setQuickOpenVisible(false);
+                    setQuickOpenQuery("");
+                  }}
+                >
+                  {filePath}
+                </button>
+              </li>
+            ))}
+            {quickOpenCandidates.length === 0 ? <li className="sql-quickopen-empty">No files found.</li> : null}
+          </ul>
+        </div>
+      ) : null}
+      {findVisible ? (
+        <div className="sql-find-panel">
+          <div className="sql-find-row">
+            <input
+              ref={findInputRef}
+              className="ui-input"
+              placeholder="Find (Ctrl+H)"
+              value={findQuery}
+              onChange={(event) => setFindQuery(event.target.value)}
+            />
+            <input
+              className="ui-input"
+              placeholder="Replace"
+              value={replaceQuery}
+              onChange={(event) => setReplaceQuery(event.target.value)}
+            />
+            <label className="sql-find-flag">
+              <input type="checkbox" checked={findRegex} onChange={(event) => setFindRegex(event.target.checked)} />
+              Regex
+            </label>
+            <button type="button" className="action-btn" onClick={selectNextMatch}>
+              Find Next
+            </button>
+            <button type="button" className="action-btn" onClick={replaceOne}>
+              Replace
+            </button>
+            <button type="button" className="action-btn" onClick={replaceAll}>
+              Replace All
+            </button>
+            <button type="button" className="action-btn" onClick={() => setFindVisible(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <div className="sql-layout">
+        <div>
+          <Editor
+            height="420px"
+            beforeMount={configureDqcrMonaco}
+            onMount={(editor, monaco) => {
+              editorRef.current = editor;
+              monacoRef.current = monaco;
+            }}
+            language={editorLanguage}
+            theme={getDqcrTheme(theme)}
+            value={draft}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 11.5,
+              lineHeight: 19,
+              fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", "Courier New", monospace',
+              automaticLayout: true,
+              wordWrap: "on",
+              scrollBeyondLastLine: false,
+            }}
+            onChange={(value) => {
+              const nextValue = value ?? "";
+              setDraft(nextValue);
+              setDirty(activeFilePath, nextValue !== (contentQuery.data ?? ""));
+            }}
+          />
+        </div>
+        {configChainQuery.data ? (
+          <PriorityChainPanel
+            levels={configChainQuery.data.levels}
+            resolved={configChainQuery.data.resolved}
+            parameterUsages={parameterUsages}
+            ctes={ctes}
+            cteDefault={configChainQuery.data.cte_settings.default}
+            cteByContext={configChainQuery.data.cte_settings.by_context}
+            generatedOutputs={configChainQuery.data.generated_outputs}
+            previewLoading={previewMutation.isPending}
+            previewEngine={previewEngine}
+            previewContent={previewContent}
+            onPreview={(engine) => previewMutation.mutate(engine)}
+          />
+        ) : (
+          <aside className="config-chain-panel">
+            <h2>@config Priority Chain</h2>
+            <p className="config-chain-placeholder">
+              {modelId ? "No config chain data yet." : "Open a file inside model/* to load config chain."}
+            </p>
+          </aside>
+        )}
+      </div>
+      <div className="sql-actions">
+        <button type="button" className="action-btn action-btn-primary" onClick={() => saveMutation.mutate()}>
+          Save (Ctrl+S)
+        </button>
+        <button type="button" className="action-btn" onClick={applyFormatting}>
+          Format (Ctrl+Shift+F)
+        </button>
+        <label className="sql-auto-validate-toggle">
+          <input
+            type="checkbox"
+            checked={validationAutoRun}
+            onChange={(event) => setValidationAutoRun(event.target.checked)}
+          />
+          Auto validate on save
+        </label>
+        <span>{saveMutation.isSuccess ? "Saved" : "Editing"}</span>
+      </div>
+    </section>
+  );
+}

@@ -1,0 +1,25 @@
+[project]
+name = "dqcr-studio-backend"
+version = "0.1.0"
+description = "DQCR Studio backend"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.110,<1.0",
+  "uvicorn[standard]>=0.29,<1.0",
+  "pydantic-settings>=2.2,<3.0",
+  "ptyprocess>=0.7.0,<1.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2,<9.0",
+  "httpx>=0.27,<1.0"
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
