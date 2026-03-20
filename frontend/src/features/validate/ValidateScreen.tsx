@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   applyValidationQuickFix,
+  fetchModelWorkflow,
+  fetchProjectWorkflowStatus,
   fetchValidationHistory,
   runProjectValidation,
   type ValidationRuleResult,
@@ -231,6 +233,11 @@ export default function ValidateScreen() {
     queryFn: () => fetchValidationHistory(currentProjectId as string),
     enabled: Boolean(currentProjectId),
   });
+  const workflowStatusQuery = useQuery({
+    queryKey: ["workflowStatus", currentProjectId],
+    queryFn: () => fetchProjectWorkflowStatus(currentProjectId as string),
+    enabled: Boolean(currentProjectId),
+  });
 
   const runMutation = useMutation({
     mutationFn: (modelId: string | null) =>
@@ -347,6 +354,17 @@ export default function ValidateScreen() {
     const items = historyQuery.data ?? [];
     return items.slice(0, 5);
   }, [historyQuery.data]);
+  const activeRunWorkflowQuery = useQuery({
+    queryKey: ["modelWorkflow", currentProjectId, activeRun?.model],
+    queryFn: () => fetchModelWorkflow(currentProjectId as string, activeRun?.model as string),
+    enabled: Boolean(currentProjectId && activeRun?.model),
+  });
+  const validationIsStale = useMemo(() => {
+    const validationTimestamp = activeRun?.workflow_updated_at ?? null;
+    const workflowTimestamp = activeRunWorkflowQuery.data?.updated_at ?? null;
+    if (!validationTimestamp || !workflowTimestamp) return false;
+    return new Date(workflowTimestamp).getTime() > new Date(validationTimestamp).getTime();
+  }, [activeRun?.workflow_updated_at, activeRunWorkflowQuery.data?.updated_at]);
 
   if (!currentProjectId) {
     return (
@@ -429,6 +447,11 @@ export default function ValidateScreen() {
           />
           <p className="validate-meta">
             Last run: {formatRunTimestamp(activeRun.timestamp)} | Model: <code>{activeRun.model}</code>
+          </p>
+          <p className="validate-meta">
+            Workflow state: {activeRunWorkflowQuery.data?.status ?? workflowStatusQuery.data?.status ?? "missing"} | Workflow updated:{" "}
+            {activeRunWorkflowQuery.data?.updated_at ? formatRunTimestamp(activeRunWorkflowQuery.data.updated_at) : "—"}
+            {validationIsStale ? " | Validation is stale" : ""}
           </p>
           <div className="validate-groups">
             {grouped.length === 0 ? (

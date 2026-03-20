@@ -1,0 +1,31 @@
+<?xml version='1.0' encoding='windows-1251'?>
+<doc>
+  <params>
+    <param name="Title"><![CDATA[RF110RestTurnReg]]></param>
+    <param name="Description"><![CDATA[Заполнение реестра остатков и оборотов для формы 110 (для контекста vtb, для tool adb)]]></param>
+  </params>
+  <content>
+    <object type="SQL" name="get_entities">
+      <property name="Description"><![CDATA[Таблицы для логических сущностей]]></property>
+      <property name="SQL"><![CDATA[
+                SELECT 
+                    MAX(CASE WHEN entity_name = 'clientchr' AND module_name = 'dwh' THEN table_name END) AS table_dwh_clientchr,
+                    MAX(CASE WHEN entity_name = 'rf110restturnreg' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110restturnreg,
+                    MAX(CASE WHEN entity_name = 'assetregistercor' AND module_name = 'assetreg' THEN table_name END) AS table_assetreg_assetregistercor,
+                    MAX(CASE WHEN entity_name = 'account' AND module_name = 'dwh' THEN table_name END) AS table_dwh_account,
+                    MAX(CASE WHEN entity_name = 'clientjurregister' AND module_name = 'clientjurreg' THEN table_name END) AS table_clientjurreg_clientjurregister,
+                    MAX(CASE WHEN entity_name = 'secdealrepo' AND module_name = 'dwh' THEN table_name END) AS table_dwh_secdealrepo,
+                    MAX(CASE WHEN entity_name = 'currency' AND module_name = 'dwh' THEN table_name END) AS table_dwh_currency,
+                    MAX(CASE WHEN entity_name = 'psregister' AND module_name = 'psreg' THEN table_name END) AS table_psreg_psregister
+                FROM md_entity2table
+                WHERE (entity_name = 'clientchr' AND module_name = 'dwh') OR (entity_name = 'rf110restturnreg' AND module_name = 'rf110') OR (entity_name = 'assetregistercor' AND module_name = 'assetreg') OR (entity_name = 'account' AND module_name = 'dwh') OR (entity_name = 'clientjurregister' AND module_name = 'clientjurreg') OR (entity_name = 'secdealrepo' AND module_name = 'dwh') OR (entity_name = 'currency' AND module_name = 'dwh') OR (entity_name = 'psregister' AND module_name = 'psreg')
+]]></property>
+      <property name="OUT"><![CDATA[table_dwh_clientchr;table_rf110_rf110restturnreg;table_assetreg_assetregistercor;table_dwh_account;table_clientjurreg_clientjurregister;table_dwh_secdealrepo;table_dwh_currency;table_psreg_psregister]]></property>
+    </object>
+
+
+    <call type="MultiFunc" name="EXEC_vtb_adb" value="">
+      <step>get_entities</step>
+    </call>
+  </content>
+</doc>

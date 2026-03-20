@@ -1,0 +1,14 @@
+{
+  "rf110": {
+    "name": "RF110",
+    "source_type": "imported",
+    "source_path": null,
+    "availability_status": "available"
+  },
+  "rf110new_manual": {
+    "name": "RF110NEW",
+    "source_type": "imported",
+    "source_path": null,
+    "availability_status": "available"
+  }
+}

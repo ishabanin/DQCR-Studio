@@ -1,9 +1,0 @@
-parameter:
-  name: min_amount
-  description: "Минимальная сумма сделки"
-  domain_type: number
-
-  values:
-    all:
-      type: static
-      value: "100"

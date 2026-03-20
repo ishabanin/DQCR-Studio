@@ -1,0 +1,13 @@
+parameter:
+  name: sett
+  description: "Цикл по настройкам"
+  domain_type: record
+  attributes:
+    - name : strnum
+      domain_type: string
+    - name : account2
+      domain_type: string
+  values:
+    all:
+      type: dynamic
+      value: "select strnum, account2 from _m.rf110.rf110_settings"

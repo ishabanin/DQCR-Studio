@@ -1,0 +1,19 @@
+{#
+  default - Базовый workflow template
+  
+  Простая последовательность SQL шагов без дополнительной обработки.
+  
+  Parameters:
+    workflow: WorkflowModel
+#}
+{% for tool in workflow.tools %}
+-- ============================================
+-- Tool: {{ tool }}
+-- ============================================
+{% for step in workflow.graph.topological_sort() %}
+{% if step.is_sql_step() and step.sql_model %}
+-- Step: {{ step.full_name }}
+{{ step.sql_model.get_rendered_sql(tool) }}
+{% endif %}
+{% endfor %}
+{% endfor %}

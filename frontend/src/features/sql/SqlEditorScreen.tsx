@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 
@@ -166,11 +166,14 @@ function PriorityChainPanel({
   ctes,
   cteDefault,
   cteByContext,
+  inlineCteConfigs,
   generatedOutputs,
   previewLoading,
   previewEngine,
   previewContent,
   onPreview,
+  dataSource,
+  fallback,
 }: {
   levels: Array<{
     id: string;
@@ -191,11 +194,14 @@ function PriorityChainPanel({
   ctes: string[];
   cteDefault: string | null;
   cteByContext: Record<string, string>;
+  inlineCteConfigs: Record<string, string>;
   generatedOutputs: string[];
   previewLoading: boolean;
   previewEngine: string | null;
   previewContent: string;
   onPreview: (engine: string) => void;
+  dataSource?: string;
+  fallback?: boolean;
 }) {
   const orderedLevels = ["template", "project", "model", "folder", "sql"];
   const levelById = new Map(levels.map((level) => [level.id, level]));
@@ -203,6 +209,8 @@ function PriorityChainPanel({
   return (
     <aside className="config-chain-panel">
       <h2>@config Priority Chain</h2>
+      {fallback ? <p className="config-chain-placeholder">Fallback mode: workflow cache unavailable, values are file-derived.</p> : null}
+      {dataSource && !fallback ? <p className="inspector-meta">source: {dataSource}</p> : null}
       {resolved.map((item) => (
         <div key={item.key} className="config-row">
           <div className="config-row-head">
@@ -264,6 +272,14 @@ function PriorityChainPanel({
         <p className="inspector-meta">
           ctes: {ctes.length > 0 ? ctes.join(", ") : "—"}
         </p>
+        <p className="inspector-meta">
+          inline_cte_configs:{" "}
+          {Object.keys(inlineCteConfigs).length > 0
+            ? Object.entries(inlineCteConfigs)
+                .map(([key, value]) => `${key}=${value}`)
+                .join(", ")
+            : "—"}
+        </p>
       </section>
 
       <section className="inspector-section">
@@ -292,6 +308,7 @@ export default function SqlEditorScreen() {
   const pendingNavigationTarget = useEditorStore((state) => state.pendingNavigationTarget);
   const setPendingNavigationTarget = useEditorStore((state) => state.setPendingNavigationTarget);
   const addToast = useUiStore((state) => state.addToast);
+  const queryClient = useQueryClient();
   const validationAutoRun = useUiStore((state) => state.validationAutoRun);
   const setValidationAutoRun = useUiStore((state) => state.setValidationAutoRun);
   const latestValidationRun = useValidationStore((state) => state.latestRun);
@@ -391,7 +408,9 @@ export default function SqlEditorScreen() {
     [autocompleteQuery.data?.macros],
   );
   const parameterUsages = useMemo(() => {
-    return parseSqlParameters(draft).map((name) => {
+    const namesFromWorkflow = configChainQuery.data?.sql_metadata?.parameters ?? [];
+    const names = namesFromWorkflow.length > 0 ? namesFromWorkflow : parseSqlParameters(draft);
+    return names.map((name) => {
       const meta = parametersByName.get(name) ?? parametersByName.get(name.toLowerCase());
       return {
         name,
@@ -399,8 +418,12 @@ export default function SqlEditorScreen() {
         value_type: meta?.value_type ?? null,
       };
     });
-  }, [draft, parametersByName]);
-  const ctes = useMemo(() => parseSqlCtes(draft), [draft]);
+  }, [configChainQuery.data?.sql_metadata?.parameters, draft, parametersByName]);
+  const ctes = useMemo(() => {
+    const workflowCtes = configChainQuery.data?.sql_metadata?.ctes ?? [];
+    if (workflowCtes.length > 0) return workflowCtes;
+    return parseSqlCtes(draft);
+  }, [configChainQuery.data?.sql_metadata?.ctes, draft]);
 
   useEffect(() => {
     if (!autocompleteQuery.data) return;
@@ -467,6 +490,14 @@ export default function SqlEditorScreen() {
     mutationFn: () => saveFileContent(currentProjectId as string, activeFilePath as string, draft),
     onSuccess: async () => {
       if (activeFilePath) setDirty(activeFilePath, false);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["configChain", currentProjectId, modelId, activeFilePath] }),
+        queryClient.invalidateQueries({ queryKey: ["autocomplete", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["lineage", currentProjectId, modelId] }),
+        queryClient.invalidateQueries({ queryKey: ["projectParameters", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["workflowStatus", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["modelWorkflow", currentProjectId, modelId] }),
+      ]);
       addToast("File saved", "success");
       if (validationAutoRun && currentProjectId && modelId) {
         try {
@@ -828,11 +859,14 @@ export default function SqlEditorScreen() {
             ctes={ctes}
             cteDefault={configChainQuery.data.cte_settings.default}
             cteByContext={configChainQuery.data.cte_settings.by_context}
+            inlineCteConfigs={configChainQuery.data.sql_metadata?.inline_cte_configs ?? {}}
             generatedOutputs={configChainQuery.data.generated_outputs}
             previewLoading={previewMutation.isPending}
             previewEngine={previewEngine}
             previewContent={previewContent}
             onPreview={(engine) => previewMutation.mutate(engine)}
+            dataSource={configChainQuery.data.data_source}
+            fallback={configChainQuery.data.fallback}
           />
         ) : (
           <aside className="config-chain-panel">

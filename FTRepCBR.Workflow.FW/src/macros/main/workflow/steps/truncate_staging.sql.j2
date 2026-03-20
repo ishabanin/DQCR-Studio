@@ -1,0 +1,8 @@
+{#
+  truncate_staging - Очистка staging таблицы
+  
+  Parameters:
+    workflow: WorkflowModel
+#}
+{% set staging_table = workflow.target_table_name ~ '_st' %}
+TRUNCATE TABLE {{ staging_table }};

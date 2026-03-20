@@ -1,0 +1,23 @@
+{#
+  upsert_fc_body - Oracle MERGE (UPDATE only, no INSERT)
+  
+  Parameters:
+    target_table: Имя целевой таблицы
+    sql: Подготовленный SQL-запрос
+    pk_columns: Список ключевых колонок для JOIN (может быть пустым)
+    update_columns: Список колонок для UPDATE (неключевые)
+    calc_id_literal: "{{CALC_ID}}" - подставляется как есть
+#}
+{% set sql_prepared = sql %}
+{% set target_table_name = target_table %}
+{% set pk_columns = pk_columns or [] %}
+{% set update_columns = update_columns or [] %}
+
+MERGE INTO {{ target_table_name }} trg
+USING (
+    {{ sql_prepared }}
+) src
+ON (trg.calcid = {{ calc_id_literal }}{% if pk_columns %} AND {% for pk in pk_columns %}{% if loop.index0 > 0 %} AND {% endif %}trg.{{ pk }} = src.{{ pk }}{% endfor %}{% endif %})
+WHEN MATCHED THEN
+UPDATE SET
+{% for col in update_columns %}{% if loop.index0 > 0 %}, {% endif %}{{ col }} = src.{{ col }}{% endfor %}

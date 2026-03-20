@@ -99,7 +99,15 @@ export default function ModelEditorScreen() {
   const saveMutation = useMutation({
     mutationFn: () => saveModelObject(currentProjectId as string, activeModelId as string, { model: workingModel as ModelObjectResponse["model"] }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["modelObject", currentProjectId, activeModelId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["modelObject", currentProjectId, activeModelId] }),
+        queryClient.invalidateQueries({ queryKey: ["workflowStatus", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["modelWorkflow", currentProjectId, activeModelId] }),
+        queryClient.invalidateQueries({ queryKey: ["configChain", currentProjectId, activeModelId] }),
+        queryClient.invalidateQueries({ queryKey: ["autocomplete", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["lineage", currentProjectId, activeModelId] }),
+        queryClient.invalidateQueries({ queryKey: ["projectParameters", currentProjectId] }),
+      ]);
       setDraft(null);
       setYamlError(null);
       setSyncStatus("synced");
@@ -433,6 +441,10 @@ export default function ModelEditorScreen() {
           {syncStatus === "synced" ? "synced" : syncStatus === "syncing" ? "syncing" : "conflict"}
         </span>
         {yamlError ? ` | YAML error: ${yamlError}` : ""}
+      </p>
+      <p className="model-editor-meta">
+        Workflow source: {modelQuery.data?.data_source ?? "fallback"} | Workflow status: {modelQuery.data?.workflow_status ?? "missing"} | Updated:{" "}
+        {modelQuery.data?.workflow_updated_at ? new Date(modelQuery.data.workflow_updated_at).toLocaleString() : "—"}
       </p>
 
       {!workingModel ? (

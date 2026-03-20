@@ -1,0 +1,10 @@
+{#
+  create_staging - Создание staging таблицы
+  
+  Parameters:
+    workflow: WorkflowModel
+#}
+{% set staging_table = workflow.target_table_name ~ '_st' %}
+{% set target_table = workflow.target_table_name %}
+CREATE TABLE {{ staging_table }} AS
+SELECT * FROM {{ target_table }} WHERE 1=0;

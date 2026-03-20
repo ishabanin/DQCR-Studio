@@ -72,18 +72,20 @@
 
 [data-theme="dark"] {
   --surface-page: #1a1a1a;
-  --surface-secondary: #222222;
-  --surface-primary: #2a2a2a;
-  --surface-input: #333333;
+  --surface-secondary: #232321;
+  --surface-primary: #2b2b29;
+  --surface-input: #30302e;
   --surface-hover: rgba(29, 158, 117, 0.1);
   --surface-active: rgba(29, 158, 117, 0.12);
 
-  --text-primary: #e8e6e1;
-  --text-secondary: #c0bdb6;
-  --text-muted: #888780;
+  --text-primary: #d8d5cf;
+  --text-secondary: #b8b4ad;
+  --text-muted: #8e8b84;
 
+  --gray-100: #31312f;
   --gray-200: #3a3a38;
   --gray-300: #4a4a47;
+  --gray-400: #6a6a66;
   --success-bg: rgba(63, 109, 17, 0.15);
   --warning-bg: rgba(186, 117, 23, 0.15);
   --error-bg: rgba(163, 45, 45, 0.15);
@@ -1602,6 +1604,78 @@ body {
   margin: 0;
 }
 
+.wizard-mode-switch {
+  margin: 10px 0 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wizard-mode-card {
+  border: 0.5px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  background: var(--surface-primary);
+  text-align: left;
+  display: grid;
+  gap: 4px;
+}
+
+.wizard-mode-card strong {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.wizard-mode-card span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.wizard-mode-card em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.wizard-mode-card-active {
+  border-color: var(--accent-400);
+  background: var(--accent-50);
+}
+
+.wizard-mode-card-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wizard-folder-hidden-input {
+  display: none;
+}
+
+.wizard-dropzone {
+  border: 1px dashed var(--gray-300);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  background: var(--surface-primary);
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.wizard-dropzone strong {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.wizard-dropzone span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.wizard-dropzone-active {
+  border-color: var(--accent-400);
+  background: var(--accent-50);
+}
+
 .wizard-stepper {
   margin: 10px 0;
   display: flex;
@@ -2148,6 +2222,10 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .wizard-mode-switch {
+    grid-template-columns: 1fr;
+  }
+
   .admin-grid {
     grid-template-columns: 1fr;
   }
@@ -2181,7 +2259,7 @@ select {
   background: var(--surface-input);
   color: var(--text-primary);
   font-size: 12px;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
+  transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
 }
 
 select:hover {
@@ -2197,7 +2275,7 @@ select:hover {
   background: var(--surface-input);
   color: var(--text-primary);
   font-size: 12px;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
+  transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
 }
 
 .ui-select:hover {
@@ -2212,6 +2290,17 @@ select:hover {
   background: var(--surface-input);
   color: var(--text-primary);
   font-size: 12px;
+}
+
+.ui-input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+select option,
+.ui-select option {
+  background: var(--surface-primary);
+  color: var(--text-primary);
 }
 
 .ui-input:focus,
@@ -2424,6 +2513,12 @@ select:focus {
 
 .topbar .action-btn {
   background: var(--surface-primary);
+}
+
+[data-theme="dark"] .topbar .ui-select {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+  color: var(--text-secondary);
 }
 
 @media (max-width: 960px) {

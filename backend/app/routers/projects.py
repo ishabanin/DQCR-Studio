@@ -1,17 +1,43 @@
 import io
-from pathlib import Path
+import json
+import logging
 from datetime import datetime, timezone
+from pathlib import Path
 import re
+import shutil
+import tempfile
 import zipfile
 from uuid import uuid4
 
-from fastapi import APIRouter, Body, HTTPException, Query, status
+from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 
 from app.core.config import settings
 from app.core.fs import ensure_within_base, resolve_project_path
+from app.core.project_registry import (
+    derive_link_availability,
+    get_registry_entry,
+    load_registry,
+    upsert_registry_entry,
+)
 from app.schemas.project import ContextSchema, ProjectSchema
-from app.services import FWService, TemplateRegistry
+from app.services import (
+    FWService,
+    TemplateRegistry,
+    WORKFLOW_SOURCE_FALLBACK as _WORKFLOW_SOURCE_FALLBACK,
+    WORKFLOW_SOURCE_FRAMEWORK as _WORKFLOW_SOURCE_FRAMEWORK,
+    WORKFLOW_STATUS_BUILDING as _WORKFLOW_STATUS_BUILDING,
+    WORKFLOW_STATUS_ERROR as _WORKFLOW_STATUS_ERROR,
+    WORKFLOW_STATUS_MISSING as _WORKFLOW_STATUS_MISSING,
+    WORKFLOW_STATUS_READY as _WORKFLOW_STATUS_READY,
+    WORKFLOW_STATUS_STALE as _WORKFLOW_STATUS_STALE,
+    read_workflow_cache as _read_workflow_cache,
+    resolve_project_workflow_status as _resolve_project_workflow_status_core,
+    workflow_cache_file as _workflow_cache_file,
+    workflow_state_for_model as _workflow_state_for_model,
+    write_workflow_cache as _write_workflow_cache,
+    write_workflow_meta as _write_workflow_meta,
+)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -51,6 +77,7 @@ _VALIDATION_HISTORY: dict[str, list[dict[str, object]]] = {}
 _BUILD_HISTORY: dict[str, list[dict[str, object]]] = {}
 _SUPPORTED_BUILD_ENGINES = {"dqcr", "airflow", "oracle_plsql", "dbt"}
 PROJECT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{1,63}$")
+LOGGER = logging.getLogger(__name__)
 
 
 def _extract_parameter_name(raw: str) -> str | None:
@@ -58,44 +85,6 @@ def _extract_parameter_name(raw: str) -> str | None:
     if not match:
         return None
     return match.group(1)
-
-
-def _collect_parameters(project_path: Path) -> list[dict[str, str]]:
-    entries: dict[tuple[str, str], dict[str, str | None]] = {}
-
-    global_params_dir = project_path / "parameters"
-    for param_file in sorted(global_params_dir.glob("*.yml")) if global_params_dir.exists() else []:
-        name = _extract_parameter_name(param_file.read_text(encoding="utf-8"))
-        if not name:
-            name = param_file.stem
-        domain_type, value_type = _extract_parameter_meta(param_file.read_text(encoding="utf-8"))
-        key = ("global", name)
-        entries[key] = {
-            "name": name,
-            "scope": "global",
-            "path": str(param_file.relative_to(project_path)),
-            "domain_type": domain_type,
-            "value_type": value_type,
-        }
-
-    model_dir = project_path / "model"
-    if model_dir.exists():
-        for param_file in sorted(model_dir.glob("*/parameters/*.yml")):
-            name = _extract_parameter_name(param_file.read_text(encoding="utf-8"))
-            if not name:
-                name = param_file.stem
-            model_name = param_file.parents[1].name
-            domain_type, value_type = _extract_parameter_meta(param_file.read_text(encoding="utf-8"))
-            key = (f"model:{model_name}", name)
-            entries[key] = {
-                "name": name,
-                "scope": f"model:{model_name}",
-                "path": str(param_file.relative_to(project_path)),
-                "domain_type": domain_type,
-                "value_type": value_type,
-            }
-
-    return sorted(entries.values(), key=lambda item: (item["name"].lower(), item["scope"]))
 
 
 def _strip_yaml_scalar(value: str) -> str:
@@ -552,7 +541,216 @@ def _resolve_folder_yaml_path(sql_path: Path | None) -> Path | None:
     return sql_path.parent / "folder.yml"
 
 
-def _build_config_chain_response(
+def _normalize_path_for_compare(path: str | None) -> str:
+    if not path:
+        return ""
+    return path.replace("\\", "/").strip().lstrip("./")
+
+
+def _extract_config_values_from_map(raw: object) -> dict[str, str | None]:
+    if not isinstance(raw, dict):
+        return {key: None for key in DQCR_CONFIG_KEYS}
+    result = {key: None for key in DQCR_CONFIG_KEYS}
+    for key in DQCR_CONFIG_KEYS:
+        value = raw.get(key)
+        if value is not None:
+            result[key] = str(value)
+    return result
+
+
+def _extract_sql_metadata_from_step(sql_step: dict[str, object] | None) -> dict[str, object]:
+    if not isinstance(sql_step, dict):
+        return {"parameters": [], "ctes": [], "inline_cte_configs": {}}
+
+    sql_model_raw = sql_step.get("sql_model")
+    sql_model = sql_model_raw if isinstance(sql_model_raw, dict) else {}
+    metadata_raw = sql_model.get("metadata")
+    metadata = metadata_raw if isinstance(metadata_raw, dict) else {}
+
+    parameters: list[str] = []
+    parameters_raw = metadata.get("parameters")
+    if isinstance(parameters_raw, list):
+        for item in parameters_raw:
+            if isinstance(item, str) and item.strip():
+                parameters.append(item.strip())
+
+    ctes: list[str] = []
+    cte_raw = metadata.get("cte")
+    if isinstance(cte_raw, dict):
+        for cte_name in cte_raw.keys():
+            if isinstance(cte_name, str) and cte_name.strip():
+                ctes.append(cte_name.strip())
+
+    inline_cte_configs: dict[str, str] = {}
+    inline_raw = metadata.get("inline_cte_configs")
+    if isinstance(inline_raw, dict):
+        for key, value in inline_raw.items():
+            if isinstance(key, str) and key.strip():
+                inline_cte_configs[key.strip()] = "" if value is None else str(value)
+
+    return {
+        "parameters": sorted(set(parameters)),
+        "ctes": sorted(set(ctes)),
+        "inline_cte_configs": inline_cte_configs,
+    }
+
+
+def _extract_folder_from_relative_sql(relative_sql_path: str | None) -> str | None:
+    if not relative_sql_path:
+        return None
+    parts = [part for part in relative_sql_path.replace("\\", "/").split("/") if part]
+    if len(parts) >= 5 and parts[0] == "model" and parts[3] == "workflow":
+        return parts[4]
+    return None
+
+
+def _extract_cte_settings_from_workflow(workflow_payload: dict[str, object]) -> dict[str, object]:
+    config_raw = workflow_payload.get("config")
+    if not isinstance(config_raw, dict):
+        return {"default": None, "by_context": {}}
+    cte_raw = config_raw.get("cte")
+    if not isinstance(cte_raw, dict):
+        return {"default": None, "by_context": {}}
+
+    default_raw = cte_raw.get("cte_materialization")
+    default_value = str(default_raw).strip() if isinstance(default_raw, str) and default_raw.strip() else None
+    by_context: dict[str, str] = {}
+    by_context_raw = cte_raw.get("by_context")
+    if isinstance(by_context_raw, dict):
+        for key, value in by_context_raw.items():
+            if isinstance(key, str) and isinstance(value, str) and key.strip() and value.strip():
+                by_context[key.strip()] = value.strip()
+    return {"default": default_value, "by_context": by_context}
+
+
+def _build_config_chain_response_workflow(
+    project_path: Path,
+    project_id: str,
+    model_id: str,
+    relative_sql_path: str | None,
+    workflow_payload: dict[str, object],
+) -> dict[str, object]:
+    config_raw = workflow_payload.get("config")
+    config = config_raw if isinstance(config_raw, dict) else {}
+    folders_raw = config.get("folders")
+    folder_map = folders_raw if isinstance(folders_raw, dict) else {}
+    folder_id = _extract_folder_from_relative_sql(relative_sql_path)
+    folder_cfg = folder_map.get(folder_id) if isinstance(folder_map, dict) and isinstance(folder_id, str) else None
+
+    selected_sql_step: dict[str, object] | None = None
+    steps_raw = workflow_payload.get("steps")
+    steps = [item for item in steps_raw if isinstance(item, dict)] if isinstance(steps_raw, list) else []
+    normalized_target = _normalize_path_for_compare(relative_sql_path)
+    if normalized_target:
+        for step in steps:
+            if str(step.get("step_type", "")).lower() != "sql":
+                continue
+            sql_model_raw = step.get("sql_model")
+            sql_model = sql_model_raw if isinstance(sql_model_raw, dict) else {}
+            candidate_path_raw = sql_model.get("path")
+            candidate_path = str(candidate_path_raw).strip() if isinstance(candidate_path_raw, str) else ""
+            if not candidate_path:
+                continue
+            if _normalize_path_for_compare(candidate_path).endswith(normalized_target):
+                selected_sql_step = step
+                break
+
+    sql_level_values = {key: None for key in DQCR_CONFIG_KEYS}
+    if isinstance(selected_sql_step, dict):
+        step_cfg = selected_sql_step.get("config")
+        if isinstance(step_cfg, dict):
+            sql_level_values = _extract_config_values_from_map(step_cfg)
+        else:
+            sql_model_raw = selected_sql_step.get("sql_model")
+            sql_model = sql_model_raw if isinstance(sql_model_raw, dict) else {}
+            sql_level_values = _extract_config_values_from_map(sql_model.get("config"))
+    sql_metadata = _extract_sql_metadata_from_step(selected_sql_step)
+
+    model_level_values = _extract_config_values_from_map(config)
+    folder_level_values = _extract_config_values_from_map(folder_cfg)
+    levels: list[dict[str, object]] = [
+        {
+            "id": "template",
+            "label": "Template",
+            "source_path": None,
+            "values": {key: None for key in DQCR_CONFIG_KEYS},
+        },
+        {
+            "id": "project",
+            "label": "Project",
+            "source_path": "project.yml",
+            "values": {key: None for key in DQCR_CONFIG_KEYS},
+        },
+        {
+            "id": "model",
+            "label": "Model",
+            "source_path": f"model/{model_id}/model.yml",
+            "values": model_level_values,
+        },
+        {
+            "id": "folder",
+            "label": "Folder",
+            "source_path": relative_sql_path,
+            "values": folder_level_values,
+        },
+        {
+            "id": "sql",
+            "label": "SQL @config",
+            "source_path": relative_sql_path,
+            "values": sql_level_values,
+        },
+    ]
+
+    precedence = ["sql", "folder", "model", "project", "template"]
+    levels_by_id = {str(level["id"]): level for level in levels}
+    resolved: list[dict[str, object]] = []
+    for key in DQCR_CONFIG_KEYS:
+        selected_level = "template"
+        selected_value: str | None = None
+        overridden_levels: list[str] = []
+        for level_id in precedence:
+            values = levels_by_id[level_id]["values"]
+            if not isinstance(values, dict):
+                continue
+            value = values.get(key)
+            if value is not None:
+                selected_level = level_id
+                selected_value = str(value)
+                break
+        for level_id in precedence:
+            if level_id == selected_level:
+                continue
+            values = levels_by_id[level_id]["values"]
+            if isinstance(values, dict) and values.get(key) is not None:
+                overridden_levels.append(level_id)
+        resolved.append(
+            {
+                "key": key,
+                "value": selected_value,
+                "source_level": selected_level,
+                "overridden_levels": overridden_levels,
+            }
+        )
+
+    workflow_state = _workflow_state_for_model(project_path, model_id)
+    return {
+        "project_id": project_id,
+        "model_id": model_id,
+        "sql_path": relative_sql_path,
+        "levels": levels,
+        "resolved": resolved,
+        "cte_settings": _extract_cte_settings_from_workflow(workflow_payload),
+        "generated_outputs": ["dqcr", "airflow", "oracle_plsql", "dbt"],
+        "data_source": "workflow",
+        "fallback": False,
+        "sql_metadata": sql_metadata,
+        "workflow_status": workflow_state.get("status"),
+        "workflow_source": workflow_state.get("source"),
+        "workflow_updated_at": workflow_state.get("updated_at"),
+    }
+
+
+def _build_config_chain_response_fallback(
     project_path: Path, project_id: str, model_id: str, relative_sql_path: str | None
 ) -> dict[str, object]:
     model_path = _resolve_model_path(project_path, model_id)
@@ -629,7 +827,7 @@ def _build_config_chain_response(
             }
         )
 
-    return {
+    response = {
         "project_id": project_id,
         "model_id": model_id,
         "sql_path": relative_sql_path,
@@ -637,7 +835,44 @@ def _build_config_chain_response(
         "resolved": resolved,
         "cte_settings": _extract_cte_settings(model_cfg_path),
         "generated_outputs": ["dqcr", "airflow", "oracle_plsql", "dbt"],
+        "data_source": "fallback",
+        "fallback": True,
+        "sql_metadata": {
+            "parameters": [],
+            "ctes": [],
+            "inline_cte_configs": {},
+        },
     }
+    return response
+
+
+def _build_config_chain_response(
+    project_path: Path, project_id: str, model_id: str, relative_sql_path: str | None
+) -> dict[str, object]:
+    workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
+    if isinstance(workflow_payload, dict):
+        try:
+            return _build_config_chain_response_workflow(project_path, project_id, model_id, relative_sql_path, workflow_payload)
+        except Exception:
+            LOGGER.exception(
+                "workflow.config_chain.fallback project_id=%s model_id=%s",
+                project_id,
+                model_id,
+            )
+            _log_workflow_fallback(
+                endpoint="config-chain",
+                project_id=project_id,
+                model_id=model_id,
+                reason="workflow_response_build_failed",
+            )
+    else:
+        _log_workflow_fallback(
+            endpoint="config-chain",
+            project_id=project_id,
+            model_id=model_id,
+            reason="workflow_payload_missing",
+        )
+    return _build_config_chain_response_fallback(project_path, project_id, model_id, relative_sql_path)
 
 
 def _extract_cte_settings(model_cfg_path: Path) -> dict[str, object]:
@@ -697,6 +932,26 @@ def _resolve_build_output_dir(project_path: Path, build_id: str, output_path: st
     return ensure_within_base(project_path, project_path / ".dqcr_builds" / build_id)
 
 
+def _workflow_updated_at_for_model(project_path: Path, model_id: str) -> str | None:
+    state = _workflow_state_for_model(project_path, model_id)
+    value = state.get("updated_at")
+    return str(value) if isinstance(value, str) and value.strip() else None
+
+
+def _attach_workflow_context(
+    payload: dict[str, object],
+    project_path: Path,
+    model_id: str,
+) -> dict[str, object]:
+    state = _workflow_state_for_model(project_path, model_id)
+    result = dict(payload)
+    result["workflow_updated_at"] = _workflow_updated_at_for_model(project_path, model_id)
+    result["workflow_status"] = state.get("status")
+    result["workflow_source"] = state.get("source")
+    result["workflow_attached"] = bool(state.get("has_cache"))
+    return result
+
+
 def _run_project_generation(
     project_path: Path,
     project_id: str,
@@ -753,6 +1008,8 @@ def _run_project_generation(
     else:
         output_path_relative = str(output_dir.relative_to(project_path))
 
+    workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
+    workflow_state = _workflow_state_for_model(project_path, model_id)
     result = {
         "build_id": build_id,
         "timestamp": timestamp,
@@ -764,6 +1021,10 @@ def _run_project_generation(
         "output_path": output_path_relative,
         "files_count": len(generated_files),
         "files": generated_files,
+        "workflow_updated_at": _workflow_updated_at_for_model(project_path, model_id),
+        "workflow_status": workflow_state.get("status"),
+        "workflow_source": workflow_state.get("source"),
+        "workflow_attached": isinstance(workflow_payload, dict),
     }
     history = _BUILD_HISTORY.setdefault(project_id, [])
     history.insert(0, result)
@@ -836,6 +1097,8 @@ def _build_validation_result(
     model_id: str,
     categories: list[str] | None,
 ) -> dict[str, object]:
+    workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
+    workflow_state = _workflow_state_for_model(project_path, model_id)
     sql_files = _list_sql_files_for_model(project_path, model_id)
     allowed_categories = set(categories or ["general", "sql", "descriptions", "adb", "oracle", "postgresql"])
     rules: list[dict[str, object]] = []
@@ -932,6 +1195,10 @@ def _build_validation_result(
             "errors": errors,
         },
         "rules": rules,
+        "workflow_updated_at": _workflow_updated_at_for_model(project_path, model_id),
+        "workflow_status": workflow_state.get("status"),
+        "workflow_source": workflow_state.get("source"),
+        "workflow_attached": isinstance(workflow_payload, dict),
     }
 
 
@@ -947,6 +1214,739 @@ def _resolve_model_id_for_validation(project_path: Path, explicit_model_id: str 
     return candidates[0]
 
 
+def _list_model_ids(project_path: Path) -> list[str]:
+    model_root = project_path / "model"
+    if not model_root.exists() or not model_root.is_dir():
+        return []
+    return sorted([item.name for item in model_root.iterdir() if item.is_dir()], key=str.lower)
+
+
+def _resolve_project_workflow_status(project_path: Path) -> dict[str, object]:
+    model_ids = _list_model_ids(project_path)
+    return _resolve_project_workflow_status_core(project_path, model_ids)
+
+
+def _extract_model_id_from_project_path(path: str) -> str | None:
+    normalized = path.replace("\\", "/").strip().strip("/")
+    if not normalized:
+        return None
+    parts = [part for part in normalized.split("/") if part]
+    if len(parts) < 2:
+        return None
+    if parts[0].lower() not in {"model", "models"}:
+        return None
+    return parts[1]
+
+
+def _resolve_models_for_rebuild(project_path: Path, changed_paths: list[str] | None) -> list[str]:
+    all_models = _list_model_ids(project_path)
+    if not all_models:
+        return []
+    if not changed_paths:
+        return all_models
+
+    explicit_models: set[str] = set()
+    requires_all = False
+
+    for raw_path in changed_paths:
+        if not isinstance(raw_path, str):
+            continue
+        normalized = raw_path.replace("\\", "/").strip().lstrip("/")
+        if not normalized:
+            continue
+        model_id = _extract_model_id_from_project_path(normalized)
+        if model_id:
+            explicit_models.add(model_id)
+            continue
+        if normalized == "project.yml" or normalized.startswith("contexts/") or normalized.startswith("parameters/"):
+            requires_all = True
+            break
+
+    if requires_all:
+        return all_models
+    if not explicit_models:
+        return []
+    return sorted([model_id for model_id in explicit_models if model_id in all_models], key=str.lower)
+
+
+def _normalize_sql_relative_path(
+    project_id: str,
+    model_id: str,
+    workflow_root_relative: str,
+    folder: str,
+    raw_sql_path: str | None,
+) -> str:
+    if isinstance(raw_sql_path, str) and raw_sql_path.strip():
+        normalized = raw_sql_path.replace("\\", "/").strip()
+        if normalized.startswith("./"):
+            normalized = normalized[2:]
+        parts = [part for part in normalized.split("/") if part]
+        if "model" in parts:
+            idx = parts.index("model")
+            tail = parts[idx:]
+            if len(tail) >= 2:
+                return "/".join(tail)
+        project_marker = f"{project_id}/model/"
+        marker_index = normalized.find(project_marker)
+        if marker_index >= 0:
+            return normalized[marker_index + len(project_id) + 1 :]
+        if normalized.startswith("model/"):
+            return normalized
+
+    folder_path = folder.strip("/").replace("\\", "/")
+    if folder_path:
+        return f"{workflow_root_relative}/{folder_path}"
+    return workflow_root_relative
+
+
+def _build_lineage_from_workflow(
+    project_path: Path,
+    project_id: str,
+    model_id: str,
+    workflow_payload: dict[str, object],
+) -> dict[str, object]:
+    steps_raw = workflow_payload.get("steps")
+    steps = [item for item in steps_raw if isinstance(item, dict)] if isinstance(steps_raw, list) else []
+    sql_steps = [
+        step
+        for step in steps
+        if str(step.get("step_type", "")).lower() == "sql" and isinstance(step.get("sql_model"), dict)
+    ]
+
+    model_path = _resolve_model_path(project_path, model_id)
+    workflow_root = _detect_workflow_root(model_path)
+    workflow_root_relative = str(workflow_root.relative_to(project_path)).replace("\\", "/")
+
+    folder_config_map = {}
+    config_raw = workflow_payload.get("config")
+    if isinstance(config_raw, dict):
+        folders_raw = config_raw.get("folders")
+        if isinstance(folders_raw, dict):
+            folder_config_map = folders_raw
+
+    folder_runtime_map = {}
+    runtime_raw = workflow_payload.get("folders")
+    if isinstance(runtime_raw, dict):
+        folder_runtime_map = runtime_raw
+
+    folder_order: list[str] = []
+    folder_nodes: dict[str, dict[str, object]] = {}
+    sql_step_by_full_name: dict[str, dict[str, object]] = {}
+    unique_params: set[str] = set()
+
+    for step in sql_steps:
+        folder = str(step.get("folder", "")).strip().replace("\\", "/")
+        if not folder:
+            continue
+        if folder not in folder_order:
+            folder_order.append(folder)
+        sql_step_by_full_name[str(step.get("full_name", ""))] = step
+
+        sql_model = step.get("sql_model")
+        if not isinstance(sql_model, dict):
+            continue
+
+        raw_sql_path = sql_model.get("path")
+        relative_sql_path = _normalize_sql_relative_path(
+            project_id=project_id,
+            model_id=model_id,
+            workflow_root_relative=workflow_root_relative,
+            folder=folder,
+            raw_sql_path=str(raw_sql_path) if isinstance(raw_sql_path, str) else None,
+        )
+
+        file_name = Path(relative_sql_path).name
+        if not file_name or "." not in file_name:
+            fallback_name = str(sql_model.get("name", "")).strip()
+            file_name = f"{fallback_name}.sql" if fallback_name and not fallback_name.endswith(".sql") else fallback_name
+
+        node = folder_nodes.get(folder)
+        if node is None:
+            folder_cfg = folder_config_map.get(folder) if isinstance(folder_config_map, dict) else None
+            runtime_cfg = folder_runtime_map.get(folder) if isinstance(folder_runtime_map, dict) else None
+            materialized = None
+            if isinstance(folder_cfg, dict):
+                raw_mat = folder_cfg.get("materialized")
+                if isinstance(raw_mat, str) and raw_mat.strip():
+                    materialized = raw_mat.strip()
+            if materialized is None and isinstance(runtime_cfg, dict):
+                raw_mat = runtime_cfg.get("materialized")
+                if isinstance(raw_mat, str) and raw_mat.strip():
+                    materialized = raw_mat.strip()
+
+            node = {
+                "id": folder,
+                "name": folder,
+                "path": str(Path(relative_sql_path).parent).replace("\\", "/"),
+                "materialized": materialized or "n/a",
+                "enabled_contexts_set": set(),
+                "enabled_for_all_contexts": False,
+                "queries_set": set(),
+                "parameters_set": set(),
+                "ctes_set": set(),
+            }
+            folder_nodes[folder] = node
+
+        context_name = str(step.get("context", "all")).strip()
+        if not context_name or context_name == "all":
+            node["enabled_for_all_contexts"] = True
+        else:
+            enabled_set = node.get("enabled_contexts_set")
+            if isinstance(enabled_set, set):
+                enabled_set.add(context_name)
+
+        if isinstance(file_name, str) and file_name:
+            query_set = node.get("queries_set")
+            if isinstance(query_set, set):
+                query_set.add(file_name)
+
+        materialization = sql_model.get("materialization")
+        if isinstance(materialization, str) and materialization.strip() and str(node.get("materialized")) == "n/a":
+            node["materialized"] = materialization.strip()
+
+        metadata = sql_model.get("metadata")
+        if isinstance(metadata, dict):
+            parameters = metadata.get("parameters")
+            if isinstance(parameters, list):
+                for item in parameters:
+                    if not isinstance(item, str) or not item.strip():
+                        continue
+                    param_name = item.strip()
+                    unique_params.add(param_name)
+                    params_set = node.get("parameters_set")
+                    if isinstance(params_set, set):
+                        params_set.add(param_name)
+
+            cte_data = metadata.get("cte")
+            if isinstance(cte_data, dict):
+                for cte_name in cte_data.keys():
+                    if isinstance(cte_name, str) and cte_name.strip():
+                        ctes_set = node.get("ctes_set")
+                        if isinstance(ctes_set, set):
+                            ctes_set.add(cte_name.strip())
+            inline_cte = metadata.get("inline_cte_configs")
+            if isinstance(inline_cte, dict):
+                for cte_name in inline_cte.keys():
+                    if isinstance(cte_name, str) and cte_name.strip():
+                        ctes_set = node.get("ctes_set")
+                        if isinstance(ctes_set, set):
+                            ctes_set.add(cte_name.strip())
+
+    nodes: list[dict[str, object]] = []
+    for folder in folder_order:
+        node = folder_nodes.get(folder)
+        if not node:
+            continue
+        enabled_contexts = None
+        if not bool(node.get("enabled_for_all_contexts")):
+            enabled_set = node.get("enabled_contexts_set")
+            enabled_contexts = sorted(enabled_set) if isinstance(enabled_set, set) and enabled_set else None
+
+        nodes.append(
+            {
+                "id": str(node.get("id")),
+                "name": str(node.get("name")),
+                "path": str(node.get("path")),
+                "materialized": str(node.get("materialized") or "n/a"),
+                "enabled_contexts": enabled_contexts,
+                "queries": sorted(node.get("queries_set")) if isinstance(node.get("queries_set"), set) else [],
+                "parameters": sorted(node.get("parameters_set")) if isinstance(node.get("parameters_set"), set) else [],
+                "ctes": sorted(node.get("ctes_set")) if isinstance(node.get("ctes_set"), set) else [],
+            }
+        )
+
+    edge_pairs: set[tuple[str, str]] = set()
+    node_ids = {str(node["id"]) for node in nodes}
+
+    for step in sql_steps:
+        target_folder = str(step.get("folder", "")).strip().replace("\\", "/")
+        if target_folder not in node_ids:
+            continue
+        dependencies = step.get("dependencies")
+        if not isinstance(dependencies, list):
+            continue
+        for dependency in dependencies:
+            if not isinstance(dependency, str):
+                continue
+            source_step = sql_step_by_full_name.get(dependency)
+            if not source_step:
+                continue
+            source_folder = str(source_step.get("folder", "")).strip().replace("\\", "/")
+            if source_folder in node_ids and source_folder != target_folder:
+                edge_pairs.add((source_folder, target_folder))
+
+    if not edge_pairs and len(nodes) > 1:
+        for index in range(len(nodes) - 1):
+            edge_pairs.add((str(nodes[index]["id"]), str(nodes[index + 1]["id"])))
+
+    edges = [
+        {
+            "id": f"{source}->{target}",
+            "source": source,
+            "target": target,
+            "status": "resolved",
+        }
+        for source, target in sorted(edge_pairs)
+    ]
+
+    return {
+        "project_id": project_id,
+        "model_id": model_id,
+        "nodes": nodes,
+        "edges": edges,
+        "summary": {
+            "folders": len(nodes),
+            "queries": sum(len(node["queries"]) for node in nodes),
+            "params": len(unique_params),
+        },
+    }
+
+
+def _extract_ordered_folders_from_workflow(workflow_payload: dict[str, object]) -> list[str]:
+    steps_raw = workflow_payload.get("steps")
+    steps = [item for item in steps_raw if isinstance(item, dict)] if isinstance(steps_raw, list) else []
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    for step in steps:
+        if str(step.get("step_type", "")).lower() != "sql":
+            continue
+        folder = str(step.get("folder", "")).strip().replace("\\", "/")
+        if not folder or folder in seen:
+            continue
+        seen.add(folder)
+        ordered.append(folder)
+
+    config_raw = workflow_payload.get("config")
+    if isinstance(config_raw, dict):
+        folders_raw = config_raw.get("folders")
+        if isinstance(folders_raw, dict):
+            for folder in sorted(folders_raw.keys()):
+                normalized = str(folder).strip().replace("\\", "/")
+                if normalized and normalized not in seen:
+                    seen.add(normalized)
+                    ordered.append(normalized)
+
+    return ordered
+
+
+def _enabled_rule_to_bool(enabled_raw: object) -> bool:
+    if isinstance(enabled_raw, bool):
+        return enabled_raw
+    if isinstance(enabled_raw, dict):
+        if enabled_raw.get("value") is False:
+            return False
+        return True
+    return True
+
+
+def _build_model_object_from_workflow(
+    workflow_payload: dict[str, object],
+) -> dict[str, object]:
+    target_table_raw = workflow_payload.get("target_table")
+    target_table_obj = target_table_raw if isinstance(target_table_raw, dict) else {}
+    attributes_raw = target_table_obj.get("attributes")
+    attrs = [item for item in attributes_raw if isinstance(item, dict)] if isinstance(attributes_raw, list) else []
+
+    target_table = {
+        "name": target_table_obj.get("name"),
+        "schema": target_table_obj.get("schema"),
+        "description": target_table_obj.get("description"),
+        "template": target_table_obj.get("template"),
+        "engine": target_table_obj.get("engine"),
+        "attributes": [
+            {
+                "name": attr.get("name"),
+                "domain_type": attr.get("domain_type"),
+                "is_key": attr.get("is_key"),
+                "required": attr.get("required"),
+                "default_value": attr.get("default_value"),
+            }
+            for attr in attrs
+        ],
+    }
+
+    config_raw = workflow_payload.get("config")
+    config = config_raw if isinstance(config_raw, dict) else {}
+    folders_cfg_raw = config.get("folders")
+    folders_cfg = folders_cfg_raw if isinstance(folders_cfg_raw, dict) else {}
+    runtime_folders_raw = workflow_payload.get("folders")
+    runtime_folders = runtime_folders_raw if isinstance(runtime_folders_raw, dict) else {}
+    ordered_folders = _extract_ordered_folders_from_workflow(workflow_payload)
+
+    folders: list[dict[str, object]] = []
+    for folder_id in ordered_folders:
+        cfg_item = folders_cfg.get(folder_id)
+        cfg = cfg_item if isinstance(cfg_item, dict) else {}
+        runtime_item = runtime_folders.get(folder_id)
+        runtime = runtime_item if isinstance(runtime_item, dict) else {}
+
+        materialization = cfg.get("materialized")
+        if not isinstance(materialization, str) or not materialization.strip():
+            runtime_materialized = runtime.get("materialized")
+            if isinstance(runtime_materialized, str) and runtime_materialized.strip():
+                materialization = runtime_materialized
+            else:
+                materialization = None
+
+        folders.append(
+            {
+                "id": folder_id,
+                "description": cfg.get("description"),
+                "enabled": _enabled_rule_to_bool(cfg.get("enabled")),
+                "materialization": materialization,
+                "pattern": None,
+            }
+        )
+
+    cte_default = None
+    cte_by_context: dict[str, str] = {}
+    cte_raw = config.get("cte")
+    if isinstance(cte_raw, dict):
+        raw_default = cte_raw.get("cte_materialization")
+        if isinstance(raw_default, str) and raw_default.strip():
+            cte_default = raw_default.strip()
+        raw_by_context = cte_raw.get("by_context")
+        if isinstance(raw_by_context, dict):
+            for key, value in raw_by_context.items():
+                if isinstance(key, str) and isinstance(value, str) and key.strip() and value.strip():
+                    cte_by_context[key.strip()] = value.strip()
+
+    return {
+        "target_table": target_table,
+        "workflow": {
+            "description": config.get("description"),
+            "folders": folders,
+        },
+        "cte_settings": {
+            "default": cte_default,
+            "by_context": cte_by_context,
+        },
+    }
+
+
+def _infer_parameter_scope_from_path(source_path: str | None, fallback_model_id: str) -> str:
+    if not source_path:
+        return f"model:{fallback_model_id}"
+    normalized = source_path.replace("\\", "/")
+    parts = [part for part in normalized.split("/") if part]
+    if "parameters" in parts:
+        params_idx = parts.index("parameters")
+        if params_idx == 0:
+            return "global"
+        if params_idx >= 2 and parts[params_idx - 2] == "model":
+            return f"model:{parts[params_idx - 1]}"
+    return f"model:{fallback_model_id}"
+
+
+def _collect_parameters_from_workflow(
+    project_path: Path,
+    project_id: str,
+    model_id: str,
+    workflow_payload: dict[str, object],
+    file_parameters: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    steps_raw = workflow_payload.get("steps")
+    steps = [item for item in steps_raw if isinstance(item, dict)] if isinstance(steps_raw, list) else []
+    param_steps = [step for step in steps if str(step.get("step_type", "")).lower() == "param"]
+    if not param_steps:
+        return file_parameters
+
+    file_map: dict[tuple[str, str], dict[str, object]] = {}
+    name_to_scopes: dict[str, set[str]] = {}
+    for item in file_parameters:
+        name = str(item.get("name", "")).strip()
+        scope = str(item.get("scope", "")).strip()
+        if not name or not scope:
+            continue
+        file_map[(name, scope)] = item
+        name_to_scopes.setdefault(name, set()).add(scope)
+
+    merged: dict[tuple[str, str], dict[str, object]] = dict(file_map)
+
+    for step in param_steps:
+        param_raw = step.get("param_model")
+        param = param_raw if isinstance(param_raw, dict) else {}
+        name = str(param.get("name", "")).strip()
+        if not name:
+            continue
+
+        source_sql = param.get("source_sql")
+        source_path = str(source_sql).strip() if isinstance(source_sql, str) and source_sql.strip() else None
+        guessed_scope = _infer_parameter_scope_from_path(source_path, model_id)
+        possible_scopes = sorted(name_to_scopes.get(name) or [])
+        if len(possible_scopes) == 1:
+            guessed_scope = possible_scopes[0]
+        elif guessed_scope not in possible_scopes and ("global" in possible_scopes):
+            guessed_scope = "global"
+
+        key = (name, guessed_scope)
+        existing = merged.get(key, {})
+
+        values_obj: dict[str, dict[str, str]] = {}
+        values_raw = param.get("values")
+        if isinstance(values_raw, dict):
+            for ctx, row in values_raw.items():
+                if not isinstance(ctx, str) or not ctx.strip():
+                    continue
+                if isinstance(row, dict):
+                    row_type = row.get("type")
+                    row_value = row.get("value")
+                    values_obj[ctx.strip()] = {
+                        "type": str(row_type).lower() if isinstance(row_type, str) and row_type.strip() else "static",
+                        "value": "" if row_value is None else str(row_value),
+                    }
+
+        if not values_obj:
+            step_context = str(step.get("context", "all")).strip() or "all"
+            values_obj = {step_context: {"type": "static", "value": ""}}
+
+        value_types = sorted({item.get("type", "static") for item in values_obj.values()})
+        value_type = "dynamic" if "dynamic" in value_types else value_types[0] if value_types else "static"
+
+        default_path = f"parameters/{name}.yml" if guessed_scope == "global" else f"model/{model_id}/parameters/{name}.yml"
+        if source_path:
+            normalized_source = source_path.replace("\\", "/")
+            if normalized_source.startswith(f"{project_id}/"):
+                normalized_source = normalized_source[len(project_id) + 1 :]
+            if normalized_source.startswith("model/") or normalized_source.startswith("parameters/"):
+                default_path = normalized_source
+
+        merged[key] = {
+            "name": name,
+            "scope": guessed_scope,
+            "path": str(existing.get("path", default_path)),
+            "description": str(param.get("description") or existing.get("description") or ""),
+            "domain_type": str(param.get("domain_type") or existing.get("domain_type") or "string"),
+            "value_type": str(existing.get("value_type") or value_type),
+            "values": values_obj,
+        }
+
+    return sorted(merged.values(), key=lambda item: (str(item.get("name", "")).lower(), str(item.get("scope", "")).lower()))
+
+
+def _collect_all_contexts_from_workflow(workflow_payload: dict[str, object]) -> list[str]:
+    contexts: set[str] = set()
+    all_contexts_raw = workflow_payload.get("all_contexts")
+    if isinstance(all_contexts_raw, list):
+        for item in all_contexts_raw:
+            if isinstance(item, str) and item.strip():
+                contexts.add(item.strip())
+
+    steps_raw = workflow_payload.get("steps")
+    steps = [item for item in steps_raw if isinstance(item, dict)] if isinstance(steps_raw, list) else []
+    for step in steps:
+        context_raw = step.get("context")
+        if isinstance(context_raw, str) and context_raw.strip() and context_raw.strip() != "all":
+            contexts.add(context_raw.strip())
+
+    config_raw = workflow_payload.get("config")
+    if isinstance(config_raw, dict):
+        cte_raw = config_raw.get("cte")
+        if isinstance(cte_raw, dict):
+            by_context_raw = cte_raw.get("by_context")
+            if isinstance(by_context_raw, dict):
+                for key in by_context_raw.keys():
+                    if isinstance(key, str) and key.strip():
+                        contexts.add(key.strip())
+
+        folders_raw = config_raw.get("folders")
+        if isinstance(folders_raw, dict):
+            for folder_config in folders_raw.values():
+                if not isinstance(folder_config, dict):
+                    continue
+                enabled_raw = folder_config.get("enabled")
+                if not isinstance(enabled_raw, dict):
+                    continue
+                enabled_contexts_raw = enabled_raw.get("contexts")
+                if isinstance(enabled_contexts_raw, list):
+                    for item in enabled_contexts_raw:
+                        if isinstance(item, str) and item.strip():
+                            contexts.add(item.strip())
+
+    return sorted(contexts)
+
+
+def _log_workflow_fallback(
+    *,
+    endpoint: str,
+    project_id: str,
+    model_id: str | None = None,
+    reason: str,
+) -> None:
+    LOGGER.warning(
+        "workflow.fallback endpoint=%s project_id=%s model_id=%s reason=%s",
+        endpoint,
+        project_id,
+        model_id or "-",
+        reason,
+    )
+
+
+def _collect_project_parameters_primary(
+    project_path: Path,
+    project_id: str,
+) -> tuple[list[dict[str, object]], set[str], list[str]]:
+    merged: list[dict[str, object]] = _collect_parameter_objects(project_path)
+    all_contexts: set[str] = set()
+    fallback_models: list[str] = []
+
+    for model_id in _list_model_ids(project_path):
+        workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
+        if not isinstance(workflow_payload, dict):
+            fallback_models.append(model_id)
+            continue
+        merged = _collect_parameters_from_workflow(project_path, project_id, model_id, workflow_payload, merged)
+        all_contexts.update(_collect_all_contexts_from_workflow(workflow_payload))
+
+    return merged, all_contexts, fallback_models
+
+
+def _ensure_workflow_payload(
+    project_id: str,
+    model_id: str,
+    force_rebuild: bool = False,
+) -> dict[str, object] | None:
+    project_path = FW_SERVICE.load_project(project_id)
+    cached = _read_workflow_cache(project_path, model_id)
+    if cached is not None and not force_rebuild:
+        state = _workflow_state_for_model(project_path, model_id)
+        if state["status"] == _WORKFLOW_STATUS_MISSING:
+            _write_workflow_meta(
+                project_path,
+                model_id,
+                status_value=_WORKFLOW_STATUS_READY,
+                error=None,
+                source=_WORKFLOW_SOURCE_FRAMEWORK,
+            )
+        return cached
+
+    _write_workflow_meta(
+        project_path,
+        model_id,
+        status_value=_WORKFLOW_STATUS_BUILDING,
+        error=None,
+        source=_WORKFLOW_SOURCE_FRAMEWORK,
+    )
+
+    try:
+        build_result = FW_SERVICE.run_workflow_build(project_id=project_id, model_id=model_id, context=None)
+        workflow_payload_raw = build_result.get("workflow")
+        if not isinstance(workflow_payload_raw, dict):
+            if cached is not None:
+                _write_workflow_meta(
+                    project_path,
+                    model_id,
+                    status_value=_WORKFLOW_STATUS_STALE,
+                    error="Workflow build returned invalid payload.",
+                    source=_WORKFLOW_SOURCE_FALLBACK,
+                )
+            else:
+                _write_workflow_meta(
+                    project_path,
+                    model_id,
+                    status_value=_WORKFLOW_STATUS_ERROR,
+                    error="Workflow build returned invalid payload.",
+                    source=_WORKFLOW_SOURCE_FRAMEWORK,
+                )
+            return cached
+        _write_workflow_cache(project_path, model_id, workflow_payload_raw)
+        _write_workflow_meta(
+            project_path,
+            model_id,
+            status_value=_WORKFLOW_STATUS_READY,
+            error=None,
+            source=_WORKFLOW_SOURCE_FRAMEWORK,
+        )
+        LOGGER.info(
+            "workflow.rebuild.succeeded project_id=%s model_id=%s source=%s",
+            project_id,
+            model_id,
+            _WORKFLOW_SOURCE_FRAMEWORK,
+        )
+        return workflow_payload_raw
+    except Exception as exc:
+        if cached is not None:
+            _write_workflow_meta(
+                project_path,
+                model_id,
+                status_value=_WORKFLOW_STATUS_STALE,
+                error=str(exc),
+                source=_WORKFLOW_SOURCE_FALLBACK,
+            )
+            LOGGER.warning(
+                "workflow.rebuild.soft_failed project_id=%s model_id=%s source=%s error=%s",
+                project_id,
+                model_id,
+                _WORKFLOW_SOURCE_FALLBACK,
+                str(exc),
+            )
+            return cached
+        _write_workflow_meta(
+            project_path,
+            model_id,
+            status_value=_WORKFLOW_STATUS_ERROR,
+            error=str(exc),
+            source=_WORKFLOW_SOURCE_FRAMEWORK,
+        )
+        LOGGER.exception(
+            "workflow.rebuild.failed project_id=%s model_id=%s source=%s",
+            project_id,
+            model_id,
+            _WORKFLOW_SOURCE_FRAMEWORK,
+        )
+        return cached
+
+
+def trigger_workflow_rebuild(project_id: str, changed_paths: list[str] | None = None) -> dict[str, object]:
+    try:
+        project_path = FW_SERVICE.load_project(project_id)
+    except Exception as exc:
+        return {"project_id": project_id, "rebuilt_models": [], "errors": [str(exc)]}
+
+    model_ids = _resolve_models_for_rebuild(project_path, changed_paths)
+    rebuilt_models: list[str] = []
+    errors: list[str] = []
+
+    for model_id in model_ids:
+        workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=True)
+        if workflow_payload is None:
+            errors.append(f"Workflow build failed for model '{model_id}'.")
+            continue
+        rebuilt_models.append(model_id)
+
+    status_payload = _resolve_project_workflow_status(project_path)
+    LOGGER.info(
+        "workflow.rebuild.batch project_id=%s changed_paths=%s rebuilt_models=%s errors=%s",
+        project_id,
+        changed_paths or [],
+        rebuilt_models,
+        errors,
+    )
+    return {"project_id": project_id, "rebuilt_models": rebuilt_models, "errors": errors, "status": status_payload}
+
+
+def ensure_project_workflow_cache(project_id: str) -> dict[str, object]:
+    try:
+        project_path = FW_SERVICE.load_project(project_id)
+    except Exception as exc:
+        return {"project_id": project_id, "rebuilt_models": [], "errors": [str(exc)]}
+
+    missing_paths: list[str] = []
+    for model_id in _list_model_ids(project_path):
+        cache_file = _workflow_cache_file(project_path, model_id)
+        if not cache_file.exists():
+            missing_paths.append(f"model/{model_id}/model.yml")
+    if not missing_paths:
+        return {"project_id": project_id, "rebuilt_models": [], "errors": []}
+    LOGGER.info(
+        "workflow.ensure_cache.missing project_id=%s changed_paths=%s",
+        project_id,
+        missing_paths,
+    )
+    return trigger_workflow_rebuild(project_id, changed_paths=missing_paths)
+
+
 FW_SERVICE = FWService(
     projects_base_path=Path(settings.projects_path),
     model_loader=_resolve_model_path,
@@ -955,6 +1955,8 @@ FW_SERVICE = FWService(
     validation_runner=_build_validation_result,
     generation_runner=_run_project_generation,
     template_registry=TemplateRegistry(templates=("dqcr", "airflow", "dbt", "oracle_plsql")),
+    cli_command=settings.fw_cli_command,
+    prefer_cli=settings.fw_use_cli,
 )
 
 
@@ -1526,17 +2528,253 @@ def _write_project_from_wizard(base_projects: Path, payload: dict[str, object]) 
     }
 
 
+def _extract_project_name_from_yml(project_path: Path) -> str | None:
+    project_file = project_path / "project.yml"
+    if not project_file.exists() or not project_file.is_file():
+        return None
+    raw = project_file.read_text(encoding="utf-8")
+    match = re.search(r"^\s*name:\s*(.+?)\s*$", raw, re.MULTILINE)
+    if not match:
+        return None
+    value = str(match.group(1)).strip().strip("\"'")
+    return value or None
+
+
+def _validate_source_project_structure(source_path: Path) -> None:
+    required = [
+        source_path / "project.yml",
+        source_path / "contexts",
+        source_path / "model",
+    ]
+    missing = [item.name for item in required if not item.exists()]
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Source project is invalid. Missing: {', '.join(missing)}.",
+        )
+
+
+def _resolve_project_identity(payload: dict[str, object], source_path: Path) -> tuple[str, str]:
+    requested_name = str(payload.get("name", "")).strip()
+    discovered_name = _extract_project_name_from_yml(source_path)
+    project_name = requested_name or discovered_name or source_path.name
+
+    project_id_raw = payload.get("project_id")
+    if isinstance(project_id_raw, str) and project_id_raw.strip():
+        project_id = project_id_raw.strip().lower()
+    else:
+        project_id = _normalize_project_id(project_name)
+    if not PROJECT_ID_PATTERN.match(project_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="project_id has invalid format.")
+    return project_id, project_name
+
+
+def _ensure_project_id_available(base_projects: Path, project_id: str) -> None:
+    target_path = ensure_within_base(base_projects, base_projects / project_id)
+    if target_path.exists():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Project '{project_id}' already exists.")
+    if get_registry_entry(base_projects, project_id):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Project '{project_id}' already exists.")
+
+
+def _infer_contexts_and_model(project_path: Path) -> tuple[list[str], str]:
+    contexts_dir = project_path / "contexts"
+    contexts = [item.stem for item in sorted(contexts_dir.glob("*.yml"), key=lambda p: p.name.lower())] if contexts_dir.exists() else []
+    if "default" not in contexts:
+        contexts.insert(0, "default")
+    model_root = project_path / "model"
+    model_names = [item.name for item in sorted(model_root.iterdir(), key=lambda p: p.name.lower()) if item.is_dir()] if model_root.exists() else []
+    model_name = model_names[0] if model_names else "SampleModel"
+    return contexts, model_name
+
+
+def _import_project_from_path(base_projects: Path, payload: dict[str, object]) -> dict[str, object]:
+    source_path_raw = payload.get("source_path")
+    if not isinstance(source_path_raw, str) or not source_path_raw.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="source_path is required for import mode.")
+    source_path = Path(source_path_raw).expanduser().resolve()
+    if not source_path.exists() or not source_path.is_dir():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="source_path does not exist or is not a directory.")
+    _validate_source_project_structure(source_path)
+
+    project_id, project_name = _resolve_project_identity(payload, source_path)
+    _ensure_project_id_available(base_projects, project_id)
+    target_path = ensure_within_base(base_projects, base_projects / project_id)
+    if target_path == source_path:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="source_path and target path must be different.")
+
+    shutil.copytree(source_path, target_path)
+    contexts, model_name = _infer_contexts_and_model(target_path)
+    upsert_registry_entry(
+        base_projects,
+        {
+            "id": project_id,
+            "name": project_name,
+            "source_type": "imported",
+            "source_path": str(source_path),
+            "availability_status": "available",
+        },
+    )
+    return {
+        "id": project_id,
+        "name": project_name,
+        "path": str(target_path),
+        "contexts": contexts,
+        "model": model_name,
+        "source_type": "imported",
+        "source_path": str(source_path),
+        "availability_status": "available",
+    }
+
+
+def _normalize_upload_relative_path(value: str) -> str:
+    candidate = value.strip().replace("\\", "/").lstrip("/")
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file path is empty.")
+    parts = [part for part in candidate.split("/") if part]
+    if any(part in {".", ".."} for part in parts):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file path is invalid.")
+    return "/".join(parts)
+
+
+async def _import_project_from_uploaded_files(
+    base_projects: Path,
+    files: list[UploadFile],
+    relative_paths: list[str],
+    payload: dict[str, object],
+) -> dict[str, object]:
+    if not files:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one uploaded file is required.")
+    if len(files) != len(relative_paths):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="files and relative_paths length mismatch.")
+
+    with tempfile.TemporaryDirectory(prefix="dqcr-upload-", dir=str(base_projects)) as temp_dir:
+        temp_root = Path(temp_dir)
+        for upload, relative_path in zip(files, relative_paths):
+            normalized_path = _normalize_upload_relative_path(relative_path)
+            target = ensure_within_base(temp_root, temp_root / normalized_path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            contents = await upload.read()
+            target.write_bytes(contents)
+
+        _validate_source_project_structure(temp_root)
+        project_id, project_name = _resolve_project_identity(payload, temp_root)
+        _ensure_project_id_available(base_projects, project_id)
+        target_path = ensure_within_base(base_projects, base_projects / project_id)
+        shutil.copytree(temp_root, target_path)
+
+    contexts, model_name = _infer_contexts_and_model(target_path)
+    upsert_registry_entry(
+        base_projects,
+        {
+            "id": project_id,
+            "name": project_name,
+            "source_type": "imported",
+            "source_path": None,
+            "availability_status": "available",
+        },
+    )
+    return {
+        "id": project_id,
+        "name": project_name,
+        "path": str(target_path),
+        "contexts": contexts,
+        "model": model_name,
+        "source_type": "imported",
+        "source_path": None,
+        "availability_status": "available",
+    }
+
+
+def _connect_project_from_path(base_projects: Path, payload: dict[str, object]) -> dict[str, object]:
+    source_path_raw = payload.get("source_path")
+    if not isinstance(source_path_raw, str) or not source_path_raw.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="source_path is required for connect mode.")
+    source_path = Path(source_path_raw).expanduser().resolve()
+    if not source_path.exists() or not source_path.is_dir():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="source_path does not exist or is not a directory.")
+    _validate_source_project_structure(source_path)
+
+    project_id, project_name = _resolve_project_identity(payload, source_path)
+    _ensure_project_id_available(base_projects, project_id)
+    contexts, model_name = _infer_contexts_and_model(source_path)
+    availability = derive_link_availability(str(source_path))
+    upsert_registry_entry(
+        base_projects,
+        {
+            "id": project_id,
+            "name": project_name,
+            "source_type": "linked",
+            "source_path": str(source_path),
+            "availability_status": availability,
+        },
+    )
+    return {
+        "id": project_id,
+        "name": project_name,
+        "path": str(source_path),
+        "contexts": contexts,
+        "model": model_name,
+        "source_type": "linked",
+        "source_path": str(source_path),
+        "availability_status": availability,
+    }
+
+
 @router.get("")
 def list_projects() -> list[ProjectSchema]:
     base = Path(settings.projects_path)
     if not base.exists():
         base.mkdir(parents=True, exist_ok=True)
 
-    projects = [
-        ProjectSchema(id=item.name, name=item.name)
-        for item in sorted(base.iterdir(), key=lambda p: p.name.lower())
-        if item.is_dir() and not item.name.startswith(".")
-    ]
+    registry = load_registry(base)
+    project_ids = {
+        item.name for item in base.iterdir() if item.is_dir() and not item.name.startswith(".")
+    } | set(registry.keys())
+    projects: list[ProjectSchema] = []
+    for project_id in sorted(project_ids, key=lambda value: value.lower()):
+        local_path = ensure_within_base(base, base / project_id)
+        if local_path.exists() and local_path.is_dir():
+            registry_item = registry.get(project_id)
+            source_type = registry_item["source_type"] if registry_item else "internal"
+            source_path = registry_item["source_path"] if registry_item else None
+            availability_status = "available"
+            name = registry_item["name"] if registry_item else project_id
+            projects.append(
+                ProjectSchema(
+                    id=project_id,
+                    name=name,
+                    source_type=source_type,
+                    source_path=source_path,
+                    availability_status=availability_status,
+                )
+            )
+            continue
+
+        registry_item = registry.get(project_id)
+        if not registry_item:
+            continue
+        availability_status = derive_link_availability(registry_item.get("source_path"))
+        if availability_status != registry_item.get("availability_status"):
+            upsert_registry_entry(
+                base,
+                {
+                    "id": registry_item["id"],
+                    "name": registry_item["name"],
+                    "source_type": registry_item["source_type"],
+                    "source_path": registry_item["source_path"],
+                    "availability_status": availability_status,
+                },
+            )
+        projects.append(
+            ProjectSchema(
+                id=project_id,
+                name=registry_item["name"],
+                source_type=registry_item["source_type"],
+                source_path=registry_item["source_path"],
+                availability_status=availability_status,
+            )
+        )
     return projects
 
 
@@ -1544,7 +2782,56 @@ def list_projects() -> list[ProjectSchema]:
 def create_project(payload: dict[str, object] = Body(...)) -> dict[str, object]:
     base = Path(settings.projects_path)
     base.mkdir(parents=True, exist_ok=True)
-    return _write_project_from_wizard(base, payload)
+    mode_raw = payload.get("mode", "create")
+    mode = str(mode_raw).strip().lower() if isinstance(mode_raw, str) else "create"
+    if mode == "create":
+        result = _write_project_from_wizard(base, payload)
+        upsert_registry_entry(
+            base,
+            {
+                "id": str(result["id"]),
+                "name": str(result["name"]),
+                "source_type": "internal",
+                "source_path": None,
+                "availability_status": "available",
+            },
+        )
+        result["source_type"] = "internal"
+        result["source_path"] = None
+        result["availability_status"] = "available"
+        trigger_workflow_rebuild(str(result["id"]))
+        return result
+    if mode == "import":
+        result = _import_project_from_path(base, payload)
+        trigger_workflow_rebuild(str(result["id"]))
+        return result
+    if mode == "connect":
+        result = _connect_project_from_path(base, payload)
+        trigger_workflow_rebuild(str(result["id"]))
+        return result
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="mode must be one of: create, import, connect.")
+
+
+@router.post("/import-upload")
+async def import_uploaded_project(
+    files: list[UploadFile] = File(...),
+    relative_paths: list[str] = Form(...),
+    project_id: str | None = Form(None),
+    name: str | None = Form(None),
+    description: str | None = Form(None),
+) -> dict[str, object]:
+    base = Path(settings.projects_path)
+    base.mkdir(parents=True, exist_ok=True)
+    payload: dict[str, object] = {}
+    if project_id is not None:
+        payload["project_id"] = project_id
+    if name is not None:
+        payload["name"] = name
+    if description is not None:
+        payload["description"] = description
+    result = await _import_project_from_uploaded_files(base, files, relative_paths, payload)
+    trigger_workflow_rebuild(str(result["id"]))
+    return result
 
 
 @router.get("/{project_id}/contexts")
@@ -1567,16 +2854,90 @@ def list_project_contexts(project_id: str) -> list[ContextSchema]:
     return contexts
 
 
+@router.get("/{project_id}/workflow/status")
+def get_project_workflow_status(project_id: str) -> dict[str, object]:
+    project_path = FW_SERVICE.load_project(project_id)
+    return _resolve_project_workflow_status(project_path)
+
+
+@router.get("/{project_id}/models/{model_id}/workflow")
+def get_model_workflow(project_id: str, model_id: str) -> dict[str, object]:
+    project_path = FW_SERVICE.load_project(project_id)
+    _ = FW_SERVICE.load_model(project_id, model_id)
+    workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
+    state = _workflow_state_for_model(project_path, model_id)
+    if not isinstance(workflow_payload, dict):
+        _log_workflow_fallback(
+            endpoint="model-workflow",
+            project_id=project_id,
+            model_id=model_id,
+            reason="workflow_payload_missing",
+        )
+    return {
+        "project_id": project_id,
+        "model_id": model_id,
+        "status": state.get("status"),
+        "updated_at": state.get("updated_at"),
+        "error": state.get("error"),
+        "source": state.get("source"),
+        "workflow": workflow_payload if isinstance(workflow_payload, dict) else None,
+    }
+
+
+@router.post("/{project_id}/models/{model_id}/workflow/rebuild")
+def rebuild_model_workflow(project_id: str, model_id: str) -> dict[str, object]:
+    project_path = FW_SERVICE.load_project(project_id)
+    _ = FW_SERVICE.load_model(project_id, model_id)
+    workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=True)
+    state = _workflow_state_for_model(project_path, model_id)
+    if not isinstance(workflow_payload, dict):
+        _log_workflow_fallback(
+            endpoint="model-workflow-rebuild",
+            project_id=project_id,
+            model_id=model_id,
+            reason="workflow_payload_missing_after_rebuild",
+        )
+    return {
+        "project_id": project_id,
+        "model_id": model_id,
+        "status": state.get("status"),
+        "updated_at": state.get("updated_at"),
+        "error": state.get("error"),
+        "source": state.get("source"),
+        "workflow": workflow_payload if isinstance(workflow_payload, dict) else None,
+    }
+
+
 @router.get("/{project_id}/autocomplete")
-def get_project_autocomplete(project_id: str) -> dict[str, list[dict[str, str | None]] | list[str]]:
+def get_project_autocomplete(project_id: str) -> dict[str, object]:
     base_projects = Path(settings.projects_path)
     project_path = resolve_project_path(base_projects, project_id)
-    parameters = _collect_parameters(project_path)
+    parameters, all_contexts, fallback_models = _collect_project_parameters_primary(project_path, project_id)
+
     macros = [{"name": macro_name, "source": "builtin"} for macro_name in DEFAULT_MACROS]
+    used_fallback = len(fallback_models) > 0
+    if used_fallback:
+        _log_workflow_fallback(
+            endpoint="autocomplete",
+            project_id=project_id,
+            reason=f"models={','.join(fallback_models)}",
+        )
     return {
-        "parameters": parameters,
+        "parameters": [
+            {
+                "name": str(item.get("name", "")),
+                "scope": str(item.get("scope", "")),
+                "path": str(item.get("path", "")),
+                "domain_type": item.get("domain_type"),
+                "value_type": item.get("value_type"),
+            }
+            for item in parameters
+        ],
         "macros": macros,
         "config_keys": DQCR_CONFIG_KEYS,
+        "all_contexts": sorted(all_contexts),
+        "data_source": "fallback" if used_fallback else "workflow",
+        "fallback": used_fallback,
     }
 
 
@@ -1584,7 +2945,14 @@ def get_project_autocomplete(project_id: str) -> dict[str, list[dict[str, str | 
 def get_project_parameters(project_id: str) -> list[dict[str, object]]:
     base_projects = Path(settings.projects_path)
     project_path = resolve_project_path(base_projects, project_id)
-    return _collect_parameter_objects(project_path)
+    merged, _all_contexts, fallback_models = _collect_project_parameters_primary(project_path, project_id)
+    if fallback_models:
+        _log_workflow_fallback(
+            endpoint="parameters",
+            project_id=project_id,
+            reason=f"models={','.join(fallback_models)}",
+        )
+    return merged
 
 
 @router.post("/{project_id}/parameters")
@@ -1618,6 +2986,7 @@ def create_project_parameter(project_id: str, payload: dict[str, object] = Body(
 
     target_file.parent.mkdir(parents=True, exist_ok=True)
     target_file.write_text(rendered, encoding="utf-8")
+    trigger_workflow_rebuild(project_id, changed_paths=[str(target_file.relative_to(project_path))])
     return _parse_parameter_file(project_path, target_file)
 
 
@@ -1666,6 +3035,11 @@ def update_project_parameter(
     if target_file != source_file and source_file.exists():
         source_file.unlink()
 
+    changed_paths = [str(target_file.relative_to(project_path))]
+    if target_file != source_file:
+        changed_paths.append(str(source_file.relative_to(project_path)))
+    trigger_workflow_rebuild(project_id, changed_paths=changed_paths)
+
     return _parse_parameter_file(project_path, target_file)
 
 
@@ -1676,6 +3050,7 @@ def delete_project_parameter(project_id: str, parameter_id: str, scope: str | No
     target_file = _resolve_parameter_file(project_path, parameter_id, scope)
     relative_path = str(target_file.relative_to(project_path))
     target_file.unlink()
+    trigger_workflow_rebuild(project_id, changed_paths=[relative_path])
     return {"deleted": True, "name": parameter_id, "path": relative_path}
 
 
@@ -1721,6 +3096,17 @@ def test_project_parameter(
 
 @router.get("/{project_id}/models/{model_id}/lineage")
 def get_model_lineage(project_id: str, model_id: str) -> dict[str, object]:
+    project_path = FW_SERVICE.load_project(project_id)
+    _ = FW_SERVICE.load_model(project_id, model_id)
+    workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
+    if isinstance(workflow_payload, dict):
+        return _build_lineage_from_workflow(project_path, project_id, model_id, workflow_payload)
+    _log_workflow_fallback(
+        endpoint="lineage",
+        project_id=project_id,
+        model_id=model_id,
+        reason="workflow_payload_missing",
+    )
     return FW_SERVICE.get_lineage(project_id, model_id)
 
 
@@ -1745,11 +3131,35 @@ def get_model_as_object(project_id: str, model_id: str) -> dict[str, object]:
     if not model_yml_path.exists() or not model_yml_path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="model.yml not found.")
 
+    workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
+    workflow_state = _workflow_state_for_model(project_path, model_id)
+    if isinstance(workflow_payload, dict):
+        return {
+            "project_id": project_id,
+            "model_id": model_id,
+            "path": str(model_yml_path.relative_to(project_path)),
+            "model": _build_model_object_from_workflow(workflow_payload),
+            "data_source": "workflow",
+            "workflow_status": workflow_state.get("status"),
+            "workflow_source": workflow_state.get("source"),
+            "workflow_updated_at": workflow_state.get("updated_at"),
+        }
+
+    _log_workflow_fallback(
+        endpoint="model-object",
+        project_id=project_id,
+        model_id=model_id,
+        reason="workflow_payload_missing",
+    )
     return {
         "project_id": project_id,
         "model_id": model_id,
         "path": str(model_yml_path.relative_to(project_path)),
         "model": _parse_model_yml_to_object(model_yml_path),
+        "data_source": "fallback",
+        "workflow_status": workflow_state.get("status"),
+        "workflow_source": workflow_state.get("source"),
+        "workflow_updated_at": workflow_state.get("updated_at"),
     }
 
 
@@ -1774,6 +3184,7 @@ def save_model_from_object(project_id: str, model_id: str, payload: dict[str, ob
         if isinstance(folders_raw, list):
             safe_folders = [item for item in folders_raw if isinstance(item, dict)]
             _sync_workflow_folders(project_path, model_id, safe_folders)
+    trigger_workflow_rebuild(project_id, changed_paths=[str(model_yml_path.relative_to(project_path))])
 
     return {
         "project_id": project_id,
@@ -1802,7 +3213,15 @@ def run_project_build(project_id: str, payload: dict[str, object] = Body(default
     output_path_raw = payload.get("output_path") if isinstance(payload, dict) else None
     output_path = str(output_path_raw).strip() if isinstance(output_path_raw, str) and output_path_raw.strip() else None
 
-    return FW_SERVICE.run_generation(project_id, model_id, engine, context, dry_run, output_path)
+    result_raw = FW_SERVICE.run_generation(project_id, model_id, engine, context, dry_run, output_path)
+    result = _attach_workflow_context(result_raw, project_path, model_id)
+
+    build_id = str(result.get("build_id", "")).strip()
+    if build_id and not any(str(item.get("build_id")) == build_id for item in _BUILD_HISTORY.get(project_id, [])):
+        history = _BUILD_HISTORY.setdefault(project_id, [])
+        history.insert(0, result)
+        _BUILD_HISTORY[project_id] = history[:20]
+    return result
 
 
 @router.get("/{project_id}/build/history")
@@ -1913,7 +3332,8 @@ def run_project_validation(project_id: str, payload: dict[str, object] = Body(de
     categories = payload.get("categories") if isinstance(payload, dict) else None
     categories_list = categories if isinstance(categories, list) else None
 
-    result = FW_SERVICE.run_validation(project_id, model_id, categories_list)
+    result_raw = FW_SERVICE.run_validation(project_id, model_id, categories_list)
+    result = _attach_workflow_context(result_raw, project_path, model_id)
     history = _VALIDATION_HISTORY.setdefault(project_id, [])
     history.insert(0, result)
     _VALIDATION_HISTORY[project_id] = history[:20]

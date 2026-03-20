@@ -1,0 +1,59 @@
+{#
+  param - Materialization: Parameter
+  
+  Generates SQL for parameter based on its type:
+  - dynamic: returns prepared_sql directly (no wrapper)
+  - static scalar: SELECT 'value' as param_name FROM DUAL (oracle) / SELECT 'value'::type as param_name (postgresql)
+  - static array: SELECT 'val_0' as val_0 FROM DUAL UNION ALL ...
+  
+  Parameters:
+    param_model: ParameterModel
+    tool: Database tool (oracle, adb, postgresql)
+    workflow: WorkflowModel (optional)
+    context_name: Current context name
+#}
+{% set p_name = param_model.name %}
+{% set p_domain = param_model.domain_type %}
+{% set p_values = param_model.values %}
+{% set ptype = 'text' %}
+{% if p_domain == 'date' %}
+{% set ptype = 'date' %}
+{% elif p_domain == 'number' or p_domain == 'numeric' %}
+{% set ptype = 'numeric' %}
+{% elif p_domain == 'integer' or p_domain == 'int' %}
+{% set ptype = 'integer' %}
+{% endif %}
+
+{% set ctx = context_name if context_name else 'all' %}
+{% set val_obj = p_values[ctx] if ctx in p_values else p_values['all'] if 'all' in p_values else none %}
+{% set is_dynamic = val_obj.type == 'dynamic' if val_obj else false %}
+
+{% if p_domain == 'sql.query' or is_dynamic %}
+{{ param_model.get_prepared_sql(tool) }}
+{% else %}
+{% set val = val_obj.value if val_obj else '' %}
+{% set val = val.replace("'", "''") if val else '' %}
+{% if val is iterable and val is not string %}
+{% set parts = [] %}
+{% for i in range(val|length) %}
+{% set row = val[i] %}
+{% set row = row.replace("'", "''") %}
+{% if tool == 'oracle' %}
+{% set _ = parts.append("SELECT '" + row + "' as val_" + i|string + " FROM DUAL") %}
+{% elif tool == 'postgresql' %}
+{% set _ = parts.append("SELECT '" + row + "'::" + ptype + " as val_" + i|string) %}
+{% else %}
+{% set _ = parts.append("SELECT '" + row + "' as val_" + i|string) %}
+{% endif %}
+{% endfor %}
+{{ parts|join(' UNION ALL ') }}
+{% else %}
+{% if tool == 'oracle' %}
+SELECT '{{ val }}' as {{ p_name }} FROM DUAL
+{% elif tool == 'postgresql' %}
+SELECT '{{ val }}'::{{ ptype }} as {{ p_name }}
+{% else %}
+SELECT '{{ val }}' as {{ p_name }}
+{% endif %}
+{% endif %}
+{% endif %}

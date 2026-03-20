@@ -1,0 +1,45 @@
+name: dq_control
+description: Шаблон для контроля качества данных
+
+models:
+  - name: dq
+    paths:
+      models_root: dq
+      project_config: project.yml
+      model_config: model.yml
+      contexts: contexts
+      global_params: dq_params
+      local_params: parameters
+      sql: SQL
+      target: target/dq/{model}
+
+    config:
+      builder: default
+      dependency_resolver: graph_based
+      workflow_engine: airflow
+      default_materialization: insert_fc
+      model_ref_macro: table
+
+    validation_categories:
+      - general
+      - sql
+      - descriptions
+
+    rules:
+      folders:
+        root:
+          required: false
+          pre: []
+          post: []
+        "*":
+          required: true
+          materialization: insert_fc
+
+      queries:
+        "*":
+          required: true
+          enabled: true
+
+      parameters:
+        "*":
+          required: true

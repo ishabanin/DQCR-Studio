@@ -1,5 +1,21 @@
 from app.services.fw_service import FWError, FWExecutionError, FWNotFoundError, FWService, FWValidationError, TemplateRegistry
 from app.services.terminal_service import TerminalService
+from app.services.workflow_cache_service import (
+    WORKFLOW_SOURCE_FALLBACK,
+    WORKFLOW_SOURCE_FRAMEWORK,
+    WORKFLOW_STATUS_BUILDING,
+    WORKFLOW_STATUS_ERROR,
+    WORKFLOW_STATUS_MISSING,
+    WORKFLOW_STATUS_READY,
+    WORKFLOW_STATUS_STALE,
+    read_workflow_cache,
+    read_workflow_meta,
+    resolve_project_workflow_status,
+    workflow_cache_file,
+    workflow_state_for_model,
+    write_workflow_cache,
+    write_workflow_meta,
+)
 
 __all__ = [
     "FWError",
@@ -9,4 +25,18 @@ __all__ = [
     "FWValidationError",
     "TemplateRegistry",
     "TerminalService",
+    "WORKFLOW_SOURCE_FALLBACK",
+    "WORKFLOW_SOURCE_FRAMEWORK",
+    "WORKFLOW_STATUS_BUILDING",
+    "WORKFLOW_STATUS_ERROR",
+    "WORKFLOW_STATUS_MISSING",
+    "WORKFLOW_STATUS_READY",
+    "WORKFLOW_STATUS_STALE",
+    "read_workflow_cache",
+    "read_workflow_meta",
+    "resolve_project_workflow_status",
+    "workflow_cache_file",
+    "workflow_state_for_model",
+    "write_workflow_cache",
+    "write_workflow_meta",
 ]

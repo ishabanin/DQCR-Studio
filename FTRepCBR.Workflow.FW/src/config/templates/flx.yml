@@ -1,0 +1,45 @@
+name: flx
+description: Шаблон для витрин данных
+
+models:
+  - name: marts
+    paths:
+      models_root: model
+      project_config: project.yml
+      model_config: model.yml
+      contexts: contexts
+      global_params: parameters
+      local_params: parameters
+      sql: SQL
+      target: target/resources/forms/
+
+    config:
+      builder: default
+      dependency_resolver: naming_convention
+      workflow_engine: dqcr
+      default_materialization: insert_fc
+      model_ref_macro: table
+      properties:
+        repsysname:
+          required: true
+
+    validation_categories:
+      - general
+      - sql
+      - descriptions
+      - adb
+
+    rules:
+      folders:
+        root:
+          required: false
+          pre: []
+          post: []
+        "*_iter*":
+          pre: synch_iter
+        "*_Load*":
+          required: false
+          materialization: insert_fc
+        "*_Update*":
+          required: false
+          materialization: upsert_fc

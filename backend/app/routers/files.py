@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.fs import ensure_within_base, resolve_project_path
+from app.routers.projects import ensure_project_workflow_cache, trigger_workflow_rebuild
 
 router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])
 
@@ -55,6 +56,7 @@ def _build_tree(root: Path, current: Path) -> FileNode:
 def get_files_tree(project_id: str) -> FileNode:
     base_projects = Path(settings.projects_path)
     project_path = resolve_project_path(base_projects, project_id)
+    ensure_project_workflow_cache(project_id)
     return _build_tree(project_path, project_path)
 
 
@@ -84,6 +86,7 @@ def put_file_content(project_id: str, payload: FileContentRequest = Body(...)) -
 
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(payload.content, encoding="utf-8")
+    trigger_workflow_rebuild(project_id, changed_paths=[payload.path])
     return {"status": "saved", "path": payload.path}
 
 
@@ -107,7 +110,9 @@ def create_folder(project_id: str, payload: FolderCreateRequest = Body(...)) -> 
         )
 
     target.mkdir(parents=True, exist_ok=True)
-    return {"status": "created", "path": str(target.relative_to(project_path))}
+    relative_path = str(target.relative_to(project_path))
+    trigger_workflow_rebuild(project_id, changed_paths=[relative_path])
+    return {"status": "created", "path": relative_path}
 
 
 @router.post("/rename")
@@ -130,6 +135,10 @@ def rename_file_or_directory(project_id: str, payload: RenameRequest = Body(...)
 
     target = ensure_within_base(project_path, source.parent / payload.new_name)
     source.rename(target)
+    trigger_workflow_rebuild(
+        project_id,
+        changed_paths=[payload.path, str(target.relative_to(project_path))],
+    )
     return {
         "status": "renamed",
         "from": payload.path,
@@ -159,4 +168,5 @@ def delete_file_or_directory(project_id: str, path: str = Query(..., min_length=
                 child.rmdir()
         target.rmdir()
 
+    trigger_workflow_rebuild(project_id, changed_paths=[path])
     return {"status": "deleted", "path": path}

@@ -5,7 +5,11 @@ services:
     image: dqcr-studio-backend
     container_name: dqcr-studio-backend
     build:
-      context: ../../backend
+      context: ../..
+      dockerfile: backend/Dockerfile
+      args:
+        FW_INSTALL_MODE: ${FW_INSTALL_MODE:-local}
+        FW_PACKAGE_SPEC: ${FW_PACKAGE_SPEC:-}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     working_dir: /app
     volumes:
@@ -15,6 +19,8 @@ services:
       SECRET_KEY: dev-secret-key
       LOG_LEVEL: info
       PROJECTS_PATH: /app/projects
+      FW_USE_CLI: ${FW_USE_CLI:-true}
+      FW_CLI_COMMAND: ${FW_CLI_COMMAND:-fw2}
     ports:
       - "8000:8000"
 

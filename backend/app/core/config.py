@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:80", "http://127.0.0.1:80"]
     secret_key: str
     log_level: Literal["debug", "info", "warning", "error"] = "info"
+    fw_use_cli: bool = True
+    fw_cli_command: str = "fw2"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

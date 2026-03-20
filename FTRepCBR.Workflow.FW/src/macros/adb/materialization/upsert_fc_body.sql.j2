@@ -1,0 +1,21 @@
+{#
+  upsert_fc_body - ADB (Greenplum) UPDATE with FROM
+  
+  Parameters:
+    target_table: Имя целевой таблицы
+    sql: Подготовленный SQL-запрос
+    pk_columns: Список ключевых колонок для WHERE (может быть пустым)
+    update_columns: Список колонок для UPDATE (неключевые)
+    calc_id_literal: "{{CALC_ID}}" - подставляется как есть
+#}
+{% set sql_prepared = sql %}
+{% set target_table_name = target_table %}
+{% set pk_columns = pk_columns or [] %}
+{% set update_columns = update_columns or [] %}
+
+UPDATE {{ target_table_name }} trg
+SET {% for col in update_columns %}{% if loop.index0 > 0 %}, {% endif %}{{ col }} = src.{{ col }}{% endfor %} 
+FROM (
+    {{ sql_prepared }}
+) src
+WHERE trg.calcid = {{ calc_id_literal }}{% if pk_columns %} AND {% for pk in pk_columns %}{% if loop.index0 > 0 %} AND {% endif %}trg.{{ pk }} = src.{{ pk }}{% endfor %}{% endif %}

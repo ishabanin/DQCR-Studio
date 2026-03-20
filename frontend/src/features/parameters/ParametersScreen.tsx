@@ -5,6 +5,7 @@ import Editor from "@monaco-editor/react";
 import {
   createProjectParameter,
   deleteProjectParameter,
+  fetchProjectWorkflowStatus,
   fetchProjectParameters,
   fetchProjectTree,
   testProjectParameter,
@@ -73,6 +74,19 @@ export default function ParametersScreen() {
     queryFn: () => fetchProjectParameters(currentProjectId as string),
     enabled: Boolean(currentProjectId),
   });
+  const workflowStatusQuery = useQuery({
+    queryKey: ["workflowStatus", currentProjectId],
+    queryFn: () => fetchProjectWorkflowStatus(currentProjectId as string),
+    enabled: Boolean(currentProjectId),
+  });
+  const hasStaleModel = useMemo(
+    () => (workflowStatusQuery.data?.models ?? []).some((item) => item.status === "stale"),
+    [workflowStatusQuery.data?.models],
+  );
+  const hasFallbackSource = useMemo(
+    () => (workflowStatusQuery.data?.models ?? []).some((item) => item.source === "fallback"),
+    [workflowStatusQuery.data?.models],
+  );
 
   const treeQuery = useQuery({
     queryKey: ["projectTree", currentProjectId],
@@ -184,7 +198,14 @@ export default function ParametersScreen() {
       );
     },
     onSuccess: async (saved) => {
-      await queryClient.invalidateQueries({ queryKey: ["projectParameters", currentProjectId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["projectParameters", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["workflowStatus", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["modelWorkflow", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["autocomplete", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["configChain", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["lineage", currentProjectId] }),
+      ]);
       setIsNewDraft(false);
       setSelectedKey(parameterKey(saved));
       setDraft(cloneParameter(saved));
@@ -221,7 +242,14 @@ export default function ParametersScreen() {
       await deleteProjectParameter(currentProjectId, selectedItem.name, selectedItem.scope);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["projectParameters", currentProjectId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["projectParameters", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["workflowStatus", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["modelWorkflow", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["autocomplete", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["configChain", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["lineage", currentProjectId] }),
+      ]);
       setDraft(null);
       setSelectedKey(null);
       setIsNewDraft(false);
@@ -368,6 +396,10 @@ export default function ParametersScreen() {
           </button>
         </div>
       </div>
+      <p className="validate-meta">
+        Workflow status: {workflowStatusQuery.data?.status ?? "missing"} | Source:{" "}
+        {hasFallbackSource ? "fallback" : "framework_cli"} | Stale: {hasStaleModel ? "yes" : "no"}
+      </p>
 
       <div className="parameters-layout">
         <aside className="parameters-list">

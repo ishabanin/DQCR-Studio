@@ -1,0 +1,9 @@
+engines:
+  airflow:
+    macro_path: workflow/airflow
+  dbt:
+    macro_path: workflow/dbt
+  oracle_plsql:
+    macro_path: workflow/oracle_plsql
+  dqcr:
+    macro_path: workflow/dqcr

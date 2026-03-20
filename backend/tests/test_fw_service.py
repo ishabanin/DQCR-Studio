@@ -76,3 +76,88 @@ def test_run_generation_wraps_exception(tmp_path: Path) -> None:
     with pytest.raises(FWExecutionError):
         service.run_generation("demo", "SampleModel", "dqcr", "default", False, None)
 
+
+def test_run_validation_uses_cli_when_available(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project_dir = tmp_path / "demo"
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    service = FWService(
+        projects_base_path=tmp_path,
+        model_loader=lambda project_path, _model_id: project_path,
+        lineage_nodes_builder=lambda _project_path, _model_id: ([], 0),
+        lineage_edges_builder=lambda _nodes: [],
+        validation_runner=lambda _project_path, _project_id, _model_id, _rules: {"source": "fallback"},
+        generation_runner=lambda _project_path, _project_id, _model_id, _engine, _context, _dry_run, _output_path: {},
+        prefer_cli=True,
+    )
+
+    monkeypatch.setattr(service, "_cli_available", lambda: True)
+    monkeypatch.setattr(
+        service,
+        "_run_validation_via_cli",
+        lambda _project_path, _project_id, _model_id, _rules: {"source": "cli"},
+    )
+
+    result = service.run_validation("demo", "SampleModel")
+    assert result == {"source": "cli"}
+
+
+def test_run_generation_falls_back_when_cli_unavailable(tmp_path: Path) -> None:
+    project_dir = tmp_path / "demo"
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    service = FWService(
+        projects_base_path=tmp_path,
+        model_loader=lambda project_path, _model_id: project_path,
+        lineage_nodes_builder=lambda _project_path, _model_id: ([], 0),
+        lineage_edges_builder=lambda _nodes: [],
+        validation_runner=lambda _project_path, _project_id, _model_id, _rules: {},
+        generation_runner=lambda _project_path, _project_id, _model_id, _engine, _context, _dry_run, _output_path: {"source": "fallback"},
+        prefer_cli=True,
+    )
+
+    result = service.run_generation("demo", "SampleModel", "dqcr", "default", False, None)
+    assert result == {"source": "fallback"}
+
+
+def test_run_workflow_build_uses_cli_when_available(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project_dir = tmp_path / "demo"
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    service = FWService(
+        projects_base_path=tmp_path,
+        model_loader=lambda project_path, _model_id: project_path,
+        lineage_nodes_builder=lambda _project_path, _model_id: ([], 0),
+        lineage_edges_builder=lambda _nodes: [],
+        validation_runner=lambda _project_path, _project_id, _model_id, _rules: {},
+        generation_runner=lambda _project_path, _project_id, _model_id, _engine, _context, _dry_run, _output_path: {},
+        prefer_cli=True,
+    )
+
+    monkeypatch.setattr(service, "_cli_available", lambda: True)
+    monkeypatch.setattr(
+        service,
+        "_run_workflow_build_via_cli",
+        lambda _project_path, _project_id, _model_id, _context: {"workflow": {"steps": []}, "source": "cli"},
+    )
+
+    result = service.run_workflow_build("demo", "SampleModel")
+    assert result["source"] == "cli"
+
+
+def test_run_workflow_build_fails_when_cli_unavailable(tmp_path: Path) -> None:
+    project_dir = tmp_path / "demo"
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    service = FWService(
+        projects_base_path=tmp_path,
+        model_loader=lambda project_path, _model_id: project_path,
+        lineage_nodes_builder=lambda _project_path, _model_id: ([], 0),
+        lineage_edges_builder=lambda _nodes: [],
+        validation_runner=lambda _project_path, _project_id, _model_id, _rules: {},
+        generation_runner=lambda _project_path, _project_id, _model_id, _engine, _context, _dry_run, _output_path: {},
+        prefer_cli=True,
+    )
+
+    with pytest.raises(FWExecutionError):
+        service.run_workflow_build("demo", "SampleModel")

@@ -1,0 +1,21 @@
+{#
+  stage_calcid - Materialization: Stage with CalcID for ADB/GreenPlum
+  
+  Creates a temporary stage table filtered by CalcID with distribution key.
+  
+  Parameters:
+    sql_model: SQLQueryModel
+    tool: Database tool (adb, postgresql)
+    calcid_f110: CalcID function
+    distribution_key: Distribution key column name (optional)
+#}
+CREATE TABLE {{ sql_model.target_table }} AS
+SELECT 
+    {{ calcid_f110 }} as CalcID,
+    t.*
+FROM (
+    {{ sql_model.get_prepared_sql_for_render(tool) }}
+) t
+{% if distribution_key %}
+DISTRIBUTED BY ({{ distribution_key }})
+{% endif %}

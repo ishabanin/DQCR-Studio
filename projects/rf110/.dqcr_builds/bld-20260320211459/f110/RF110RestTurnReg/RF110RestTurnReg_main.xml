@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='windows-1251'?>
+<doc>
+  <params>
+    <param name="Title"><![CDATA[RF110RestTurnReg]]></param>
+    <param name="Description"><![CDATA[Заполнение реестра остатков и оборотов для формы 110]]></param>
+  </params>
+  <content>
+    <include name="f110/RF110RestTurnReg/RF110RestTurnReg_default_adb" src="f110/RF110RestTurnReg/RF110RestTurnReg_default_adb.xml" exec="ON" callif="ISADB;DEFAULT"/>
+    <include name="f110/RF110RestTurnReg/RF110RestTurnReg_vtb_adb" src="f110/RF110RestTurnReg/RF110RestTurnReg_vtb_adb.xml" exec="ON" callif="ISADB;VTB"/>
+    <include name="f110/RF110RestTurnReg/RF110RestTurnReg_default_oracle" src="f110/RF110RestTurnReg/RF110RestTurnReg_default_oracle.xml" exec="ON" callif="ISORACLE;DEFAULT"/>
+    <include name="f110/RF110RestTurnReg/RF110RestTurnReg_default_postgresql" src="f110/RF110RestTurnReg/RF110RestTurnReg_default_postgresql.xml" exec="ON" callif="ISPOSTGRESQL;DEFAULT"/>
+  </content>
+</doc>

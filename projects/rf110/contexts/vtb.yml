@@ -1,0 +1,14 @@
+project: vtb
+tools:
+  - adb
+
+constants:
+  schema: VTB_SCHEMA
+
+flags:
+  calcinn : true
+  enable_heavy_calc: false
+  debug_mode: true
+  overduecalcmethod:
+    fifo: false
+    lifo: true

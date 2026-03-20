@@ -3,6 +3,9 @@ import { apiClient } from "./client";
 export interface ProjectItem {
   id: string;
   name: string;
+  source_type?: "internal" | "imported" | "linked";
+  source_path?: string | null;
+  availability_status?: "available" | "unavailable";
 }
 
 export interface ContextItem {
@@ -16,6 +19,9 @@ export interface CreateProjectResponse {
   path: string;
   contexts: string[];
   model: string;
+  source_type?: "internal" | "imported" | "linked";
+  source_path?: string | null;
+  availability_status?: "available" | "unavailable";
 }
 
 export interface FileNode {
@@ -42,6 +48,9 @@ export interface ProjectAutocompleteResponse {
   parameters: AutocompleteParameterItem[];
   macros: AutocompleteMacroItem[];
   config_keys: string[];
+  all_contexts?: string[];
+  data_source?: "workflow" | "fallback";
+  fallback?: boolean;
 }
 
 export interface LineageNode {
@@ -101,6 +110,16 @@ export interface ConfigChainResponse {
     by_context: Record<string, string>;
   };
   generated_outputs: string[];
+  sql_metadata?: {
+    parameters: string[];
+    ctes: string[];
+    inline_cte_configs: Record<string, string>;
+  };
+  data_source?: "workflow" | "fallback";
+  fallback?: boolean;
+  workflow_status?: string;
+  workflow_source?: string;
+  workflow_updated_at?: string | null;
 }
 
 export interface BuildPreviewResponse {
@@ -128,6 +147,9 @@ export interface BuildRunResult {
   output_path: string;
   files_count: number;
   files: BuildGeneratedFileItem[];
+  workflow_updated_at?: string | null;
+  workflow_status?: string;
+  workflow_source?: string;
 }
 
 export interface BuildFilesTreeNode {
@@ -203,6 +225,33 @@ export interface ValidationRunResult {
     errors: number;
   };
   rules: ValidationRuleResult[];
+  workflow_updated_at?: string | null;
+  workflow_status?: string;
+  workflow_source?: string;
+}
+
+export interface WorkflowModelState {
+  project_id: string;
+  model_id: string;
+  status: "ready" | "stale" | "building" | "error" | "missing";
+  updated_at: string | null;
+  error: string | null;
+  source: "framework_cli" | "fallback";
+  workflow?: Record<string, unknown> | null;
+}
+
+export interface WorkflowProjectStatus {
+  project_id: string;
+  status: "ready" | "stale" | "building" | "error" | "missing";
+  models: Array<{
+    project_id: string;
+    model_id: string;
+    status: "ready" | "stale" | "building" | "error" | "missing";
+    updated_at: string | null;
+    error: string | null;
+    source: "framework_cli" | "fallback";
+    has_cache: boolean;
+  }>;
 }
 
 export interface ValidationQuickFixResponse {
@@ -259,6 +308,10 @@ export interface ModelObjectResponse {
   project_id: string;
   model_id: string;
   path: string;
+  data_source?: "workflow" | "fallback";
+  workflow_status?: string;
+  workflow_source?: string;
+  workflow_updated_at?: string | null;
   model: {
     target_table: {
       name?: string | null;
@@ -309,19 +362,45 @@ export async function fetchProjects(): Promise<ProjectItem[]> {
 }
 
 export async function createProject(payload: {
+  mode?: "create" | "import" | "connect";
   project_id?: string;
-  name: string;
-  description: string;
-  template: "flx" | "dwh_mart" | "dq_control";
-  properties: Record<string, string>;
-  contexts: string[];
-  model: {
+  name?: string;
+  description?: string;
+  template?: "flx" | "dwh_mart" | "dq_control";
+  properties?: Record<string, string>;
+  contexts?: string[];
+  source_path?: string;
+  model?: {
     name: string;
     first_folder: string;
     attributes: Array<{ name: string; domain_type: string; is_key?: boolean }>;
   };
 }): Promise<CreateProjectResponse> {
   const { data } = await apiClient.post<CreateProjectResponse>("/projects", payload);
+  return data;
+}
+
+export async function uploadProjectFolder(payload: {
+  files: File[];
+  relativePaths: string[];
+  project_id?: string;
+  name?: string;
+  description?: string;
+}): Promise<CreateProjectResponse> {
+  const formData = new FormData();
+  payload.files.forEach((file) => {
+    formData.append("files", file, file.name);
+  });
+  payload.relativePaths.forEach((relativePath) => {
+    formData.append("relative_paths", relativePath);
+  });
+  if (payload.project_id) formData.append("project_id", payload.project_id);
+  if (payload.name) formData.append("name", payload.name);
+  if (payload.description) formData.append("description", payload.description);
+  const { data } = await apiClient.post<CreateProjectResponse>("/projects/import-upload", formData, {
+    // Folder upload can exceed default 10s timeout on large projects.
+    timeout: 120000,
+  });
   return data;
 }
 
@@ -364,6 +443,21 @@ export async function saveFileContent(projectId: string, path: string, content: 
 
 export async function fetchProjectAutocomplete(projectId: string): Promise<ProjectAutocompleteResponse> {
   const { data } = await apiClient.get<ProjectAutocompleteResponse>(`/projects/${projectId}/autocomplete`);
+  return data;
+}
+
+export async function fetchProjectWorkflowStatus(projectId: string): Promise<WorkflowProjectStatus> {
+  const { data } = await apiClient.get<WorkflowProjectStatus>(`/projects/${projectId}/workflow/status`);
+  return data;
+}
+
+export async function fetchModelWorkflow(projectId: string, modelId: string): Promise<WorkflowModelState> {
+  const { data } = await apiClient.get<WorkflowModelState>(`/projects/${projectId}/models/${modelId}/workflow`);
+  return data;
+}
+
+export async function rebuildModelWorkflow(projectId: string, modelId: string): Promise<WorkflowModelState> {
+  const { data } = await apiClient.post<WorkflowModelState>(`/projects/${projectId}/models/${modelId}/workflow/rebuild`);
   return data;
 }
 

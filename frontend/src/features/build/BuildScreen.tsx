@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Editor, { DiffEditor } from "@monaco-editor/react";
 
 import {
@@ -8,8 +8,11 @@ import {
   fetchBuildHistory,
   fetchProjectContexts,
   fetchProjectTree,
+  fetchModelWorkflow,
+  fetchProjectWorkflowStatus,
   getBuildDownloadUrl,
   getBuildFileDownloadUrl,
+  rebuildModelWorkflow,
   type BuildFilesTreeNode,
   type BuildRunResult,
   type FileNode,
@@ -117,6 +120,16 @@ export default function BuildScreen() {
     queryKey: ["buildHistory", currentProjectId],
     queryFn: () => fetchBuildHistory(currentProjectId as string),
     enabled: Boolean(currentProjectId),
+  });
+  const workflowStatusQuery = useQuery({
+    queryKey: ["workflowStatus", currentProjectId],
+    queryFn: () => fetchProjectWorkflowStatus(currentProjectId as string),
+    enabled: Boolean(currentProjectId),
+  });
+  const modelWorkflowQuery = useQuery({
+    queryKey: ["modelWorkflow", currentProjectId, modelId],
+    queryFn: () => fetchModelWorkflow(currentProjectId as string, modelId as string),
+    enabled: Boolean(currentProjectId && modelId),
   });
 
   const buildFilesQuery = useQuery({
@@ -279,6 +292,21 @@ export default function BuildScreen() {
     return { added, removed, shared };
   }, [buildFilesQuery.data?.files, previousBuildFilesQuery.data?.files]);
 
+  const rebuildWorkflowMutation = useMutation({
+    mutationFn: () => rebuildModelWorkflow(currentProjectId as string, modelId as string),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["workflowStatus", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["modelWorkflow", currentProjectId, modelId] }),
+        queryClient.invalidateQueries({ queryKey: ["configChain", currentProjectId, modelId] }),
+      ]);
+      addToast("Workflow rebuilt", "success");
+    },
+    onError: () => {
+      addToast("Workflow rebuild failed", "error");
+    },
+  });
+
   if (!currentProjectId) {
     return (
       <section className="workbench">
@@ -347,6 +375,29 @@ export default function BuildScreen() {
           Progress: {buildProgress}% {buildStage ? `(${buildStage})` : ""}
         </p>
       ) : null}
+
+      <section className="build-card">
+        <h2>Workflow Build State</h2>
+        <p className="build-diff-meta">
+          Project status: <strong>{workflowStatusQuery.data?.status ?? "missing"}</strong>
+        </p>
+        <p className="build-diff-meta">
+          Model status: <strong>{modelWorkflowQuery.data?.status ?? "missing"}</strong>
+        </p>
+        <p className="build-diff-meta">
+          Last workflow build: {modelWorkflowQuery.data?.updated_at ? new Date(modelWorkflowQuery.data.updated_at).toLocaleString() : "—"}
+        </p>
+        <p className="build-diff-meta">Source: {modelWorkflowQuery.data?.source ?? "—"}</p>
+        {modelWorkflowQuery.data?.error ? <p className="build-empty">Last error: {modelWorkflowQuery.data.error}</p> : null}
+        <button
+          className="action-btn action-btn-primary"
+          type="button"
+          disabled={!modelId || rebuildWorkflowMutation.isPending}
+          onClick={() => rebuildWorkflowMutation.mutate()}
+        >
+          {rebuildWorkflowMutation.isPending ? "Rebuilding..." : "Rebuild Workflow"}
+        </button>
+      </section>
 
       <div className="build-layout">
         <section className="build-card">

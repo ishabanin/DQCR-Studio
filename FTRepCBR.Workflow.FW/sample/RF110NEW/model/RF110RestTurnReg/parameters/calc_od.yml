@@ -1,0 +1,9 @@
+parameter:
+  name: calc_od
+  description: "флаг необходимости расчета ОД"
+  domain_type: bool
+  
+  values:
+    all:
+      type: static
+      value: false    

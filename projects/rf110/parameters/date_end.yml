@@ -1,0 +1,12 @@
+parameter:
+  name: date_end
+  description: "Дата расчета"
+  domain_type: date
+  
+  values:
+    all:
+      type: static
+      value: ":DATE_END:"
+    vtb:
+      type: dynamic
+      value: "SELECT MAX(calc_date) FROM vtb_dates"

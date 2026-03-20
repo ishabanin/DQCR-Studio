@@ -8,7 +8,13 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.core.config import settings
 from app.services.terminal_service import TerminalService
-from app.routers.projects import FW_SERVICE, _build_validation_result, _resolve_model_id_for_validation
+from app.routers.projects import (
+    _BUILD_HISTORY,
+    FW_SERVICE,
+    _attach_workflow_context,
+    _build_validation_result,
+    _resolve_model_id_for_validation,
+)
 from app.core.fs import resolve_project_path
 
 router = APIRouter(prefix="/ws", tags=["ws"])
@@ -108,6 +114,12 @@ async def ws_build(project_id: str, websocket: WebSocket):
             dry_run=dry_run,
             output_path=output_path,
         )
+        result = _attach_workflow_context(result, project_path, model_id)
+        build_id = str(result.get("build_id", "")).strip()
+        if build_id and not any(str(item.get("build_id")) == build_id for item in _BUILD_HISTORY.get(project_id, [])):
+            history = _BUILD_HISTORY.setdefault(project_id, [])
+            history.insert(0, result)
+            _BUILD_HISTORY[project_id] = history[:20]
 
         await asyncio.sleep(0.1)
         await websocket.send_json({"type": "progress", "percent": 100, "stage": "completed"})

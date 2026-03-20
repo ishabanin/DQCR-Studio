@@ -1,0 +1,42 @@
+{#
+  full_pipeline - Workflow template со staging шагами
+  
+  Добавляет технические шаги:
+  - pre_staging: подготовка staging таблицы
+  - main: основные SQL шаги
+  - post: финальная обработка (аналитика, валидация)
+  
+  Parameters:
+    workflow: WorkflowModel
+#}
+{% set staging_table = workflow.target_table_name ~ '_st' %}
+
+{# ============================================================================= #}
+{# PRE-STAGING: Подготовка staging таблицы #}
+{# ============================================================================= #}
+{{ include_macro('workflow/steps/truncate_staging', workflow=workflow) }}
+
+{# ============================================================================= #}
+{# STAGING: Загрузка данных в staging #}
+{# ============================================================================= #}
+{{ include_macro('workflow/steps/create_staging', workflow=workflow) }}
+
+{# ============================================================================= #}
+{# MAIN: Основные SQL шаги #}
+{# ============================================================================= #}
+{% for tool in workflow.tools %}
+-- ============================================
+-- Tool: {{ tool }}
+-- ============================================
+{% for step in workflow.graph.topological_sort() %}
+{% if step.is_sql_step() and step.sql_model %}
+-- Step: {{ step.full_name }}
+{{ step.sql_model.get_rendered_sql(tool) }}
+{% endif %}
+{% endfor %}
+{% endfor %}
+
+{# ============================================================================= #}
+{# POST: Финальная обработка #}
+{# ============================================================================= #}
+{{ include_macro('workflow/steps/analyze_table', workflow=workflow) }}

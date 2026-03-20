@@ -1,0 +1,20 @@
+001_Load__distr:
+      enabled:
+        contexts: [default]
+      queries:
+        001_RF110_Reg_Acc2:
+          materialized: stage_calcid
+        002_RF110RestTurnReg_ACCDEMAND:
+          cte_queries:
+            ClientChr1_34:
+              cte_materialization:
+                 default: ephemeral
+                 by_tool:
+                   adb: stage_calcid
+        003_RF110RestTurnReg_ACCRSRV:
+          cte_queries:
+            b:
+              cte_materialization:
+                 default: ephemeral
+                 by_tool: 
+                   postgresql: stage_calcid                 
