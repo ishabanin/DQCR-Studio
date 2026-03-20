@@ -1,0 +1,25 @@
+target_table:
+  attributes:
+    - name: new_field_1
+      domain_type: string
+      is_key: false
+      required: false
+    - name: new_field_2
+      domain_type: string
+      is_key: false
+      required: false
+    - name: new_field_3
+      domain_type: string
+      is_key: false
+      required: false
+
+workflow:
+  description: Демонстрационный workflow загрузки и агрегации продаж
+
+  folders:
+    001_Load:
+      description: Загрузка одобренных сделок
+      enabled: true
+    002_Transform:
+      description: Агрегация по клиентам
+      enabled: true
