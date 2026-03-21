@@ -367,6 +367,10 @@ function SidebarTreeNode({
           className={isDirectory ? "tree-main-hit tree-main-hit-directory" : "tree-main-hit"}
           onClick={() => {
             if (isDirectory) {
+              if (node.path === ".") {
+                onOpen(node.path);
+                return;
+              }
               onToggle(node.path);
               return;
             }
@@ -751,6 +755,10 @@ export default function Sidebar() {
                 expandedPaths={expandedPaths}
                 onToggle={togglePath}
                 onOpen={(path) => {
+                  if (path === ".") {
+                    setActiveTab("project");
+                    return;
+                  }
                   openFile(path);
                   setActiveTab("sql");
                 }}

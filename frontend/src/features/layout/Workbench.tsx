@@ -4,10 +4,12 @@ import BuildScreen from "../build/BuildScreen";
 import LineageScreen from "../lineage/LineageScreen";
 import ModelEditorScreen from "../model/ModelEditorScreen";
 import ParametersScreen from "../parameters/ParametersScreen";
+import { ProjectInfoScreen } from "../project/ProjectInfoScreen";
 import SqlEditorScreen from "../sql/SqlEditorScreen";
 import ValidateScreen from "../validate/ValidateScreen";
 
 const tabTitleMap: Record<string, string> = {
+  project: "Project Info",
   lineage: "Lineage Screen",
   model: "Model Editor Screen",
   sql: "SQL Editor Screen",
@@ -23,6 +25,9 @@ export default function Workbench() {
 
   if (activeTab === "sql") {
     return <SqlEditorScreen />;
+  }
+  if (activeTab === "project") {
+    return <ProjectInfoScreen />;
   }
   if (activeTab === "lineage") {
     return <LineageScreen />;

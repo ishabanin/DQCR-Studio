@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { TabId, useEditorStore } from "../../app/store/editorStore";
 
 const tabs: Array<{ id: TabId; label: string }> = [
+  { id: "project", label: "Project Info" },
   { id: "lineage", label: "Lineage" },
   { id: "model", label: "Model Editor" },
   { id: "sql", label: "SQL Editor" },

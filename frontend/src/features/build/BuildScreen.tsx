@@ -91,6 +91,8 @@ function OutputTreeNode({
 export default function BuildScreen() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const addToast = useUiStore((state) => state.addToast);
+  const dismissedHistoryWarning = useUiStore((state) => state.dismissedHistoryWarning);
+  const setDismissedHistoryWarning = useUiStore((state) => state.setDismissedHistoryWarning);
   const queryClient = useQueryClient();
   const { theme } = useTheme();
   const [engine, setEngine] = useState<BuildEngine>("dqcr");
@@ -259,7 +261,16 @@ export default function BuildScreen() {
       setIsBuilding(false);
       await queryClient.invalidateQueries({ queryKey: ["buildHistory", currentProjectId] });
       setSelectedBuildId(data.result.build_id);
-      addToast(`Build ${data.result.build_id} completed`, "success");
+      addToast(`✓ Build завершён — ${data.result.files_count} файлов сгенерировано`, "success", {
+        description: "История сборок хранится до перезапуска сервера",
+        autoCloseMs: 8000,
+        action: {
+          label: "Скачать ZIP",
+          onClick: () => {
+            window.open(getBuildDownloadUrl(currentProjectId, data.result.build_id), "_blank");
+          },
+        },
+      });
       ws.close();
     };
 
@@ -402,6 +413,14 @@ export default function BuildScreen() {
       <div className="build-layout">
         <section className="build-card">
           <h2>Build History</h2>
+          {!dismissedHistoryWarning ? (
+            <div className="session-history-banner">
+              <span>История сессии - сбрасывается при перезапуске сервера</span>
+              <button type="button" onClick={() => setDismissedHistoryWarning(true)}>
+                Понятно ✕
+              </button>
+            </div>
+          ) : null}
           <ul className="build-history-list">
             {(buildHistoryQuery.data ?? []).map((item) => (
               <li key={item.build_id}>

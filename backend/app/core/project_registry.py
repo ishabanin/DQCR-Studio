@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 
 RegistrySourceType = Literal["internal", "imported", "linked"]
@@ -15,6 +15,9 @@ class ProjectRegistryEntry(TypedDict):
     source_type: RegistrySourceType
     source_path: str | None
     availability_status: RegistryAvailability
+    description: NotRequired[str]
+    visibility: NotRequired[Literal["public", "private"]]
+    tags: NotRequired[list[str]]
 
 
 REGISTRY_FILE_NAME = ".dqcr_projects_registry.json"
@@ -56,6 +59,17 @@ def load_registry(base_projects_path: Path) -> dict[str, ProjectRegistryEntry]:
             "source_path": source_path,
             "availability_status": status,
         }
+        description_raw = item.get("description")
+        if isinstance(description_raw, str):
+            entries[project_id]["description"] = description_raw
+
+        visibility_raw = item.get("visibility")
+        if visibility_raw in {"public", "private"}:
+            entries[project_id]["visibility"] = visibility_raw
+
+        tags_raw = item.get("tags")
+        if isinstance(tags_raw, list):
+            entries[project_id]["tags"] = [str(tag).strip() for tag in tags_raw if str(tag).strip()]
     return entries
 
 
@@ -67,6 +81,9 @@ def save_registry(base_projects_path: Path, entries: dict[str, ProjectRegistryEn
             "source_type": item["source_type"],
             "source_path": item["source_path"],
             "availability_status": item["availability_status"],
+            "description": item.get("description", ""),
+            "visibility": item.get("visibility", "private"),
+            "tags": item.get("tags", []),
         }
         for key, item in sorted(entries.items(), key=lambda pair: pair[0].lower())
     }

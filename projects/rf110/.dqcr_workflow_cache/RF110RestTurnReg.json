@@ -434,6 +434,10 @@
           "vtb": {
             "type": "static",
             "value": "1=1"
+          },
+          "rush": {
+            "type": "static",
+            "value": "1=1"
           }
         },
         "source_sql": null,
@@ -452,6 +456,55 @@
         "param_001_Load__distr_004_applySettings_iter"
       ],
       "context": "default",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "param_clientchr_sql_filter_rush",
+      "name": "param_clientchr_sql_filter",
+      "folder": "",
+      "full_name": "param_clientchr_sql_filter_rush",
+      "step_type": "param",
+      "step_scope": "params",
+      "sql_model": null,
+      "param_model": {
+        "name": "clientchr_sql_filter",
+        "domain_type": "sql.condition",
+        "description": "Фильтр на статус записи в Характерах клиента",
+        "attributes": [],
+        "values": {
+          "all": {
+            "type": "static",
+            "value": "rowstatus = 'A'"
+          },
+          "vtb": {
+            "type": "static",
+            "value": "1=1"
+          },
+          "rush": {
+            "type": "static",
+            "value": "1=1"
+          }
+        },
+        "source_sql": null,
+        "prepared_sql": {
+          "oracle": "",
+          "adb": "",
+          "postgresql": ""
+        },
+        "rendered_sql": {
+          "oracle": "\n\nSELECT 'rowstatus = ''A''' as clientchr_sql_filter FROM DUAL\n",
+          "adb": "\n\nSELECT 'rowstatus = ''A''' as clientchr_sql_filter FROM DUAL\n",
+          "postgresql": "\n\nSELECT 'rowstatus = ''A''' as clientchr_sql_filter FROM DUAL\n"
+        }
+      },
+      "dependencies": [
+        "param_clientchr_sql_filter_default"
+      ],
+      "context": "rush",
       "is_ephemeral": false,
       "enabled": true,
       "asynch": false,
@@ -479,6 +532,10 @@
           "vtb": {
             "type": "static",
             "value": "1=1"
+          },
+          "rush": {
+            "type": "static",
+            "value": "1=1"
           }
         },
         "source_sql": null,
@@ -490,7 +547,7 @@
         }
       },
       "dependencies": [
-        "param_clientchr_sql_filter_default"
+        "param_clientchr_sql_filter_rush"
       ],
       "context": "vtb",
       "is_ephemeral": false,
@@ -1920,67 +1977,6 @@
       "tools": null
     },
     {
-      "step_id": "sql_001_Load_distr/004_applySettings_iter_applySettings_default",
-      "name": "applySettings",
-      "folder": "001_Load__distr/004_applySettings_iter",
-      "full_name": "001_Load__distr/004_applySettings_iter/applySettings_default/sql",
-      "step_type": "sql",
-      "step_scope": "sql",
-      "sql_model": {
-        "name": "applySettings",
-        "path": "/app/projects/rf110/model/RF110RestTurnReg/SQL/001_Load__distr/004_applySettings_iter/applySettings.sql",
-        "source_sql": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}",
-        "materialization": "insert_fc",
-        "context": "default",
-        "metadata": {
-          "parameters": [
-            "sett.account2",
-            "sett.strnum"
-          ],
-          "tables": {
-            "register": {
-              "alias": "register",
-              "is_variable": false,
-              "is_cte": false
-            }
-          },
-          "aliases": [],
-          "cte": {},
-          "functions": [],
-          "model_refs": {},
-          "workflow_refs": {},
-          "inline_query_config": null,
-          "inline_cte_configs": {},
-          "inline_attr_configs": {}
-        },
-        "prepared_sql": {
-          "adb": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}",
-          "oracle": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}",
-          "postgresql": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}"
-        },
-        "rendered_sql": {
-          "adb": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}",
-          "oracle": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}",
-          "postgresql": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}"
-        },
-        "attributes": [],
-        "cte_materialization": null,
-        "cte_config": null,
-        "cte_table_names": {},
-        "target_table": ""
-      },
-      "param_model": null,
-      "dependencies": [
-        "001_Load__distr/003_RF110RestTurnReg_ACCRSRV_default/sql"
-      ],
-      "context": "default",
-      "is_ephemeral": false,
-      "enabled": true,
-      "asynch": false,
-      "loop_step_ref": null,
-      "tools": null
-    },
-    {
       "step_id": "sql_001_Load_vtb_001_RF110RestTurnReg_ACCDEMAND_vtb_vtb",
       "name": "001_RF110RestTurnReg_ACCDEMAND_vtb",
       "folder": "001_Load__vtb",
@@ -2829,7 +2825,7 @@
       },
       "param_model": null,
       "dependencies": [
-        "001_Load__distr/004_applySettings_iter/applySettings_default/sql"
+        "001_Load__distr/003_RF110RestTurnReg_ACCRSRV_default/sql"
       ],
       "context": "vtb",
       "is_ephemeral": false,
@@ -2995,9 +2991,9 @@
           "postgresql": "    \n\nwith b as (\n    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)"
         },
         "rendered_sql": {
-          "adb": "\nUPDATE RF110RestTurnReg trg\nSET fininstrcategory = src.fininstrcategory, datefrom = src.datefrom \nFROM (\n        \n\nwith b as (\n    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)\n) src\nWHERE trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid",
-          "oracle": "\nMERGE INTO RF110RestTurnReg trg\nUSING (\n        \n\nwith b as (\n    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)\n) src\nON (trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid)\nWHEN MATCHED THEN\nUPDATE SET\nfininstrcategory = src.fininstrcategory, datefrom = src.datefrom",
-          "postgresql": "\nUPDATE RF110RestTurnReg trg\nSET fininstrcategory = src.fininstrcategory, datefrom = src.datefrom \nFROM (\n        \n\nwith b as (\n    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)\n) src\nWHERE trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid"
+          "adb": "\nUPDATE RF110RestTurnReg trg\nSET datefrom = src.datefrom, fininstrcategory = src.fininstrcategory \nFROM (\n        \n\nwith b as (\n    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)\n) src\nWHERE trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid",
+          "oracle": "\nMERGE INTO RF110RestTurnReg trg\nUSING (\n        \n\nwith b as (\n    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)\n) src\nON (trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid)\nWHEN MATCHED THEN\nUPDATE SET\ndatefrom = src.datefrom, fininstrcategory = src.fininstrcategory",
+          "postgresql": "\nUPDATE RF110RestTurnReg trg\nSET datefrom = src.datefrom, fininstrcategory = src.fininstrcategory \nFROM (\n        \n\nwith b as (\n    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)\n) src\nWHERE trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid"
         },
         "attributes": [
           {
@@ -3274,7 +3270,7 @@
           "adb": "    \n\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 FROM tmp_sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb_{{calc_id}})"
         },
         "rendered_sql": {
-          "adb": "\nUPDATE RF110RestTurnReg trg\nSET fininstrcategory = src.fininstrcategory, datefrom = src.datefrom \nFROM (\n        \n\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 FROM tmp_sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb_{{calc_id}})\n) src\nWHERE trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid"
+          "adb": "\nUPDATE RF110RestTurnReg trg\nSET datefrom = src.datefrom, fininstrcategory = src.fininstrcategory \nFROM (\n        \n\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 FROM tmp_sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb_{{calc_id}})\n) src\nWHERE trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid"
         },
         "attributes": [
           {
@@ -3445,19 +3441,6 @@
       ],
       "materialized": "insert_fc",
       "pre": [],
-      "post": []
-    },
-    "001_Load__distr/004_applySettings_iter": {
-      "name": "001_Load__distr/004_applySettings_iter",
-      "short_name": "004_applySettings_iter",
-      "enabled": true,
-      "contexts": [
-        "default"
-      ],
-      "materialized": "insert_fc",
-      "pre": [
-        "synch_iter"
-      ],
       "post": []
     },
     "001_Load__vtb": {

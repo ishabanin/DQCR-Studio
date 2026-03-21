@@ -1,0 +1,3486 @@
+{
+  "model_name": "RF110RestTurnReg",
+  "model_path": "/app/projects/rf110/model/RF110RestTurnReg",
+  "target_table": {
+    "name": "RF110RestTurnReg",
+    "context": "all",
+    "schema": "RF110",
+    "attributes": [
+      {
+        "name": "dealid",
+        "domain_type": "number",
+        "required": false,
+        "is_key": true,
+        "constraints": [
+          "PRIMARY_KEY"
+        ],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "accountid",
+        "domain_type": "number",
+        "required": false,
+        "is_key": true,
+        "constraints": [
+          "PRIMARY_KEY"
+        ],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "objectid",
+        "domain_type": "number",
+        "required": false,
+        "is_key": true,
+        "constraints": [
+          "PRIMARY_KEY"
+        ],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "calcid",
+        "domain_type": "number",
+        "required": false,
+        "is_key": true,
+        "constraints": [
+          "PRIMARY_KEY"
+        ],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "fininstrcategory",
+        "domain_type": "string",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "datefrom",
+        "domain_type": "date",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "accountnumber",
+        "domain_type": "string",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "clientinn",
+        "domain_type": "string",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "clientid",
+        "domain_type": "number",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "loanrepokind",
+        "domain_type": "string",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "somerequiredattribute",
+        "domain_type": "string",
+        "required": true,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null,
+        "default_value": "test"
+      }
+    ],
+    "primary_keys": [
+      "dealid",
+      "accountid",
+      "objectid",
+      "calcid"
+    ],
+    "description": "Реестр остатков и оборотов для формы 110"
+  },
+  "settings": {
+    "workflow_template": null,
+    "materialization_map": {},
+    "folder_contexts": {}
+  },
+  "config": {
+    "description": "Заполнение реестра остатков и оборотов для формы 110",
+    "folders": {
+      "002_Update": {
+        "enabled": {},
+        "queries": {
+          "001_RF110RestTurnReg_QUALITY": {
+            "enabled": {},
+            "description": "обновление категории качества",
+            "cte_queries": {
+              "b": {
+                "cte_materialization": "ephemeral",
+                "by_context": {
+                  "vtb": "stage_calcid"
+                },
+                "attributes": [
+                  {
+                    "name": "t",
+                    "domain_type": "number",
+                    "required": false,
+                    "is_key": false,
+                    "constraints": [],
+                    "description": "",
+                    "distribution_key": 1,
+                    "partition_key": null
+                  }
+                ]
+              }
+            }
+          },
+          "001_RF110RestTurnReg_INN": {
+            "enabled": {
+              "conditions": {
+                "calcinn": true
+              }
+            },
+            "attributes": [
+              {
+                "name": "clientid",
+                "domain_type": "number",
+                "required": false,
+                "is_key": true,
+                "constraints": [
+                  "PRIMARY_KEY"
+                ],
+                "description": "",
+                "distribution_key": null,
+                "partition_key": null
+              }
+            ],
+            "cte": {}
+          }
+        },
+        "cte": {}
+      },
+      "001_Load__distr": {
+        "enabled": {
+          "contexts": [
+            "default"
+          ]
+        },
+        "queries": {
+          "001_RF110_Reg_Acc2": {
+            "enabled": {},
+            "materialized": "stage_calcid",
+            "cte": {}
+          },
+          "002_RF110RestTurnReg_ACCDEMAND": {
+            "enabled": {},
+            "cte_queries": {
+              "ClientChr1_34": {
+                "cte_materialization": "ephemeral",
+                "by_tool": {
+                  "adb": "stage_calcid"
+                }
+              }
+            }
+          },
+          "003_RF110RestTurnReg_ACCRSRV": {
+            "enabled": {},
+            "cte_queries": {
+              "b": {
+                "cte_materialization": "ephemeral",
+                "by_tool": {
+                  "postgresql": "stage_calcid"
+                }
+              }
+            }
+          }
+        },
+        "cte": {}
+      },
+      "001_Load__vtb": {
+        "enabled": {
+          "contexts": [
+            "vtb"
+          ]
+        },
+        "cte": {}
+      }
+    },
+    "cte": {},
+    "post": [
+      "prepost"
+    ]
+  },
+  "steps": [
+    {
+      "step_id": "param_calc_od",
+      "name": "param_calc_od",
+      "folder": "",
+      "full_name": "param_calc_od",
+      "step_type": "param",
+      "step_scope": "flags",
+      "sql_model": null,
+      "param_model": {
+        "name": "calc_od",
+        "domain_type": "bool",
+        "description": "флаг необходимости расчета ОД",
+        "attributes": [],
+        "values": {
+          "all": {
+            "type": "static",
+            "value": false
+          }
+        },
+        "source_sql": null,
+        "prepared_sql": {
+          "oracle": "",
+          "adb": "",
+          "postgresql": ""
+        },
+        "rendered_sql": {
+          "oracle": "\n\nSELECT '' as calc_od FROM DUAL\n",
+          "adb": "\n\nSELECT '' as calc_od FROM DUAL\n",
+          "postgresql": "\n\nSELECT '' as calc_od FROM DUAL\n"
+        }
+      },
+      "dependencies": [],
+      "context": "all",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "get_entities",
+      "name": "get_entities",
+      "folder": "",
+      "full_name": "get_entities",
+      "step_type": "param",
+      "step_scope": "pre",
+      "sql_model": null,
+      "param_model": {
+        "name": "get_entities",
+        "domain_type": "record",
+        "description": "Таблицы для логических сущностей",
+        "attributes": [
+          {
+            "name": "table_rf110_rf110_settings",
+            "type": "sql.identifier"
+          },
+          {
+            "name": "table_dwh_clientchr",
+            "type": "sql.identifier"
+          },
+          {
+            "name": "table_rf110_rf110restturnreg",
+            "type": "sql.identifier"
+          },
+          {
+            "name": "table_assetreg_assetregistercor",
+            "type": "sql.identifier"
+          },
+          {
+            "name": "table_dwh_account",
+            "type": "sql.identifier"
+          },
+          {
+            "name": "table_clientjurreg_clientjurregister",
+            "type": "sql.identifier"
+          },
+          {
+            "name": "table_dwh_secdealrepo",
+            "type": "sql.identifier"
+          },
+          {
+            "name": "table_dwh_currency",
+            "type": "sql.identifier"
+          },
+          {
+            "name": "table_psreg_psregister",
+            "type": "sql.identifier"
+          }
+        ],
+        "values": {
+          "all": {
+            "type": "dynamic",
+            "value": "SELECT \n    MAX(CASE WHEN entity_name = 'rf110_settings' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110_settings,\n    MAX(CASE WHEN entity_name = 'clientchr' AND module_name = 'dwh' THEN table_name END) AS table_dwh_clientchr,\n    MAX(CASE WHEN entity_name = 'rf110restturnreg' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110restturnreg,\n    MAX(CASE WHEN entity_name = 'assetregistercor' AND module_name = 'assetreg' THEN table_name END) AS table_assetreg_assetregistercor,\n    MAX(CASE WHEN entity_name = 'account' AND module_name = 'dwh' THEN table_name END) AS table_dwh_account,\n    MAX(CASE WHEN entity_name = 'clientjurregister' AND module_name = 'clientjurreg' THEN table_name END) AS table_clientjurreg_clientjurregister,\n    MAX(CASE WHEN entity_name = 'secdealrepo' AND module_name = 'dwh' THEN table_name END) AS table_dwh_secdealrepo,\n    MAX(CASE WHEN entity_name = 'currency' AND module_name = 'dwh' THEN table_name END) AS table_dwh_currency,\n    MAX(CASE WHEN entity_name = 'psregister' AND module_name = 'psreg' THEN table_name END) AS table_psreg_psregister\nFROM md_entity2table\nWHERE (entity_name = 'rf110_settings' AND module_name = 'rf110') OR (entity_name = 'clientchr' AND module_name = 'dwh') OR (entity_name = 'rf110restturnreg' AND module_name = 'rf110') OR (entity_name = 'assetregistercor' AND module_name = 'assetreg') OR (entity_name = 'account' AND module_name = 'dwh') OR (entity_name = 'clientjurregister' AND module_name = 'clientjurreg') OR (entity_name = 'secdealrepo' AND module_name = 'dwh') OR (entity_name = 'currency' AND module_name = 'dwh') OR (entity_name = 'psregister' AND module_name = 'psreg')"
+          }
+        },
+        "source_sql": null,
+        "prepared_sql": {
+          "oracle": "SELECT \n    MAX(CASE WHEN entity_name = 'rf110_settings' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110_settings,\n    MAX(CASE WHEN entity_name = 'clientchr' AND module_name = 'dwh' THEN table_name END) AS table_dwh_clientchr,\n    MAX(CASE WHEN entity_name = 'rf110restturnreg' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110restturnreg,\n    MAX(CASE WHEN entity_name = 'assetregistercor' AND module_name = 'assetreg' THEN table_name END) AS table_assetreg_assetregistercor,\n    MAX(CASE WHEN entity_name = 'account' AND module_name = 'dwh' THEN table_name END) AS table_dwh_account,\n    MAX(CASE WHEN entity_name = 'clientjurregister' AND module_name = 'clientjurreg' THEN table_name END) AS table_clientjurreg_clientjurregister,\n    MAX(CASE WHEN entity_name = 'secdealrepo' AND module_name = 'dwh' THEN table_name END) AS table_dwh_secdealrepo,\n    MAX(CASE WHEN entity_name = 'currency' AND module_name = 'dwh' THEN table_name END) AS table_dwh_currency,\n    MAX(CASE WHEN entity_name = 'psregister' AND module_name = 'psreg' THEN table_name END) AS table_psreg_psregister\nFROM md_entity2table\nWHERE (entity_name = 'rf110_settings' AND module_name = 'rf110') OR (entity_name = 'clientchr' AND module_name = 'dwh') OR (entity_name = 'rf110restturnreg' AND module_name = 'rf110') OR (entity_name = 'assetregistercor' AND module_name = 'assetreg') OR (entity_name = 'account' AND module_name = 'dwh') OR (entity_name = 'clientjurregister' AND module_name = 'clientjurreg') OR (entity_name = 'secdealrepo' AND module_name = 'dwh') OR (entity_name = 'currency' AND module_name = 'dwh') OR (entity_name = 'psregister' AND module_name = 'psreg')",
+          "adb": "SELECT \n    MAX(CASE WHEN entity_name = 'rf110_settings' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110_settings,\n    MAX(CASE WHEN entity_name = 'clientchr' AND module_name = 'dwh' THEN table_name END) AS table_dwh_clientchr,\n    MAX(CASE WHEN entity_name = 'rf110restturnreg' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110restturnreg,\n    MAX(CASE WHEN entity_name = 'assetregistercor' AND module_name = 'assetreg' THEN table_name END) AS table_assetreg_assetregistercor,\n    MAX(CASE WHEN entity_name = 'account' AND module_name = 'dwh' THEN table_name END) AS table_dwh_account,\n    MAX(CASE WHEN entity_name = 'clientjurregister' AND module_name = 'clientjurreg' THEN table_name END) AS table_clientjurreg_clientjurregister,\n    MAX(CASE WHEN entity_name = 'secdealrepo' AND module_name = 'dwh' THEN table_name END) AS table_dwh_secdealrepo,\n    MAX(CASE WHEN entity_name = 'currency' AND module_name = 'dwh' THEN table_name END) AS table_dwh_currency,\n    MAX(CASE WHEN entity_name = 'psregister' AND module_name = 'psreg' THEN table_name END) AS table_psreg_psregister\nFROM md_entity2table\nWHERE (entity_name = 'rf110_settings' AND module_name = 'rf110') OR (entity_name = 'clientchr' AND module_name = 'dwh') OR (entity_name = 'rf110restturnreg' AND module_name = 'rf110') OR (entity_name = 'assetregistercor' AND module_name = 'assetreg') OR (entity_name = 'account' AND module_name = 'dwh') OR (entity_name = 'clientjurregister' AND module_name = 'clientjurreg') OR (entity_name = 'secdealrepo' AND module_name = 'dwh') OR (entity_name = 'currency' AND module_name = 'dwh') OR (entity_name = 'psregister' AND module_name = 'psreg')",
+          "postgresql": "SELECT \n    MAX(CASE WHEN entity_name = 'rf110_settings' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110_settings,\n    MAX(CASE WHEN entity_name = 'clientchr' AND module_name = 'dwh' THEN table_name END) AS table_dwh_clientchr,\n    MAX(CASE WHEN entity_name = 'rf110restturnreg' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110restturnreg,\n    MAX(CASE WHEN entity_name = 'assetregistercor' AND module_name = 'assetreg' THEN table_name END) AS table_assetreg_assetregistercor,\n    MAX(CASE WHEN entity_name = 'account' AND module_name = 'dwh' THEN table_name END) AS table_dwh_account,\n    MAX(CASE WHEN entity_name = 'clientjurregister' AND module_name = 'clientjurreg' THEN table_name END) AS table_clientjurreg_clientjurregister,\n    MAX(CASE WHEN entity_name = 'secdealrepo' AND module_name = 'dwh' THEN table_name END) AS table_dwh_secdealrepo,\n    MAX(CASE WHEN entity_name = 'currency' AND module_name = 'dwh' THEN table_name END) AS table_dwh_currency,\n    MAX(CASE WHEN entity_name = 'psregister' AND module_name = 'psreg' THEN table_name END) AS table_psreg_psregister\nFROM md_entity2table\nWHERE (entity_name = 'rf110_settings' AND module_name = 'rf110') OR (entity_name = 'clientchr' AND module_name = 'dwh') OR (entity_name = 'rf110restturnreg' AND module_name = 'rf110') OR (entity_name = 'assetregistercor' AND module_name = 'assetreg') OR (entity_name = 'account' AND module_name = 'dwh') OR (entity_name = 'clientjurregister' AND module_name = 'clientjurreg') OR (entity_name = 'secdealrepo' AND module_name = 'dwh') OR (entity_name = 'currency' AND module_name = 'dwh') OR (entity_name = 'psregister' AND module_name = 'psreg')"
+        },
+        "rendered_sql": {
+          "oracle": "SELECT \n    MAX(CASE WHEN entity_name = 'rf110_settings' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110_settings,\n    MAX(CASE WHEN entity_name = 'clientchr' AND module_name = 'dwh' THEN table_name END) AS table_dwh_clientchr,\n    MAX(CASE WHEN entity_name = 'rf110restturnreg' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110restturnreg,\n    MAX(CASE WHEN entity_name = 'assetregistercor' AND module_name = 'assetreg' THEN table_name END) AS table_assetreg_assetregistercor,\n    MAX(CASE WHEN entity_name = 'account' AND module_name = 'dwh' THEN table_name END) AS table_dwh_account,\n    MAX(CASE WHEN entity_name = 'clientjurregister' AND module_name = 'clientjurreg' THEN table_name END) AS table_clientjurreg_clientjurregister,\n    MAX(CASE WHEN entity_name = 'secdealrepo' AND module_name = 'dwh' THEN table_name END) AS table_dwh_secdealrepo,\n    MAX(CASE WHEN entity_name = 'currency' AND module_name = 'dwh' THEN table_name END) AS table_dwh_currency,\n    MAX(CASE WHEN entity_name = 'psregister' AND module_name = 'psreg' THEN table_name END) AS table_psreg_psregister\nFROM md_entity2table\nWHERE (entity_name = 'rf110_settings' AND module_name = 'rf110') OR (entity_name = 'clientchr' AND module_name = 'dwh') OR (entity_name = 'rf110restturnreg' AND module_name = 'rf110') OR (entity_name = 'assetregistercor' AND module_name = 'assetreg') OR (entity_name = 'account' AND module_name = 'dwh') OR (entity_name = 'clientjurregister' AND module_name = 'clientjurreg') OR (entity_name = 'secdealrepo' AND module_name = 'dwh') OR (entity_name = 'currency' AND module_name = 'dwh') OR (entity_name = 'psregister' AND module_name = 'psreg')",
+          "adb": "SELECT \n    MAX(CASE WHEN entity_name = 'rf110_settings' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110_settings,\n    MAX(CASE WHEN entity_name = 'clientchr' AND module_name = 'dwh' THEN table_name END) AS table_dwh_clientchr,\n    MAX(CASE WHEN entity_name = 'rf110restturnreg' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110restturnreg,\n    MAX(CASE WHEN entity_name = 'assetregistercor' AND module_name = 'assetreg' THEN table_name END) AS table_assetreg_assetregistercor,\n    MAX(CASE WHEN entity_name = 'account' AND module_name = 'dwh' THEN table_name END) AS table_dwh_account,\n    MAX(CASE WHEN entity_name = 'clientjurregister' AND module_name = 'clientjurreg' THEN table_name END) AS table_clientjurreg_clientjurregister,\n    MAX(CASE WHEN entity_name = 'secdealrepo' AND module_name = 'dwh' THEN table_name END) AS table_dwh_secdealrepo,\n    MAX(CASE WHEN entity_name = 'currency' AND module_name = 'dwh' THEN table_name END) AS table_dwh_currency,\n    MAX(CASE WHEN entity_name = 'psregister' AND module_name = 'psreg' THEN table_name END) AS table_psreg_psregister\nFROM md_entity2table\nWHERE (entity_name = 'rf110_settings' AND module_name = 'rf110') OR (entity_name = 'clientchr' AND module_name = 'dwh') OR (entity_name = 'rf110restturnreg' AND module_name = 'rf110') OR (entity_name = 'assetregistercor' AND module_name = 'assetreg') OR (entity_name = 'account' AND module_name = 'dwh') OR (entity_name = 'clientjurregister' AND module_name = 'clientjurreg') OR (entity_name = 'secdealrepo' AND module_name = 'dwh') OR (entity_name = 'currency' AND module_name = 'dwh') OR (entity_name = 'psregister' AND module_name = 'psreg')",
+          "postgresql": "SELECT \n    MAX(CASE WHEN entity_name = 'rf110_settings' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110_settings,\n    MAX(CASE WHEN entity_name = 'clientchr' AND module_name = 'dwh' THEN table_name END) AS table_dwh_clientchr,\n    MAX(CASE WHEN entity_name = 'rf110restturnreg' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110restturnreg,\n    MAX(CASE WHEN entity_name = 'assetregistercor' AND module_name = 'assetreg' THEN table_name END) AS table_assetreg_assetregistercor,\n    MAX(CASE WHEN entity_name = 'account' AND module_name = 'dwh' THEN table_name END) AS table_dwh_account,\n    MAX(CASE WHEN entity_name = 'clientjurregister' AND module_name = 'clientjurreg' THEN table_name END) AS table_clientjurreg_clientjurregister,\n    MAX(CASE WHEN entity_name = 'secdealrepo' AND module_name = 'dwh' THEN table_name END) AS table_dwh_secdealrepo,\n    MAX(CASE WHEN entity_name = 'currency' AND module_name = 'dwh' THEN table_name END) AS table_dwh_currency,\n    MAX(CASE WHEN entity_name = 'psregister' AND module_name = 'psreg' THEN table_name END) AS table_psreg_psregister\nFROM md_entity2table\nWHERE (entity_name = 'rf110_settings' AND module_name = 'rf110') OR (entity_name = 'clientchr' AND module_name = 'dwh') OR (entity_name = 'rf110restturnreg' AND module_name = 'rf110') OR (entity_name = 'assetregistercor' AND module_name = 'assetreg') OR (entity_name = 'account' AND module_name = 'dwh') OR (entity_name = 'clientjurregister' AND module_name = 'clientjurreg') OR (entity_name = 'secdealrepo' AND module_name = 'dwh') OR (entity_name = 'currency' AND module_name = 'dwh') OR (entity_name = 'psregister' AND module_name = 'psreg')"
+        }
+      },
+      "dependencies": [
+        "param_calc_od"
+      ],
+      "context": "all",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "param_001_Load__distr_004_applySettings_iter",
+      "name": "param_001_Load__distr_004_applySettings_iter",
+      "folder": "",
+      "full_name": "param_001_Load__distr_004_applySettings_iter",
+      "step_type": "param",
+      "step_scope": "params",
+      "sql_model": null,
+      "param_model": {
+        "name": "001_Load__distr_004_applySettings_iter",
+        "domain_type": "record",
+        "description": "Цикл по настройкам",
+        "attributes": [
+          {
+            "name": "strnum",
+            "domain_type": "string"
+          },
+          {
+            "name": "account2",
+            "domain_type": "string"
+          }
+        ],
+        "values": {
+          "all": {
+            "type": "dynamic",
+            "value": "select strnum, account2 from _m.rf110.rf110_settings"
+          }
+        },
+        "source_sql": null,
+        "prepared_sql": {
+          "oracle": "select strnum, account2 from {{ table_rf110_rf110_settings }}",
+          "adb": "select strnum, account2 from {{ table_rf110_rf110_settings }}",
+          "postgresql": "select strnum, account2 from {{ table_rf110_rf110_settings }}"
+        },
+        "rendered_sql": {
+          "oracle": "select strnum, account2 from {{ table_rf110_rf110_settings }}",
+          "adb": "select strnum, account2 from {{ table_rf110_rf110_settings }}",
+          "postgresql": "select strnum, account2 from {{ table_rf110_rf110_settings }}"
+        }
+      },
+      "dependencies": [
+        "get_entities"
+      ],
+      "context": "all",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "param_clientchr_sql_filter_default",
+      "name": "param_clientchr_sql_filter",
+      "folder": "",
+      "full_name": "param_clientchr_sql_filter_default",
+      "step_type": "param",
+      "step_scope": "params",
+      "sql_model": null,
+      "param_model": {
+        "name": "clientchr_sql_filter",
+        "domain_type": "sql.condition",
+        "description": "Фильтр на статус записи в Характерах клиента",
+        "attributes": [],
+        "values": {
+          "all": {
+            "type": "static",
+            "value": "rowstatus = 'A'"
+          },
+          "vtb": {
+            "type": "static",
+            "value": "1=1"
+          }
+        },
+        "source_sql": null,
+        "prepared_sql": {
+          "adb": "",
+          "oracle": "",
+          "postgresql": ""
+        },
+        "rendered_sql": {
+          "adb": "\n\nSELECT 'rowstatus = ''A''' as clientchr_sql_filter\n",
+          "oracle": "\n\nSELECT 'rowstatus = ''A''' as clientchr_sql_filter\n",
+          "postgresql": "\n\nSELECT 'rowstatus = ''A''' as clientchr_sql_filter\n"
+        }
+      },
+      "dependencies": [
+        "param_001_Load__distr_004_applySettings_iter"
+      ],
+      "context": "default",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "param_clientchr_sql_filter_vtb",
+      "name": "param_clientchr_sql_filter",
+      "folder": "",
+      "full_name": "param_clientchr_sql_filter_vtb",
+      "step_type": "param",
+      "step_scope": "params",
+      "sql_model": null,
+      "param_model": {
+        "name": "clientchr_sql_filter",
+        "domain_type": "sql.condition",
+        "description": "Фильтр на статус записи в Характерах клиента",
+        "attributes": [],
+        "values": {
+          "all": {
+            "type": "static",
+            "value": "rowstatus = 'A'"
+          },
+          "vtb": {
+            "type": "static",
+            "value": "1=1"
+          }
+        },
+        "source_sql": null,
+        "prepared_sql": {
+          "adb": ""
+        },
+        "rendered_sql": {
+          "adb": "\n\nSELECT 'rowstatus = ''A''' as clientchr_sql_filter\n"
+        }
+      },
+      "dependencies": [
+        "param_clientchr_sql_filter_default"
+      ],
+      "context": "vtb",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "param_date_end_default",
+      "name": "param_date_end",
+      "folder": "",
+      "full_name": "param_date_end_default",
+      "step_type": "param",
+      "step_scope": "params",
+      "sql_model": null,
+      "param_model": {
+        "name": "date_end",
+        "domain_type": "date",
+        "description": "Дата расчета",
+        "attributes": [],
+        "values": {
+          "all": {
+            "type": "static",
+            "value": ":DATE_END:"
+          },
+          "vtb": {
+            "type": "dynamic",
+            "value": "SELECT MAX(calc_date) FROM vtb_dates"
+          }
+        },
+        "source_sql": null,
+        "prepared_sql": {
+          "adb": "",
+          "oracle": "",
+          "postgresql": ""
+        },
+        "rendered_sql": {
+          "adb": "\n\nSELECT ':DATE_END:' as date_end\n",
+          "oracle": "\n\nSELECT ':DATE_END:' as date_end\n",
+          "postgresql": "\n\nSELECT ':DATE_END:' as date_end\n"
+        }
+      },
+      "dependencies": [
+        "param_clientchr_sql_filter_vtb"
+      ],
+      "context": "default",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "param_date_end_vtb",
+      "name": "param_date_end",
+      "folder": "",
+      "full_name": "param_date_end_vtb",
+      "step_type": "param",
+      "step_scope": "params",
+      "sql_model": null,
+      "param_model": {
+        "name": "date_end",
+        "domain_type": "date",
+        "description": "Дата расчета",
+        "attributes": [],
+        "values": {
+          "all": {
+            "type": "static",
+            "value": ":DATE_END:"
+          },
+          "vtb": {
+            "type": "dynamic",
+            "value": "SELECT MAX(calc_date) FROM vtb_dates"
+          }
+        },
+        "source_sql": null,
+        "prepared_sql": {
+          "adb": "SELECT MAX(calc_date) FROM vtb_dates"
+        },
+        "rendered_sql": {
+          "adb": "\n\nSELECT ':DATE_END:' as date_end\n"
+        }
+      },
+      "dependencies": [
+        "param_date_end_default"
+      ],
+      "context": "vtb",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "sql_001_Load_distr_001_RF110_Reg_Acc2_default",
+      "name": "001_RF110_Reg_Acc2",
+      "folder": "001_Load__distr",
+      "full_name": "001_Load__distr/001_RF110_Reg_Acc2_default/sql",
+      "step_type": "sql",
+      "step_scope": "sql",
+      "sql_model": {
+        "name": "001_RF110_Reg_Acc2",
+        "path": "/app/projects/rf110/model/RF110RestTurnReg/SQL/001_Load__distr/001_RF110_Reg_Acc2.sql",
+        "source_sql": "select distinct a2.ID, a2.AccountNumber\n  from DWR_tRF110Settings s\n       inner join {{RFAccGroupEl}} a\n       inner join {{Account2}} a2\n                  on a2.AccountNumber = a.AccountMask\n                  and a2.DateBegin <= {{date_end}}\n                  and a2.DateEnd > {{date_end}}\n                  and a2.RowStatus = 'A'\n  where s.RFFormProfileID = {{rfprofile_f110}}\n  and s.Algorithm in ('F110_ALG_0','F110_ALG_4')\ngroup by a2.ID, a2.AccountNumber",
+        "materialization": "stage_calcid",
+        "context": "default",
+        "metadata": {
+          "parameters": [
+            "Account2",
+            "RFAccGroupEl",
+            "date_end",
+            "rfprofile_f110"
+          ],
+          "tables": {
+            "DWR_tRF110Settings": {
+              "alias": "s",
+              "is_variable": false,
+              "is_cte": false
+            },
+            "RFAccGroupEl": {
+              "alias": "a",
+              "is_variable": true,
+              "is_cte": false
+            },
+            "Account2": {
+              "alias": "a2",
+              "is_variable": true,
+              "is_cte": false
+            }
+          },
+          "aliases": [
+            {
+              "alias": "id",
+              "source": "a2",
+              "expression": "a2.ID"
+            },
+            {
+              "alias": "accountnumber",
+              "source": "a2",
+              "expression": "a2.AccountNumber"
+            }
+          ],
+          "cte": {},
+          "functions": [],
+          "model_refs": {},
+          "workflow_refs": {},
+          "inline_query_config": null,
+          "inline_cte_configs": {},
+          "inline_attr_configs": {}
+        },
+        "prepared_sql": {
+          "adb": "select distinct a2.ID, a2.AccountNumber\n  from DWR_tRF110Settings s\n       inner join {{RFAccGroupEl}} a\n       inner join {{Account2}} a2\n                  on a2.AccountNumber = a.AccountMask\n                  and a2.DateBegin <= {{date_end}}\n                  and a2.DateEnd > {{date_end}}\n                  and a2.RowStatus = 'A'\n  where s.RFFormProfileID = {{rfprofile_f110}}\n  and s.Algorithm in ('F110_ALG_0','F110_ALG_4')\ngroup by a2.ID, a2.AccountNumber",
+          "oracle": "select distinct a2.ID, a2.AccountNumber\n  from DWR_tRF110Settings s\n       inner join {{RFAccGroupEl}} a\n       inner join {{Account2}} a2\n                  on a2.AccountNumber = a.AccountMask\n                  and a2.DateBegin <= {{date_end}}\n                  and a2.DateEnd > {{date_end}}\n                  and a2.RowStatus = 'A'\n  where s.RFFormProfileID = {{rfprofile_f110}}\n  and s.Algorithm in ('F110_ALG_0','F110_ALG_4')\ngroup by a2.ID, a2.AccountNumber",
+          "postgresql": "select distinct a2.ID, a2.AccountNumber\n  from DWR_tRF110Settings s\n       inner join {{RFAccGroupEl}} a\n       inner join {{Account2}} a2\n                  on a2.AccountNumber = a.AccountMask\n                  and a2.DateBegin <= {{date_end}}\n                  and a2.DateEnd > {{date_end}}\n                  and a2.RowStatus = 'A'\n  where s.RFFormProfileID = {{rfprofile_f110}}\n  and s.Algorithm in ('F110_ALG_0','F110_ALG_4')\ngroup by a2.ID, a2.AccountNumber"
+        },
+        "rendered_sql": {
+          "adb": "CREATE TABLE tmp_001_RF110_Reg_Acc2_{{calc_id}} AS\nSELECT \n    RF110.get_base_calc_id() as CalcID,\n    t.*\nFROM (\n    select distinct a2.ID, a2.AccountNumber\n  from DWR_tRF110Settings s\n       inner join {{RFAccGroupEl}} a\n       inner join {{Account2}} a2\n                  on a2.AccountNumber = a.AccountMask\n                  and a2.DateBegin <= {{date_end}}\n                  and a2.DateEnd > {{date_end}}\n                  and a2.RowStatus = 'A'\n  where s.RFFormProfileID = {{rfprofile_f110}}\n  and s.Algorithm in ('F110_ALG_0','F110_ALG_4')\ngroup by a2.ID, a2.AccountNumber\n) t\n",
+          "oracle": "CREATE TABLE tmp_001_RF110_Reg_Acc2_{{calc_id}} AS\nSELECT \n    RF110.get_base_calc_id() as CalcID,\n    t.*\nFROM (\n    select distinct a2.ID, a2.AccountNumber\n  from DWR_tRF110Settings s\n       inner join {{RFAccGroupEl}} a\n       inner join {{Account2}} a2\n                  on a2.AccountNumber = a.AccountMask\n                  and a2.DateBegin <= {{date_end}}\n                  and a2.DateEnd > {{date_end}}\n                  and a2.RowStatus = 'A'\n  where s.RFFormProfileID = {{rfprofile_f110}}\n  and s.Algorithm in ('F110_ALG_0','F110_ALG_4')\ngroup by a2.ID, a2.AccountNumber\n) t",
+          "postgresql": "CREATE TABLE tmp_001_RF110_Reg_Acc2_{{calc_id}} AS\nSELECT \n    RF110.get_base_calc_id() as CalcID,\n    t.*\nFROM (\n    select distinct a2.ID, a2.AccountNumber\n  from DWR_tRF110Settings s\n       inner join {{RFAccGroupEl}} a\n       inner join {{Account2}} a2\n                  on a2.AccountNumber = a.AccountMask\n                  and a2.DateBegin <= {{date_end}}\n                  and a2.DateEnd > {{date_end}}\n                  and a2.RowStatus = 'A'\n  where s.RFFormProfileID = {{rfprofile_f110}}\n  and s.Algorithm in ('F110_ALG_0','F110_ALG_4')\ngroup by a2.ID, a2.AccountNumber\n) t"
+        },
+        "attributes": [
+          {
+            "name": "id",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "accountnumber",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          }
+        ],
+        "cte_materialization": null,
+        "cte_config": {},
+        "cte_table_names": {},
+        "target_table": "tmp_001_RF110_Reg_Acc2_{{calc_id}}"
+      },
+      "param_model": null,
+      "dependencies": [
+        "param_date_end_vtb"
+      ],
+      "context": "default",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_ClientChr1_34_default",
+      "name": "sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_ClientChr1_34_default",
+      "folder": "001_Load__distr",
+      "full_name": "001_Load__distr/002_RF110RestTurnReg_ACCDEMAND_default/cte/ClientChr1_34",
+      "step_type": "sql",
+      "step_scope": "sql",
+      "sql_model": {
+        "name": "sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_ClientChr1_34_default",
+        "path": ".",
+        "source_sql": "select distinct \n                               /* @config(distribution_key: 1) */                         \n                               ClientID as ClientID \n\t\t                      from _m.dwh.ClientChr\n                         where DateBegin <= {{date_end}}\n\t\t                       and DateEnd > {{date_end}}\n                           and {{clientchr_sql_filter}}\n\t\t                       and ClientCharacter in (1,34) --адвокат/нотариус, арбитражный управляющий",
+        "materialization": "stage_calcid",
+        "context": "default",
+        "metadata": {
+          "parameters": [
+            "clientchr_sql_filter",
+            "date_end"
+          ],
+          "tables": {
+            "_m.dwh.ClientChr": {
+              "alias": "_m.dwh.clientchr",
+              "is_variable": false,
+              "is_cte": false
+            }
+          },
+          "aliases": [],
+          "cte": {},
+          "functions": [
+            {
+              "name": "CONFIG",
+              "params": [
+                "distribution_key: 1"
+              ]
+            }
+          ],
+          "model_refs": {
+            "_m.dwh.ClientChr": {
+              "path": "dwh.ClientChr",
+              "parts": [
+                "dwh",
+                "ClientChr"
+              ],
+              "type": "table",
+              "full_ref": "_m.dwh.ClientChr"
+            }
+          },
+          "workflow_refs": {},
+          "inline_query_config": null,
+          "inline_cte_configs": {},
+          "inline_attr_configs": {
+            "clientid": {
+              "distribution_key": 1
+            }
+          }
+        },
+        "prepared_sql": {
+          "adb": "select distinct \n                                                        \n                               ClientID as ClientID \n\t\t                      from {{ table_dwh_clientchr }}\n                         where DateBegin <= {{date_end}}\n\t\t                       and DateEnd > {{date_end}}\n                           and {{clientchr_sql_filter}}\n\t\t                       and ClientCharacter in (1,34) --адвокат/нотариус, арбитражный управляющий"
+        },
+        "rendered_sql": {
+          "adb": "CREATE TABLE tmp_sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_ClientChr1_34_default_{{calc_id}} AS\nSELECT \n    RF110.get_base_calc_id() as CalcID,\n    t.*\nFROM (\n    select distinct \n                                                        \n                               ClientID as ClientID \n\t\t                      from {{ table_dwh_clientchr }}\n                         where DateBegin <= {{date_end}}\n\t\t                       and DateEnd > {{date_end}}\n                           and {{clientchr_sql_filter}}\n\t\t                       and ClientCharacter in (1,34) --адвокат/нотариус, арбитражный управляющий\n) t\nDISTRIBUTED BY (clientid)\n"
+        },
+        "attributes": [
+          {
+            "name": "clientid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": 1,
+            "partition_key": null
+          }
+        ],
+        "cte_materialization": null,
+        "cte_config": null,
+        "cte_table_names": null,
+        "target_table": "tmp_sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_ClientChr1_34_default_{{calc_id}}"
+      },
+      "param_model": null,
+      "dependencies": [
+        "001_Load__distr/001_RF110_Reg_Acc2_default/sql"
+      ],
+      "context": "default",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": [
+        "adb"
+      ]
+    },
+    {
+      "step_id": "sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_default",
+      "name": "002_RF110RestTurnReg_ACCDEMAND",
+      "folder": "001_Load__distr",
+      "full_name": "001_Load__distr/002_RF110RestTurnReg_ACCDEMAND_default/sql",
+      "step_type": "sql",
+      "step_scope": "sql",
+      "sql_model": {
+        "name": "002_RF110RestTurnReg_ACCDEMAND",
+        "path": "/app/projects/rf110/model/RF110RestTurnReg/SQL/001_Load__distr/002_RF110RestTurnReg_ACCDEMAND.sql",
+        "source_sql": "                  with /* Если клиент является адвокатом или нотариусом И одновременно управляющим, оставляем только одну запись */\n                       ClientChr1_34 as \n                       (select distinct \n                               /* @config(distribution_key: 1) */                         \n                               ClientID as ClientID \n\t\t                      from _m.dwh.ClientChr\n                         where DateBegin <= {{date_end}}\n\t\t                       and DateEnd > {{date_end}}\n                           and {{clientchr_sql_filter}}\n\t\t                       and ClientCharacter in (1,34) --адвокат/нотариус, арбитражный управляющий \n                       )\n                  select _m.RF110.RF110RestTurnReg.seq as ID,\n                         {{calc_id}} as CalcID,\n                         reg.BranchID as BranchID,\n                         reg.ExternalClientID as ExternalClientID,\n                         reg.RowStatus as RowStatus,\n                         reg.VIP as VIP,\n                         reg.AccountID as AccountID,\n                         nvl(reg.ContractNumber,'test') as ContractNumber,\n                         reg.DealID as DealID,\n                         reg.AccountNumber as AccountNumber,\n                         reg.Account2ID as Account2ID,\n                         reg.Account2Number as Account2Number,\n                         reg.CorrectObjectID as ObjectID,\n                         reg.SumType as SumType,\n                         reg.CorrectObjectBrief as ObjectBrief,\n                         reg.CorrectObjectID as CorrectObjectID,\n                         reg.CurrencyID as CurrencyID,\n                         null as SecCategory,\n                         reg.ClientID as ClientID,\n                         coalesce(cjr.ClientType,reg.ClientType) as ClientType,\n                         reg.Resident as ClientIsResident,\n                         cjr.OwnershipFormID as ClientOwnershipFormID,\n                         cjr.Authority as ClientAuthority,\n                         case\n                           when chr.ClientID is not null\n                             then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLawyerNotary,\n                         cjr.OffshoreResident as MinusLevy,\n                         case\n                         when coalesce(cjr.IsFinancial,'CMN_BIN_NULL') = 'CMN_BIN_NULL'\n                           then 'CMN_BIN_NO'\n                             else cjr.IsFinancial\n                         end as IsFinOrg,\n                         cjr.IsClearingMember as IsClearingMember,\n                         reg.PaymentDelay as PaymentDelay,\n                         reg.PaymentSumRur as OutRestRub,\n                         reg.PaymentSumVal as OutRestVal,\n                         reg.AccountName as AccountName,\n                         reg.ClientName as ClientName,\n                         NULL as LinkAccountID,\n                         NULL as LinkAccountNumber,\n                         NULL as LinkAccount2Number,\n                         NULL as LinkCurrencyCode,\n                         reg.SecurityID as SecurityID,\n                         enum2str(sdr.DealKind) as LoanREPOKind,\n                         null as SecKind,\n                         reg.SecPortfolioID as SecPortfolioID,\n                         case \n                           when reg.ClientID != acc.ClientID then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLoanGuarantor,\n                         decode(cur.Type,:CUR_TP_ET_NUM:)  as CurrencyType,\n                         cur.Code as CurrencyCode,\n                         enum2str(acc.openingreason) as AccountOpeningReason,\n                         NULL as DepositKind,\n                         decode(cjr.COUNTRYCODE,'996','CMN_BIN_YES','CMN_BIN_NO') as IsInternational290FZ,\n                         reg.ParentDealID,\n                         reg.ParentContractNumber,\n                         reg.AccountRole as AccountRole\n                    from _m.AssetReg.AssetRegisterCor reg\n                   inner join _w.001_Load_distr.RF110_Reg_Acc2 a\n                           on a.Account2Number = reg.Account2Number\n                   inner join _m.dwh.Account acc\n                           on acc.ID = reg.AccountID \n                          and acc.DateBegin <= {{date_end}}\n                          and acc.DateEnd > {{date_end}}\n                    left join _m.ClientJurReg.ClientJurRegister cjr\n                           on cjr.CalcID = {{calc_clientjurreg_id}}\n                          and cjr.ClientID = reg.ClientID \n                    left join ClientChr1_34 chr\n                           on chr.ClientID = reg.ClientID\n                    left join _m.dwh.SecDealREPO sdr\n                           on sdr.DateBegin <= {{date_end}}\n                          and sdr.DateEnd > {{date_end}}\n                          and sdr.RowStatus = 'A'\n                          and sdr.MainDealID = reg.DealID\n                    left join _m.dwh.Currency cur \n                           on cur.ID = acc.CurrencyID\n                   where reg.CalcID = {{calc_astreg_id}}\n                     and reg.LevelGroup = 0\n                     and reg.RowStatus = 'A'\n                     and (substr(reg.Account2Number,1,3) = '706' or abs(reg.ParentAccountID) != 1 )\n",
+        "materialization": "insert_fc",
+        "context": "default",
+        "metadata": {
+          "parameters": [
+            "calc_astreg_id",
+            "calc_clientjurreg_id",
+            "calc_id",
+            "clientchr_sql_filter",
+            "date_end"
+          ],
+          "tables": {
+            "_m.dwh.ClientChr": {
+              "alias": "_m.dwh.clientchr",
+              "is_variable": false,
+              "is_cte": false
+            },
+            "_m.AssetReg.AssetRegisterCor": {
+              "alias": "reg",
+              "is_variable": false,
+              "is_cte": false
+            },
+            "_w.001_Load_distr.RF110_Reg_Acc2": {
+              "alias": "a",
+              "is_variable": false,
+              "is_cte": false
+            },
+            "_m.dwh.Account": {
+              "alias": "acc",
+              "is_variable": false,
+              "is_cte": false
+            },
+            "_m.ClientJurReg.ClientJurRegister": {
+              "alias": "cjr",
+              "is_variable": false,
+              "is_cte": false
+            },
+            "ClientChr1_34": {
+              "alias": "chr",
+              "is_variable": false,
+              "is_cte": true
+            },
+            "_m.dwh.SecDealREPO": {
+              "alias": "sdr",
+              "is_variable": false,
+              "is_cte": false
+            },
+            "_m.dwh.Currency": {
+              "alias": "cur",
+              "is_variable": false,
+              "is_cte": false
+            }
+          },
+          "aliases": [
+            {
+              "alias": "id",
+              "source": null,
+              "expression": "_m.RF110.RF110RestTurnReg.seq"
+            },
+            {
+              "alias": "calcid",
+              "source": null,
+              "expression": "{{calc_id}}"
+            },
+            {
+              "alias": "branchid",
+              "source": null,
+              "expression": "reg.BranchID"
+            },
+            {
+              "alias": "externalclientid",
+              "source": null,
+              "expression": "reg.ExternalClientID"
+            },
+            {
+              "alias": "rowstatus",
+              "source": null,
+              "expression": "reg.RowStatus"
+            },
+            {
+              "alias": "vip",
+              "source": null,
+              "expression": "reg.VIP"
+            },
+            {
+              "alias": "accountid",
+              "source": null,
+              "expression": "reg.AccountID"
+            },
+            {
+              "alias": "contractnumber",
+              "source": null,
+              "expression": "nvl(reg.ContractNumber,'')"
+            },
+            {
+              "alias": "dealid",
+              "source": null,
+              "expression": "reg.DealID"
+            },
+            {
+              "alias": "accountnumber",
+              "source": null,
+              "expression": "reg.AccountNumber"
+            },
+            {
+              "alias": "account2id",
+              "source": null,
+              "expression": "reg.Account2ID"
+            },
+            {
+              "alias": "account2number",
+              "source": null,
+              "expression": "reg.Account2Number"
+            },
+            {
+              "alias": "objectid",
+              "source": null,
+              "expression": "reg.CorrectObjectID"
+            },
+            {
+              "alias": "sumtype",
+              "source": null,
+              "expression": "reg.SumType"
+            },
+            {
+              "alias": "objectbrief",
+              "source": null,
+              "expression": "reg.CorrectObjectBrief"
+            },
+            {
+              "alias": "correctobjectid",
+              "source": null,
+              "expression": "reg.CorrectObjectID"
+            },
+            {
+              "alias": "currencyid",
+              "source": null,
+              "expression": "reg.CurrencyID"
+            },
+            {
+              "alias": "seccategory",
+              "source": null,
+              "expression": "null"
+            },
+            {
+              "alias": "clientid",
+              "source": null,
+              "expression": "reg.ClientID"
+            },
+            {
+              "alias": "clienttype",
+              "source": null,
+              "expression": "coalesce(cjr.ClientType,reg.ClientType)"
+            },
+            {
+              "alias": "clientisresident",
+              "source": null,
+              "expression": "reg.Resident"
+            },
+            {
+              "alias": "clientownershipformid",
+              "source": null,
+              "expression": "cjr.OwnershipFormID"
+            },
+            {
+              "alias": "clientauthority",
+              "source": null,
+              "expression": "cjr.Authority"
+            },
+            {
+              "alias": "minuslevy",
+              "source": null,
+              "expression": "cjr.OffshoreResident"
+            },
+            {
+              "alias": "isclearingmember",
+              "source": null,
+              "expression": "cjr.IsClearingMember"
+            },
+            {
+              "alias": "paymentdelay",
+              "source": null,
+              "expression": "reg.PaymentDelay"
+            },
+            {
+              "alias": "outrestrub",
+              "source": null,
+              "expression": "reg.PaymentSumRur"
+            },
+            {
+              "alias": "outrestval",
+              "source": null,
+              "expression": "reg.PaymentSumVal"
+            },
+            {
+              "alias": "accountname",
+              "source": null,
+              "expression": "reg.AccountName"
+            },
+            {
+              "alias": "clientname",
+              "source": null,
+              "expression": "reg.ClientName"
+            },
+            {
+              "alias": "linkaccountid",
+              "source": null,
+              "expression": "NULL"
+            },
+            {
+              "alias": "linkaccountnumber",
+              "source": null,
+              "expression": "NULL"
+            },
+            {
+              "alias": "linkaccount2number",
+              "source": null,
+              "expression": "NULL"
+            },
+            {
+              "alias": "linkcurrencycode",
+              "source": null,
+              "expression": "NULL"
+            },
+            {
+              "alias": "securityid",
+              "source": null,
+              "expression": "reg.SecurityID"
+            },
+            {
+              "alias": "loanrepokind",
+              "source": null,
+              "expression": "enum2str(sdr.DealKind)"
+            },
+            {
+              "alias": "seckind",
+              "source": null,
+              "expression": "null"
+            },
+            {
+              "alias": "secportfolioid",
+              "source": null,
+              "expression": "reg.SecPortfolioID"
+            },
+            {
+              "alias": "currencytype",
+              "source": null,
+              "expression": "decode(cur.Type,:CUR_TP_ET_NUM:)"
+            },
+            {
+              "alias": "currencycode",
+              "source": null,
+              "expression": "cur.Code"
+            },
+            {
+              "alias": "accountopeningreason",
+              "source": null,
+              "expression": "enum2str(acc.openingreason)"
+            },
+            {
+              "alias": "depositkind",
+              "source": null,
+              "expression": "NULL"
+            },
+            {
+              "alias": "isinternational290fz",
+              "source": null,
+              "expression": "decode(cjr.COUNTRYCODE,'','','')"
+            },
+            {
+              "alias": "parentdealid",
+              "source": "reg",
+              "expression": "reg.ParentDealID"
+            },
+            {
+              "alias": "parentcontractnumber",
+              "source": "reg",
+              "expression": "reg.ParentContractNumber"
+            },
+            {
+              "alias": "accountrole",
+              "source": null,
+              "expression": "reg.AccountRole"
+            }
+          ],
+          "cte": {
+            "ClientChr1_34": {
+              "source_tables": [],
+              "source_ctes": [
+                "_m"
+              ]
+            }
+          },
+          "functions": [
+            {
+              "name": "CONFIG",
+              "params": [
+                "distribution_key: 1"
+              ]
+            },
+            {
+              "name": "NVL",
+              "params": [
+                "reg.ContractNumber",
+                "'test'"
+              ]
+            },
+            {
+              "name": "COALESCE",
+              "params": [
+                "cjr.ClientType",
+                "reg.ClientType"
+              ]
+            },
+            {
+              "name": "COALESCE",
+              "params": [
+                "cjr.IsFinancial",
+                "'CMN_BIN_NULL'"
+              ]
+            },
+            {
+              "name": "ENUM2STR",
+              "params": [
+                "sdr.DealKind"
+              ]
+            },
+            {
+              "name": "DECODE",
+              "params": [
+                "cur.Type",
+                ":CUR_TP_ET_NUM:"
+              ]
+            },
+            {
+              "name": "ENUM2STR",
+              "params": [
+                "acc.openingreason"
+              ]
+            },
+            {
+              "name": "DECODE",
+              "params": [
+                "cjr.COUNTRYCODE",
+                "'996'",
+                "'CMN_BIN_YES'",
+                "'CMN_BIN_NO'"
+              ]
+            },
+            {
+              "name": "SUBSTR",
+              "params": [
+                "reg.Account2Number",
+                "1",
+                "3"
+              ]
+            },
+            {
+              "name": "ABS",
+              "params": [
+                "reg.ParentAccountID"
+              ]
+            }
+          ],
+          "model_refs": {
+            "_m.dwh.ClientChr": {
+              "path": "dwh.ClientChr",
+              "parts": [
+                "dwh",
+                "ClientChr"
+              ],
+              "type": "table",
+              "full_ref": "_m.dwh.ClientChr"
+            },
+            "_m.RF110.RF110RestTurnReg.seq": {
+              "path": "RF110.RF110RestTurnReg.seq",
+              "parts": [
+                "RF110",
+                "RF110RestTurnReg",
+                "seq"
+              ],
+              "type": "sequence",
+              "full_ref": "_m.RF110.RF110RestTurnReg.seq"
+            },
+            "_m.AssetReg.AssetRegisterCor": {
+              "path": "AssetReg.AssetRegisterCor",
+              "parts": [
+                "AssetReg",
+                "AssetRegisterCor"
+              ],
+              "type": "table",
+              "full_ref": "_m.AssetReg.AssetRegisterCor"
+            },
+            "_m.dwh.Account": {
+              "path": "dwh.Account",
+              "parts": [
+                "dwh",
+                "Account"
+              ],
+              "type": "table",
+              "full_ref": "_m.dwh.Account"
+            },
+            "_m.ClientJurReg.ClientJurRegister": {
+              "path": "ClientJurReg.ClientJurRegister",
+              "parts": [
+                "ClientJurReg",
+                "ClientJurRegister"
+              ],
+              "type": "table",
+              "full_ref": "_m.ClientJurReg.ClientJurRegister"
+            },
+            "_m.dwh.SecDealREPO": {
+              "path": "dwh.SecDealREPO",
+              "parts": [
+                "dwh",
+                "SecDealREPO"
+              ],
+              "type": "table",
+              "full_ref": "_m.dwh.SecDealREPO"
+            },
+            "_m.dwh.Currency": {
+              "path": "dwh.Currency",
+              "parts": [
+                "dwh",
+                "Currency"
+              ],
+              "type": "table",
+              "full_ref": "_m.dwh.Currency"
+            }
+          },
+          "workflow_refs": {
+            "_w.001_Load_distr.RF110_Reg_Acc2": {
+              "path": "001_Load_distr.RF110_Reg_Acc2",
+              "parts": [
+                "001_Load_distr",
+                "RF110_Reg_Acc2"
+              ],
+              "query_name": "RF110_Reg_Acc2",
+              "folder": "001_Load_distr",
+              "full_ref": "_w.001_Load_distr.RF110_Reg_Acc2"
+            }
+          },
+          "inline_query_config": null,
+          "inline_cte_configs": {
+            "ClientChr1_34": {
+              "distribution_key": 1
+            }
+          },
+          "inline_attr_configs": {}
+        },
+        "prepared_sql": {
+          "adb": "                  select {{ table_rf110_rf110restturnreg }} as ID,\n                         {{calc_id}} as CalcID,\n                         reg.BranchID as BranchID,\n                         reg.ExternalClientID as ExternalClientID,\n                         reg.RowStatus as RowStatus,\n                         reg.VIP as VIP,\n                         reg.AccountID as AccountID,\n                         NVL(reg.ContractNumber, 'test') as ContractNumber,\n                         reg.DealID as DealID,\n                         reg.AccountNumber as AccountNumber,\n                         reg.Account2ID as Account2ID,\n                         reg.Account2Number as Account2Number,\n                         reg.CorrectObjectID as ObjectID,\n                         reg.SumType as SumType,\n                         reg.CorrectObjectBrief as ObjectBrief,\n                         reg.CorrectObjectID as CorrectObjectID,\n                         reg.CurrencyID as CurrencyID,\n                         null as SecCategory,\n                         reg.ClientID as ClientID,\n                         coalesce(cjr.ClientType,reg.ClientType) as ClientType,\n                         reg.Resident as ClientIsResident,\n                         cjr.OwnershipFormID as ClientOwnershipFormID,\n                         cjr.Authority as ClientAuthority,\n                         case\n                           when chr.ClientID is not null\n                             then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLawyerNotary,\n                         cjr.OffshoreResident as MinusLevy,\n                         case\n                         when coalesce(cjr.IsFinancial,'CMN_BIN_NULL') = 'CMN_BIN_NULL'\n                           then 'CMN_BIN_NO'\n                             else cjr.IsFinancial\n                         end as IsFinOrg,\n                         cjr.IsClearingMember as IsClearingMember,\n                         reg.PaymentDelay as PaymentDelay,\n                         reg.PaymentSumRur as OutRestRub,\n                         reg.PaymentSumVal as OutRestVal,\n                         reg.AccountName as AccountName,\n                         reg.ClientName as ClientName,\n                         NULL as LinkAccountID,\n                         NULL as LinkAccountNumber,\n                         NULL as LinkAccount2Number,\n                         NULL as LinkCurrencyCode,\n                         reg.SecurityID as SecurityID,\n                         enum2str(sdr.DealKind) as LoanREPOKind,\n                         null as SecKind,\n                         reg.SecPortfolioID as SecPortfolioID,\n                         case \n                           when reg.ClientID != acc.ClientID then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLoanGuarantor,\n                         cur.Type  as CurrencyType,\n                         cur.Code as CurrencyCode,\n                         enum2str(acc.openingreason) as AccountOpeningReason,\n                         NULL as DepositKind,\n                         DECODE(cjr.COUNTRYCODE, '996', 'CMN_BIN_YES', 'CMN_BIN_NO') as IsInternational290FZ,\n                         reg.ParentDealID,\n                         reg.ParentContractNumber,\n                         reg.AccountRole as AccountRole\n                    from {{ table_assetreg_assetregistercor }} reg\n                   inner join tmp_001_RF110_Reg_Acc2_{{calc_id}} a\n                           on a.Account2Number = reg.Account2Number\n                   inner join {{ table_dwh_account }} acc\n                           on acc.ID = reg.AccountID \n                          and acc.DateBegin <= {{date_end}}\n                          and acc.DateEnd > {{date_end}}\n                    left join {{ table_clientjurreg_clientjurregister }} cjr\n                           on cjr.CalcID = {{calc_clientjurreg_id}}\n                          and cjr.ClientID = reg.ClientID \n                    left JOIN tmp_sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_ClientChr1_34_default_{{calc_id}} chr\n                           on chr.ClientID = reg.ClientID\n                    left join {{ table_dwh_secdealrepo }} sdr\n                           on sdr.DateBegin <= {{date_end}}\n                          and sdr.DateEnd > {{date_end}}\n                          and sdr.RowStatus = 'A'\n                          and sdr.MainDealID = reg.DealID\n                    left join {{ table_dwh_currency }} cur \n                           on cur.ID = acc.CurrencyID\n                   where reg.CalcID = {{calc_astreg_id}}\n                     and reg.LevelGroup = 0\n                     and reg.RowStatus = 'A'\n                     and (substr(reg.Account2Number,1,3) = '706' or abs(reg.ParentAccountID) != 1 )\n",
+          "oracle": "                  with /* Если клиент является адвокатом или нотариусом И одновременно управляющим, оставляем только одну запись */\n                       ClientChr1_34 as \n                       (select distinct \n                                                        \n                               ClientID as ClientID \n\t\t                      from {{ table_dwh_clientchr }}\n                         where DateBegin <= {{date_end}}\n\t\t                       and DateEnd > {{date_end}}\n                           and {{clientchr_sql_filter}}\n\t\t                       and ClientCharacter in (1,34) --адвокат/нотариус, арбитражный управляющий \n                       )\n                  select {{ table_rf110_rf110restturnreg }} as ID,\n                         {{calc_id}} as CalcID,\n                         reg.BranchID as BranchID,\n                         reg.ExternalClientID as ExternalClientID,\n                         reg.RowStatus as RowStatus,\n                         reg.VIP as VIP,\n                         reg.AccountID as AccountID,\n                         NVL(reg.ContractNumber, 'test') as ContractNumber,\n                         reg.DealID as DealID,\n                         reg.AccountNumber as AccountNumber,\n                         reg.Account2ID as Account2ID,\n                         reg.Account2Number as Account2Number,\n                         reg.CorrectObjectID as ObjectID,\n                         reg.SumType as SumType,\n                         reg.CorrectObjectBrief as ObjectBrief,\n                         reg.CorrectObjectID as CorrectObjectID,\n                         reg.CurrencyID as CurrencyID,\n                         null as SecCategory,\n                         reg.ClientID as ClientID,\n                         coalesce(cjr.ClientType,reg.ClientType) as ClientType,\n                         reg.Resident as ClientIsResident,\n                         cjr.OwnershipFormID as ClientOwnershipFormID,\n                         cjr.Authority as ClientAuthority,\n                         case\n                           when chr.ClientID is not null\n                             then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLawyerNotary,\n                         cjr.OffshoreResident as MinusLevy,\n                         case\n                         when coalesce(cjr.IsFinancial,'CMN_BIN_NULL') = 'CMN_BIN_NULL'\n                           then 'CMN_BIN_NO'\n                             else cjr.IsFinancial\n                         end as IsFinOrg,\n                         cjr.IsClearingMember as IsClearingMember,\n                         reg.PaymentDelay as PaymentDelay,\n                         reg.PaymentSumRur as OutRestRub,\n                         reg.PaymentSumVal as OutRestVal,\n                         reg.AccountName as AccountName,\n                         reg.ClientName as ClientName,\n                         NULL as LinkAccountID,\n                         NULL as LinkAccountNumber,\n                         NULL as LinkAccount2Number,\n                         NULL as LinkCurrencyCode,\n                         reg.SecurityID as SecurityID,\n                         enum2str(sdr.DealKind) as LoanREPOKind,\n                         null as SecKind,\n                         reg.SecPortfolioID as SecPortfolioID,\n                         case \n                           when reg.ClientID != acc.ClientID then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLoanGuarantor,\n                         cur.Type  as CurrencyType,\n                         cur.Code as CurrencyCode,\n                         enum2str(acc.openingreason) as AccountOpeningReason,\n                         NULL as DepositKind,\n                         DECODE(cjr.COUNTRYCODE, '996', 'CMN_BIN_YES', 'CMN_BIN_NO') as IsInternational290FZ,\n                         reg.ParentDealID,\n                         reg.ParentContractNumber,\n                         reg.AccountRole as AccountRole\n                    from {{ table_assetreg_assetregistercor }} reg\n                   inner join tmp_001_RF110_Reg_Acc2_{{calc_id}} a\n                           on a.Account2Number = reg.Account2Number\n                   inner join {{ table_dwh_account }} acc\n                           on acc.ID = reg.AccountID \n                          and acc.DateBegin <= {{date_end}}\n                          and acc.DateEnd > {{date_end}}\n                    left join {{ table_clientjurreg_clientjurregister }} cjr\n                           on cjr.CalcID = {{calc_clientjurreg_id}}\n                          and cjr.ClientID = reg.ClientID \n                    left join ClientChr1_34 chr\n                           on chr.ClientID = reg.ClientID\n                    left join {{ table_dwh_secdealrepo }} sdr\n                           on sdr.DateBegin <= {{date_end}}\n                          and sdr.DateEnd > {{date_end}}\n                          and sdr.RowStatus = 'A'\n                          and sdr.MainDealID = reg.DealID\n                    left join {{ table_dwh_currency }} cur \n                           on cur.ID = acc.CurrencyID\n                   where reg.CalcID = {{calc_astreg_id}}\n                     and reg.LevelGroup = 0\n                     and reg.RowStatus = 'A'\n                     and (substr(reg.Account2Number,1,3) = '706' or abs(reg.ParentAccountID) != 1 )\n",
+          "postgresql": "                  with /* Если клиент является адвокатом или нотариусом И одновременно управляющим, оставляем только одну запись */\n                       ClientChr1_34 as \n                       (select distinct \n                                                        \n                               ClientID as ClientID \n\t\t                      from {{ table_dwh_clientchr }}\n                         where DateBegin <= {{date_end}}\n\t\t                       and DateEnd > {{date_end}}\n                           and {{clientchr_sql_filter}}\n\t\t                       and ClientCharacter in (1,34) --адвокат/нотариус, арбитражный управляющий \n                       )\n                  select {{ table_rf110_rf110restturnreg }} as ID,\n                         {{calc_id}} as CalcID,\n                         reg.BranchID as BranchID,\n                         reg.ExternalClientID as ExternalClientID,\n                         reg.RowStatus as RowStatus,\n                         reg.VIP as VIP,\n                         reg.AccountID as AccountID,\n                         COALESCE(reg.ContractNumber, 'test') as ContractNumber,\n                         reg.DealID as DealID,\n                         reg.AccountNumber as AccountNumber,\n                         reg.Account2ID as Account2ID,\n                         reg.Account2Number as Account2Number,\n                         reg.CorrectObjectID as ObjectID,\n                         reg.SumType as SumType,\n                         reg.CorrectObjectBrief as ObjectBrief,\n                         reg.CorrectObjectID as CorrectObjectID,\n                         reg.CurrencyID as CurrencyID,\n                         null as SecCategory,\n                         reg.ClientID as ClientID,\n                         coalesce(cjr.ClientType,reg.ClientType) as ClientType,\n                         reg.Resident as ClientIsResident,\n                         cjr.OwnershipFormID as ClientOwnershipFormID,\n                         cjr.Authority as ClientAuthority,\n                         case\n                           when chr.ClientID is not null\n                             then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLawyerNotary,\n                         cjr.OffshoreResident as MinusLevy,\n                         case\n                         when coalesce(cjr.IsFinancial,'CMN_BIN_NULL') = 'CMN_BIN_NULL'\n                           then 'CMN_BIN_NO'\n                             else cjr.IsFinancial\n                         end as IsFinOrg,\n                         cjr.IsClearingMember as IsClearingMember,\n                         reg.PaymentDelay as PaymentDelay,\n                         reg.PaymentSumRur as OutRestRub,\n                         reg.PaymentSumVal as OutRestVal,\n                         reg.AccountName as AccountName,\n                         reg.ClientName as ClientName,\n                         NULL as LinkAccountID,\n                         NULL as LinkAccountNumber,\n                         NULL as LinkAccount2Number,\n                         NULL as LinkCurrencyCode,\n                         reg.SecurityID as SecurityID,\n                         enum2str(sdr.DealKind) as LoanREPOKind,\n                         null as SecKind,\n                         reg.SecPortfolioID as SecPortfolioID,\n                         case \n                           when reg.ClientID != acc.ClientID then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLoanGuarantor,\n                         cur.Type  as CurrencyType,\n                         cur.Code as CurrencyCode,\n                         enum2str(acc.openingreason) as AccountOpeningReason,\n                         NULL as DepositKind,\n                         DECODE(cjr.COUNTRYCODE, '996', 'CMN_BIN_YES', 'CMN_BIN_NO') as IsInternational290FZ,\n                         reg.ParentDealID,\n                         reg.ParentContractNumber,\n                         reg.AccountRole as AccountRole\n                    from {{ table_assetreg_assetregistercor }} reg\n                   inner join tmp_001_RF110_Reg_Acc2_{{calc_id}} a\n                           on a.Account2Number = reg.Account2Number\n                   inner join {{ table_dwh_account }} acc\n                           on acc.ID = reg.AccountID \n                          and acc.DateBegin <= {{date_end}}\n                          and acc.DateEnd > {{date_end}}\n                    left join {{ table_clientjurreg_clientjurregister }} cjr\n                           on cjr.CalcID = {{calc_clientjurreg_id}}\n                          and cjr.ClientID = reg.ClientID \n                    left join ClientChr1_34 chr\n                           on chr.ClientID = reg.ClientID\n                    left join {{ table_dwh_secdealrepo }} sdr\n                           on sdr.DateBegin <= {{date_end}}\n                          and sdr.DateEnd > {{date_end}}\n                          and sdr.RowStatus = 'A'\n                          and sdr.MainDealID = reg.DealID\n                    left join {{ table_dwh_currency }} cur \n                           on cur.ID = acc.CurrencyID\n                   where reg.CalcID = {{calc_astreg_id}}\n                     and reg.LevelGroup = 0\n                     and reg.RowStatus = 'A'\n                     and (substr(reg.Account2Number,1,3) = '706' or abs(reg.ParentAccountID) != 1 )\n"
+        },
+        "rendered_sql": {
+          "adb": "\nINSERT INTO RF110RestTurnReg (dealid, accountid, objectid, calcid, accountnumber, clientid, loanrepokind, somerequiredattribute)\nSELECT dealid, accountid, objectid, calcid, accountnumber, clientid, loanrepokind, 'test' as somerequiredattribute\nFROM (\n                      select {{ table_rf110_rf110restturnreg }} as ID,\n                         {{calc_id}} as CalcID,\n                         reg.BranchID as BranchID,\n                         reg.ExternalClientID as ExternalClientID,\n                         reg.RowStatus as RowStatus,\n                         reg.VIP as VIP,\n                         reg.AccountID as AccountID,\n                         NVL(reg.ContractNumber, 'test') as ContractNumber,\n                         reg.DealID as DealID,\n                         reg.AccountNumber as AccountNumber,\n                         reg.Account2ID as Account2ID,\n                         reg.Account2Number as Account2Number,\n                         reg.CorrectObjectID as ObjectID,\n                         reg.SumType as SumType,\n                         reg.CorrectObjectBrief as ObjectBrief,\n                         reg.CorrectObjectID as CorrectObjectID,\n                         reg.CurrencyID as CurrencyID,\n                         null as SecCategory,\n                         reg.ClientID as ClientID,\n                         coalesce(cjr.ClientType,reg.ClientType) as ClientType,\n                         reg.Resident as ClientIsResident,\n                         cjr.OwnershipFormID as ClientOwnershipFormID,\n                         cjr.Authority as ClientAuthority,\n                         case\n                           when chr.ClientID is not null\n                             then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLawyerNotary,\n                         cjr.OffshoreResident as MinusLevy,\n                         case\n                         when coalesce(cjr.IsFinancial,'CMN_BIN_NULL') = 'CMN_BIN_NULL'\n                           then 'CMN_BIN_NO'\n                             else cjr.IsFinancial\n                         end as IsFinOrg,\n                         cjr.IsClearingMember as IsClearingMember,\n                         reg.PaymentDelay as PaymentDelay,\n                         reg.PaymentSumRur as OutRestRub,\n                         reg.PaymentSumVal as OutRestVal,\n                         reg.AccountName as AccountName,\n                         reg.ClientName as ClientName,\n                         NULL as LinkAccountID,\n                         NULL as LinkAccountNumber,\n                         NULL as LinkAccount2Number,\n                         NULL as LinkCurrencyCode,\n                         reg.SecurityID as SecurityID,\n                         enum2str(sdr.DealKind) as LoanREPOKind,\n                         null as SecKind,\n                         reg.SecPortfolioID as SecPortfolioID,\n                         case \n                           when reg.ClientID != acc.ClientID then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLoanGuarantor,\n                         cur.Type  as CurrencyType,\n                         cur.Code as CurrencyCode,\n                         enum2str(acc.openingreason) as AccountOpeningReason,\n                         NULL as DepositKind,\n                         DECODE(cjr.COUNTRYCODE, '996', 'CMN_BIN_YES', 'CMN_BIN_NO') as IsInternational290FZ,\n                         reg.ParentDealID,\n                         reg.ParentContractNumber,\n                         reg.AccountRole as AccountRole\n                    from {{ table_assetreg_assetregistercor }} reg\n                   inner join tmp_001_RF110_Reg_Acc2_{{calc_id}} a\n                           on a.Account2Number = reg.Account2Number\n                   inner join {{ table_dwh_account }} acc\n                           on acc.ID = reg.AccountID \n                          and acc.DateBegin <= {{date_end}}\n                          and acc.DateEnd > {{date_end}}\n                    left join {{ table_clientjurreg_clientjurregister }} cjr\n                           on cjr.CalcID = {{calc_clientjurreg_id}}\n                          and cjr.ClientID = reg.ClientID \n                    left JOIN tmp_sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_ClientChr1_34_default_{{calc_id}} chr\n                           on chr.ClientID = reg.ClientID\n                    left join {{ table_dwh_secdealrepo }} sdr\n                           on sdr.DateBegin <= {{date_end}}\n                          and sdr.DateEnd > {{date_end}}\n                          and sdr.RowStatus = 'A'\n                          and sdr.MainDealID = reg.DealID\n                    left join {{ table_dwh_currency }} cur \n                           on cur.ID = acc.CurrencyID\n                   where reg.CalcID = {{calc_astreg_id}}\n                     and reg.LevelGroup = 0\n                     and reg.RowStatus = 'A'\n                     and (substr(reg.Account2Number,1,3) = '706' or abs(reg.ParentAccountID) != 1 )\n\n) t",
+          "oracle": "\nINSERT INTO RF110RestTurnReg (dealid, accountid, objectid, calcid, accountnumber, clientid, loanrepokind, somerequiredattribute)\nSELECT dealid, accountid, objectid, calcid, accountnumber, clientid, loanrepokind, 'test' as somerequiredattribute\nFROM (\n                      with /* Если клиент является адвокатом или нотариусом И одновременно управляющим, оставляем только одну запись */\n                       ClientChr1_34 as \n                       (select distinct \n                                                        \n                               ClientID as ClientID \n\t\t                      from {{ table_dwh_clientchr }}\n                         where DateBegin <= {{date_end}}\n\t\t                       and DateEnd > {{date_end}}\n                           and {{clientchr_sql_filter}}\n\t\t                       and ClientCharacter in (1,34) --адвокат/нотариус, арбитражный управляющий \n                       )\n                  select {{ table_rf110_rf110restturnreg }} as ID,\n                         {{calc_id}} as CalcID,\n                         reg.BranchID as BranchID,\n                         reg.ExternalClientID as ExternalClientID,\n                         reg.RowStatus as RowStatus,\n                         reg.VIP as VIP,\n                         reg.AccountID as AccountID,\n                         NVL(reg.ContractNumber, 'test') as ContractNumber,\n                         reg.DealID as DealID,\n                         reg.AccountNumber as AccountNumber,\n                         reg.Account2ID as Account2ID,\n                         reg.Account2Number as Account2Number,\n                         reg.CorrectObjectID as ObjectID,\n                         reg.SumType as SumType,\n                         reg.CorrectObjectBrief as ObjectBrief,\n                         reg.CorrectObjectID as CorrectObjectID,\n                         reg.CurrencyID as CurrencyID,\n                         null as SecCategory,\n                         reg.ClientID as ClientID,\n                         coalesce(cjr.ClientType,reg.ClientType) as ClientType,\n                         reg.Resident as ClientIsResident,\n                         cjr.OwnershipFormID as ClientOwnershipFormID,\n                         cjr.Authority as ClientAuthority,\n                         case\n                           when chr.ClientID is not null\n                             then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLawyerNotary,\n                         cjr.OffshoreResident as MinusLevy,\n                         case\n                         when coalesce(cjr.IsFinancial,'CMN_BIN_NULL') = 'CMN_BIN_NULL'\n                           then 'CMN_BIN_NO'\n                             else cjr.IsFinancial\n                         end as IsFinOrg,\n                         cjr.IsClearingMember as IsClearingMember,\n                         reg.PaymentDelay as PaymentDelay,\n                         reg.PaymentSumRur as OutRestRub,\n                         reg.PaymentSumVal as OutRestVal,\n                         reg.AccountName as AccountName,\n                         reg.ClientName as ClientName,\n                         NULL as LinkAccountID,\n                         NULL as LinkAccountNumber,\n                         NULL as LinkAccount2Number,\n                         NULL as LinkCurrencyCode,\n                         reg.SecurityID as SecurityID,\n                         enum2str(sdr.DealKind) as LoanREPOKind,\n                         null as SecKind,\n                         reg.SecPortfolioID as SecPortfolioID,\n                         case \n                           when reg.ClientID != acc.ClientID then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLoanGuarantor,\n                         cur.Type  as CurrencyType,\n                         cur.Code as CurrencyCode,\n                         enum2str(acc.openingreason) as AccountOpeningReason,\n                         NULL as DepositKind,\n                         DECODE(cjr.COUNTRYCODE, '996', 'CMN_BIN_YES', 'CMN_BIN_NO') as IsInternational290FZ,\n                         reg.ParentDealID,\n                         reg.ParentContractNumber,\n                         reg.AccountRole as AccountRole\n                    from {{ table_assetreg_assetregistercor }} reg\n                   inner join tmp_001_RF110_Reg_Acc2_{{calc_id}} a\n                           on a.Account2Number = reg.Account2Number\n                   inner join {{ table_dwh_account }} acc\n                           on acc.ID = reg.AccountID \n                          and acc.DateBegin <= {{date_end}}\n                          and acc.DateEnd > {{date_end}}\n                    left join {{ table_clientjurreg_clientjurregister }} cjr\n                           on cjr.CalcID = {{calc_clientjurreg_id}}\n                          and cjr.ClientID = reg.ClientID \n                    left join ClientChr1_34 chr\n                           on chr.ClientID = reg.ClientID\n                    left join {{ table_dwh_secdealrepo }} sdr\n                           on sdr.DateBegin <= {{date_end}}\n                          and sdr.DateEnd > {{date_end}}\n                          and sdr.RowStatus = 'A'\n                          and sdr.MainDealID = reg.DealID\n                    left join {{ table_dwh_currency }} cur \n                           on cur.ID = acc.CurrencyID\n                   where reg.CalcID = {{calc_astreg_id}}\n                     and reg.LevelGroup = 0\n                     and reg.RowStatus = 'A'\n                     and (substr(reg.Account2Number,1,3) = '706' or abs(reg.ParentAccountID) != 1 )\n\n)",
+          "postgresql": "\nINSERT INTO RF110RestTurnReg (dealid, accountid, objectid, calcid, accountnumber, clientid, loanrepokind, somerequiredattribute)\nSELECT dealid, accountid, objectid, calcid, accountnumber, clientid, loanrepokind, 'test' as somerequiredattribute\nFROM (\n                      with /* Если клиент является адвокатом или нотариусом И одновременно управляющим, оставляем только одну запись */\n                       ClientChr1_34 as \n                       (select distinct \n                                                        \n                               ClientID as ClientID \n\t\t                      from {{ table_dwh_clientchr }}\n                         where DateBegin <= {{date_end}}\n\t\t                       and DateEnd > {{date_end}}\n                           and {{clientchr_sql_filter}}\n\t\t                       and ClientCharacter in (1,34) --адвокат/нотариус, арбитражный управляющий \n                       )\n                  select {{ table_rf110_rf110restturnreg }} as ID,\n                         {{calc_id}} as CalcID,\n                         reg.BranchID as BranchID,\n                         reg.ExternalClientID as ExternalClientID,\n                         reg.RowStatus as RowStatus,\n                         reg.VIP as VIP,\n                         reg.AccountID as AccountID,\n                         COALESCE(reg.ContractNumber, 'test') as ContractNumber,\n                         reg.DealID as DealID,\n                         reg.AccountNumber as AccountNumber,\n                         reg.Account2ID as Account2ID,\n                         reg.Account2Number as Account2Number,\n                         reg.CorrectObjectID as ObjectID,\n                         reg.SumType as SumType,\n                         reg.CorrectObjectBrief as ObjectBrief,\n                         reg.CorrectObjectID as CorrectObjectID,\n                         reg.CurrencyID as CurrencyID,\n                         null as SecCategory,\n                         reg.ClientID as ClientID,\n                         coalesce(cjr.ClientType,reg.ClientType) as ClientType,\n                         reg.Resident as ClientIsResident,\n                         cjr.OwnershipFormID as ClientOwnershipFormID,\n                         cjr.Authority as ClientAuthority,\n                         case\n                           when chr.ClientID is not null\n                             then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLawyerNotary,\n                         cjr.OffshoreResident as MinusLevy,\n                         case\n                         when coalesce(cjr.IsFinancial,'CMN_BIN_NULL') = 'CMN_BIN_NULL'\n                           then 'CMN_BIN_NO'\n                             else cjr.IsFinancial\n                         end as IsFinOrg,\n                         cjr.IsClearingMember as IsClearingMember,\n                         reg.PaymentDelay as PaymentDelay,\n                         reg.PaymentSumRur as OutRestRub,\n                         reg.PaymentSumVal as OutRestVal,\n                         reg.AccountName as AccountName,\n                         reg.ClientName as ClientName,\n                         NULL as LinkAccountID,\n                         NULL as LinkAccountNumber,\n                         NULL as LinkAccount2Number,\n                         NULL as LinkCurrencyCode,\n                         reg.SecurityID as SecurityID,\n                         enum2str(sdr.DealKind) as LoanREPOKind,\n                         null as SecKind,\n                         reg.SecPortfolioID as SecPortfolioID,\n                         case \n                           when reg.ClientID != acc.ClientID then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLoanGuarantor,\n                         cur.Type  as CurrencyType,\n                         cur.Code as CurrencyCode,\n                         enum2str(acc.openingreason) as AccountOpeningReason,\n                         NULL as DepositKind,\n                         DECODE(cjr.COUNTRYCODE, '996', 'CMN_BIN_YES', 'CMN_BIN_NO') as IsInternational290FZ,\n                         reg.ParentDealID,\n                         reg.ParentContractNumber,\n                         reg.AccountRole as AccountRole\n                    from {{ table_assetreg_assetregistercor }} reg\n                   inner join tmp_001_RF110_Reg_Acc2_{{calc_id}} a\n                           on a.Account2Number = reg.Account2Number\n                   inner join {{ table_dwh_account }} acc\n                           on acc.ID = reg.AccountID \n                          and acc.DateBegin <= {{date_end}}\n                          and acc.DateEnd > {{date_end}}\n                    left join {{ table_clientjurreg_clientjurregister }} cjr\n                           on cjr.CalcID = {{calc_clientjurreg_id}}\n                          and cjr.ClientID = reg.ClientID \n                    left join ClientChr1_34 chr\n                           on chr.ClientID = reg.ClientID\n                    left join {{ table_dwh_secdealrepo }} sdr\n                           on sdr.DateBegin <= {{date_end}}\n                          and sdr.DateEnd > {{date_end}}\n                          and sdr.RowStatus = 'A'\n                          and sdr.MainDealID = reg.DealID\n                    left join {{ table_dwh_currency }} cur \n                           on cur.ID = acc.CurrencyID\n                   where reg.CalcID = {{calc_astreg_id}}\n                     and reg.LevelGroup = 0\n                     and reg.RowStatus = 'A'\n                     and (substr(reg.Account2Number,1,3) = '706' or abs(reg.ParentAccountID) != 1 )\n\n) t"
+        },
+        "attributes": [
+          {
+            "name": "id",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "calcid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "branchid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "externalclientid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "rowstatus",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "vip",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "accountid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "contractnumber",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "dealid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "accountnumber",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "account2id",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "account2number",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "objectid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "sumtype",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "objectbrief",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "correctobjectid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "currencyid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "seccategory",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "clientid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "clienttype",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "clientisresident",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "clientownershipformid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "clientauthority",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "minuslevy",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "isclearingmember",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "paymentdelay",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "outrestrub",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "outrestval",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "accountname",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "clientname",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "linkaccountid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "linkaccountnumber",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "linkaccount2number",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "linkcurrencycode",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "securityid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "loanrepokind",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "seckind",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "secportfolioid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "currencytype",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "currencycode",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "accountopeningreason",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "depositkind",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "isinternational290fz",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "parentdealid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "parentcontractnumber",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "accountrole",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          }
+        ],
+        "cte_materialization": null,
+        "cte_config": {
+          "cte_queries": {
+            "ClientChr1_34": {
+              "cte_materialization": "ephemeral",
+              "by_tool": {
+                "adb": "stage_calcid"
+              }
+            }
+          }
+        },
+        "cte_table_names": {
+          "ClientChr1_34": "tmp_sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_ClientChr1_34_default_{{calc_id}}",
+          "ClientChr1_34_default": "tmp_sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_ClientChr1_34_default_{{calc_id}}"
+        },
+        "target_table": ""
+      },
+      "param_model": null,
+      "dependencies": [
+        "001_Load__distr/002_RF110RestTurnReg_ACCDEMAND_default/cte/ClientChr1_34"
+      ],
+      "context": "default",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "sql_001_Load_distr_003_RF110RestTurnReg_ACCRSRV_b_default",
+      "name": "sql_001_Load_distr_003_RF110RestTurnReg_ACCRSRV_b_default",
+      "folder": "001_Load__distr",
+      "full_name": "001_Load__distr/003_RF110RestTurnReg_ACCRSRV_default/cte/b",
+      "step_type": "sql",
+      "step_scope": "sql",
+      "sql_model": {
+        "name": "sql_001_Load_distr_003_RF110RestTurnReg_ACCRSRV_b_default",
+        "path": ".",
+        "source_sql": "select config_type from config_table where config_group = 'reports'",
+        "materialization": "stage_calcid",
+        "context": "default",
+        "metadata": {
+          "parameters": [],
+          "tables": {
+            "config_table": {
+              "alias": "config_table",
+              "is_variable": false,
+              "is_cte": false
+            }
+          },
+          "aliases": [],
+          "cte": {},
+          "functions": [],
+          "model_refs": {},
+          "workflow_refs": {},
+          "inline_query_config": null,
+          "inline_cte_configs": {},
+          "inline_attr_configs": {}
+        },
+        "prepared_sql": {
+          "postgresql": "select config_type from config_table where config_group = 'reports'"
+        },
+        "rendered_sql": {
+          "postgresql": "CREATE TABLE tmp_sql_001_Load_distr_003_RF110RestTurnReg_ACCRSRV_b_default_{{calc_id}} AS\nSELECT \n    RF110.get_base_calc_id() as CalcID,\n    t.*\nFROM (\n    select config_type from config_table where config_group = 'reports'\n) t"
+        },
+        "attributes": [],
+        "cte_materialization": null,
+        "cte_config": null,
+        "cte_table_names": null,
+        "target_table": "tmp_sql_001_Load_distr_003_RF110RestTurnReg_ACCRSRV_b_default_{{calc_id}}"
+      },
+      "param_model": null,
+      "dependencies": [
+        "001_Load__distr/002_RF110RestTurnReg_ACCDEMAND_default/sql"
+      ],
+      "context": "default",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": [
+        "postgresql"
+      ]
+    },
+    {
+      "step_id": "sql_001_Load_distr_003_RF110RestTurnReg_ACCRSRV_default",
+      "name": "003_RF110RestTurnReg_ACCRSRV",
+      "folder": "001_Load__distr",
+      "full_name": "001_Load__distr/003_RF110RestTurnReg_ACCRSRV_default/sql",
+      "step_type": "sql",
+      "step_scope": "sql",
+      "sql_model": {
+        "name": "003_RF110RestTurnReg_ACCRSRV",
+        "path": "/app/projects/rf110/model/RF110RestTurnReg/SQL/001_Load__distr/003_RF110RestTurnReg_ACCRSRV.sql",
+        "source_sql": "with b as (\n  select config_type from config_table where config_group = 'reports'\n),\na as (\n  select max(config_type) as config_max_type\n  from b\n)\nselect 1 as test\nfrom test_table t\n    cross join a\nwhere t.config_type in (select config_type from b)",
+        "materialization": "insert_fc",
+        "context": "default",
+        "metadata": {
+          "parameters": [],
+          "tables": {
+            "config_table": {
+              "alias": "config_table",
+              "is_variable": false,
+              "is_cte": false
+            },
+            "b": {
+              "alias": "b",
+              "is_variable": false,
+              "is_cte": true
+            },
+            "test_table": {
+              "alias": "t",
+              "is_variable": false,
+              "is_cte": false
+            },
+            "a": {
+              "alias": "a",
+              "is_variable": false,
+              "is_cte": true
+            }
+          },
+          "aliases": [
+            {
+              "alias": "test",
+              "source": null,
+              "expression": "1"
+            }
+          ],
+          "cte": {
+            "b": {
+              "source_tables": [],
+              "source_ctes": [
+                "config_table"
+              ]
+            },
+            "a": {
+              "source_tables": [],
+              "source_ctes": [
+                "b"
+              ]
+            }
+          },
+          "functions": [
+            {
+              "name": "MAX",
+              "params": [
+                "config_type"
+              ]
+            }
+          ],
+          "model_refs": {},
+          "workflow_refs": {},
+          "inline_query_config": null,
+          "inline_cte_configs": {},
+          "inline_attr_configs": {}
+        },
+        "prepared_sql": {
+          "adb": "with b as (\n  select config_type from config_table where config_group = 'reports'\n),\na as (\n  select max(config_type) as config_max_type\n  from b\n)\nselect 1 as test\nfrom test_table t\n    cross join a\nwhere t.config_type in (select config_type from b)",
+          "oracle": "with b as (\n  select config_type from config_table where config_group = 'reports'\n),\na as (\n  select max(config_type) as config_max_type\n  from b\n)\nselect 1 as test\nfrom test_table t\n    cross join a\nwhere t.config_type in (select config_type from b)",
+          "postgresql": "WITH a as (\n  select max(config_type) as config_max_type\n  FROM tmp_sql_001_Load_distr_003_RF110RestTurnReg_ACCRSRV_b_default_{{calc_id}}\n)\nselect 1 as test\nfrom test_table t\n    cross join a\nwhere t.config_type in (select config_type FROM tmp_sql_001_Load_distr_003_RF110RestTurnReg_ACCRSRV_b_default_{{calc_id}})"
+        },
+        "rendered_sql": {
+          "adb": "with b as (\n  select config_type from config_table where config_group = 'reports'\n),\na as (\n  select max(config_type) as config_max_type\n  from b\n)\nselect 1 as test\nfrom test_table t\n    cross join a\nwhere t.config_type in (select config_type from b)",
+          "oracle": "with b as (\n  select config_type from config_table where config_group = 'reports'\n),\na as (\n  select max(config_type) as config_max_type\n  from b\n)\nselect 1 as test\nfrom test_table t\n    cross join a\nwhere t.config_type in (select config_type from b)",
+          "postgresql": "WITH a as (\n  select max(config_type) as config_max_type\n  FROM tmp_sql_001_Load_distr_003_RF110RestTurnReg_ACCRSRV_b_default_{{calc_id}}\n)\nselect 1 as test\nfrom test_table t\n    cross join a\nwhere t.config_type in (select config_type FROM tmp_sql_001_Load_distr_003_RF110RestTurnReg_ACCRSRV_b_default_{{calc_id}})"
+        },
+        "attributes": [
+          {
+            "name": "test",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          }
+        ],
+        "cte_materialization": null,
+        "cte_config": {
+          "cte_queries": {
+            "b": {
+              "cte_materialization": "ephemeral",
+              "by_tool": {
+                "postgresql": "stage_calcid"
+              }
+            }
+          }
+        },
+        "cte_table_names": {
+          "b": "tmp_sql_001_Load_distr_003_RF110RestTurnReg_ACCRSRV_b_default_{{calc_id}}",
+          "b_default": "tmp_sql_001_Load_distr_003_RF110RestTurnReg_ACCRSRV_b_default_{{calc_id}}"
+        },
+        "target_table": ""
+      },
+      "param_model": null,
+      "dependencies": [
+        "001_Load__distr/003_RF110RestTurnReg_ACCRSRV_default/cte/b"
+      ],
+      "context": "default",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "sql_001_Load_distr/004_applySettings_iter_applySettings_default",
+      "name": "applySettings",
+      "folder": "001_Load__distr/004_applySettings_iter",
+      "full_name": "001_Load__distr/004_applySettings_iter/applySettings_default/sql",
+      "step_type": "sql",
+      "step_scope": "sql",
+      "sql_model": {
+        "name": "applySettings",
+        "path": "/app/projects/rf110/model/RF110RestTurnReg/SQL/001_Load__distr/004_applySettings_iter/applySettings.sql",
+        "source_sql": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}",
+        "materialization": "insert_fc",
+        "context": "default",
+        "metadata": {
+          "parameters": [
+            "sett.account2",
+            "sett.strnum"
+          ],
+          "tables": {
+            "register": {
+              "alias": "register",
+              "is_variable": false,
+              "is_cte": false
+            }
+          },
+          "aliases": [],
+          "cte": {},
+          "functions": [],
+          "model_refs": {},
+          "workflow_refs": {},
+          "inline_query_config": null,
+          "inline_cte_configs": {},
+          "inline_attr_configs": {}
+        },
+        "prepared_sql": {
+          "adb": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}",
+          "oracle": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}",
+          "postgresql": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}"
+        },
+        "rendered_sql": {
+          "adb": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}",
+          "oracle": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}",
+          "postgresql": "select dealid, {{sett.strnum}}\nfrom register\nwhere account2 = {{sett.account2}}"
+        },
+        "attributes": [],
+        "cte_materialization": null,
+        "cte_config": null,
+        "cte_table_names": {},
+        "target_table": ""
+      },
+      "param_model": null,
+      "dependencies": [
+        "001_Load__distr/003_RF110RestTurnReg_ACCRSRV_default/sql"
+      ],
+      "context": "default",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "sql_001_Load_vtb_001_RF110RestTurnReg_ACCDEMAND_vtb_vtb",
+      "name": "001_RF110RestTurnReg_ACCDEMAND_vtb",
+      "folder": "001_Load__vtb",
+      "full_name": "001_Load__vtb/001_RF110RestTurnReg_ACCDEMAND_vtb_vtb/sql",
+      "step_type": "sql",
+      "step_scope": "sql",
+      "sql_model": {
+        "name": "001_RF110RestTurnReg_ACCDEMAND_vtb",
+        "path": "/app/projects/rf110/model/RF110RestTurnReg/SQL/001_Load__vtb/001_RF110RestTurnReg_ACCDEMAND_vtb.sql",
+        "source_sql": "                  with /* Если клиент является адвокатом или нотариусом И одновременно управляющим, оставляем только одну запись */\n                       ClientChr1_34 as \n                       (select distinct ClientID as ClientID \n\t\t                      from {{ClientChr}}\n                         where DateBegin <= {{date_end}}\n\t\t                       and DateEnd > {{date_end}}\n                           and {{clientchr_sql_filter}}\n\t\t                       and ClientCharacter in (1,34) --адвокат/нотариус, арбитражный управляющий \n                       )\n                  select {{RF110RestTurnReg_SR}} as ID,\n                         {{calc_id}} as CalcID,\n                         reg.BranchID as BranchID,\n                         reg.ExternalClientID as ExternalClientID,\n                         reg.RowStatus as RowStatus,\n                         reg.VIP as VIP,\n                         reg.AccountID as AccountID,\n                         reg.ContractNumber as ContractNumber,\n                         reg.DealID as DealID,\n                         reg.AccountNumber as AccountNumber,\n                         reg.Account2ID as Account2ID,\n                         reg.Account2Number as Account2Number,\n                         reg.CorrectObjectID as ObjectID,\n                         reg.SumType as SumType,\n                         reg.CorrectObjectBrief as ObjectBrief,\n                         reg.CorrectObjectID as CorrectObjectID,\n                         reg.CurrencyID as CurrencyID,\n                         null as SecCategory,\n                         reg.ClientID as ClientID,\n                         coalesce(cjr.ClientType,reg.ClientType) as ClientType,\n                         reg.Resident as ClientIsResident,\n                         cjr.OwnershipFormID as ClientOwnershipFormID,\n                         cjr.Authority as ClientAuthority,\n                         case\n                           when chr.ClientID is not null\n                             then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLawyerNotary,\n                         cjr.OffshoreResident as MinusLevy,\n                         case\n                         when coalesce(cjr.IsFinancial,'CMN_BIN_NULL') = 'CMN_BIN_NULL'\n                           then 'CMN_BIN_NO'\n                             else cjr.IsFinancial\n                         end as IsFinOrg,\n                         cjr.IsClearingMember as IsClearingMember,\n                         reg.PaymentDelay as PaymentDelay,\n                         reg.PaymentSumRur as OutRestRub,\n                         reg.PaymentSumVal as OutRestVal,\n                         reg.AccountName as AccountName,\n                         reg.ClientName as ClientName,\n                         NULL as LinkAccountID,\n                         NULL as LinkAccountNumber,\n                         NULL as LinkAccount2Number,\n                         NULL as LinkCurrencyCode,\n                         reg.SecurityID as SecurityID,\n                         enum2str(sdr.DealKind) as LoanREPOKind,\n                         null as SecKind,\n                         reg.SecPortfolioID as SecPortfolioID,\n                         case \n                           when reg.ClientID != acc.ClientID then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLoanGuarantor,\n                         decode(cur.Type,:CUR_TP_ET_NUM:)  as CurrencyType,\n                         cur.Code as CurrencyCode,\n                         enum2str(acc.openingreason) as AccountOpeningReason,\n                         NULL as DepositKind,\n                         decode(cjr.COUNTRYCODE,'996','CMN_BIN_YES','CMN_BIN_NO') as IsInternational290FZ,\n                         reg.ParentDealID,\n                         reg.ParentContractNumber,\n                         reg.AccountRole as AccountRole\n                    from {{AssetRegisterCor}} reg\n                   inner join {{RF110_Reg_Acc2}} a\n                           on a.Account2Number = reg.Account2Number\n                   inner join {{Account}} acc\n                           on acc.ID = reg.AccountID \n                          and acc.DateBegin <= {{date_end}}\n                          and acc.DateEnd > {{date_end}}\n                    left join {{ClientJurRegister}} cjr\n                           on cjr.CalcID = {{calc_clientjurreg_id}}\n                          and cjr.ClientID = reg.ClientID \n                    left join ClientChr1_34 chr\n                           on chr.ClientID = reg.ClientID\n                    left join {{SecDealREPO}} sdr\n                           on sdr.DateBegin <= {{date_end}}\n                          and sdr.DateEnd > {{date_end}}\n                          and sdr.RowStatus = 'A'\n                          and sdr.MainDealID = reg.DealID\n                    left join {{Currency}} cur \n                           on cur.ID = acc.CurrencyID\n                   where reg.CalcID = {{calc_astreg_id}}\n                     and reg.LevelGroup = 0\n                     and reg.RowStatus = 'A'\n                     and (substr(reg.Account2Number,1,3) = '706' or abs(reg.ParentAccountID) != 1 )\n",
+        "materialization": "insert_fc",
+        "context": "vtb",
+        "metadata": {
+          "parameters": [
+            "Account",
+            "AssetRegisterCor",
+            "ClientJurRegister",
+            "Currency",
+            "RF110RestTurnReg_SR",
+            "RF110_Reg_Acc2",
+            "SecDealREPO",
+            "calc_astreg_id",
+            "calc_clientjurreg_id",
+            "calc_id",
+            "clientchr_sql_filter",
+            "date_end"
+          ],
+          "tables": {
+            "ClientChr": {
+              "alias": "clientchr",
+              "is_variable": true,
+              "is_cte": false
+            },
+            "AssetRegisterCor": {
+              "alias": "reg",
+              "is_variable": true,
+              "is_cte": false
+            },
+            "RF110_Reg_Acc2": {
+              "alias": "a",
+              "is_variable": true,
+              "is_cte": false
+            },
+            "Account": {
+              "alias": "acc",
+              "is_variable": true,
+              "is_cte": false
+            },
+            "ClientJurRegister": {
+              "alias": "cjr",
+              "is_variable": true,
+              "is_cte": false
+            },
+            "ClientChr1_34": {
+              "alias": "chr",
+              "is_variable": false,
+              "is_cte": true
+            },
+            "SecDealREPO": {
+              "alias": "sdr",
+              "is_variable": true,
+              "is_cte": false
+            },
+            "Currency": {
+              "alias": "cur",
+              "is_variable": true,
+              "is_cte": false
+            }
+          },
+          "aliases": [
+            {
+              "alias": "id",
+              "source": null,
+              "expression": "{{RF110RestTurnReg_SR}}"
+            },
+            {
+              "alias": "calcid",
+              "source": null,
+              "expression": "{{calc_id}}"
+            },
+            {
+              "alias": "branchid",
+              "source": null,
+              "expression": "reg.BranchID"
+            },
+            {
+              "alias": "externalclientid",
+              "source": null,
+              "expression": "reg.ExternalClientID"
+            },
+            {
+              "alias": "rowstatus",
+              "source": null,
+              "expression": "reg.RowStatus"
+            },
+            {
+              "alias": "vip",
+              "source": null,
+              "expression": "reg.VIP"
+            },
+            {
+              "alias": "accountid",
+              "source": null,
+              "expression": "reg.AccountID"
+            },
+            {
+              "alias": "contractnumber",
+              "source": null,
+              "expression": "reg.ContractNumber"
+            },
+            {
+              "alias": "dealid",
+              "source": null,
+              "expression": "reg.DealID"
+            },
+            {
+              "alias": "accountnumber",
+              "source": null,
+              "expression": "reg.AccountNumber"
+            },
+            {
+              "alias": "account2id",
+              "source": null,
+              "expression": "reg.Account2ID"
+            },
+            {
+              "alias": "account2number",
+              "source": null,
+              "expression": "reg.Account2Number"
+            },
+            {
+              "alias": "objectid",
+              "source": null,
+              "expression": "reg.CorrectObjectID"
+            },
+            {
+              "alias": "sumtype",
+              "source": null,
+              "expression": "reg.SumType"
+            },
+            {
+              "alias": "objectbrief",
+              "source": null,
+              "expression": "reg.CorrectObjectBrief"
+            },
+            {
+              "alias": "correctobjectid",
+              "source": null,
+              "expression": "reg.CorrectObjectID"
+            },
+            {
+              "alias": "currencyid",
+              "source": null,
+              "expression": "reg.CurrencyID"
+            },
+            {
+              "alias": "seccategory",
+              "source": null,
+              "expression": "null"
+            },
+            {
+              "alias": "clientid",
+              "source": null,
+              "expression": "reg.ClientID"
+            },
+            {
+              "alias": "clienttype",
+              "source": null,
+              "expression": "coalesce(cjr.ClientType,reg.ClientType)"
+            },
+            {
+              "alias": "clientisresident",
+              "source": null,
+              "expression": "reg.Resident"
+            },
+            {
+              "alias": "clientownershipformid",
+              "source": null,
+              "expression": "cjr.OwnershipFormID"
+            },
+            {
+              "alias": "clientauthority",
+              "source": null,
+              "expression": "cjr.Authority"
+            },
+            {
+              "alias": "minuslevy",
+              "source": null,
+              "expression": "cjr.OffshoreResident"
+            },
+            {
+              "alias": "isclearingmember",
+              "source": null,
+              "expression": "cjr.IsClearingMember"
+            },
+            {
+              "alias": "paymentdelay",
+              "source": null,
+              "expression": "reg.PaymentDelay"
+            },
+            {
+              "alias": "outrestrub",
+              "source": null,
+              "expression": "reg.PaymentSumRur"
+            },
+            {
+              "alias": "outrestval",
+              "source": null,
+              "expression": "reg.PaymentSumVal"
+            },
+            {
+              "alias": "accountname",
+              "source": null,
+              "expression": "reg.AccountName"
+            },
+            {
+              "alias": "clientname",
+              "source": null,
+              "expression": "reg.ClientName"
+            },
+            {
+              "alias": "linkaccountid",
+              "source": null,
+              "expression": "NULL"
+            },
+            {
+              "alias": "linkaccountnumber",
+              "source": null,
+              "expression": "NULL"
+            },
+            {
+              "alias": "linkaccount2number",
+              "source": null,
+              "expression": "NULL"
+            },
+            {
+              "alias": "linkcurrencycode",
+              "source": null,
+              "expression": "NULL"
+            },
+            {
+              "alias": "securityid",
+              "source": null,
+              "expression": "reg.SecurityID"
+            },
+            {
+              "alias": "loanrepokind",
+              "source": null,
+              "expression": "enum2str(sdr.DealKind)"
+            },
+            {
+              "alias": "seckind",
+              "source": null,
+              "expression": "null"
+            },
+            {
+              "alias": "secportfolioid",
+              "source": null,
+              "expression": "reg.SecPortfolioID"
+            },
+            {
+              "alias": "currencytype",
+              "source": null,
+              "expression": "decode(cur.Type,:CUR_TP_ET_NUM:)"
+            },
+            {
+              "alias": "currencycode",
+              "source": null,
+              "expression": "cur.Code"
+            },
+            {
+              "alias": "accountopeningreason",
+              "source": null,
+              "expression": "enum2str(acc.openingreason)"
+            },
+            {
+              "alias": "depositkind",
+              "source": null,
+              "expression": "NULL"
+            },
+            {
+              "alias": "isinternational290fz",
+              "source": null,
+              "expression": "decode(cjr.COUNTRYCODE,'','','')"
+            },
+            {
+              "alias": "parentdealid",
+              "source": "reg",
+              "expression": "reg.ParentDealID"
+            },
+            {
+              "alias": "parentcontractnumber",
+              "source": "reg",
+              "expression": "reg.ParentContractNumber"
+            },
+            {
+              "alias": "accountrole",
+              "source": null,
+              "expression": "reg.AccountRole"
+            }
+          ],
+          "cte": {
+            "ClientChr1_34": {
+              "source_tables": [
+                "ClientChr"
+              ],
+              "source_ctes": []
+            }
+          },
+          "functions": [
+            {
+              "name": "COALESCE",
+              "params": [
+                "cjr.ClientType",
+                "reg.ClientType"
+              ]
+            },
+            {
+              "name": "COALESCE",
+              "params": [
+                "cjr.IsFinancial",
+                "'CMN_BIN_NULL'"
+              ]
+            },
+            {
+              "name": "ENUM2STR",
+              "params": [
+                "sdr.DealKind"
+              ]
+            },
+            {
+              "name": "DECODE",
+              "params": [
+                "cur.Type",
+                ":CUR_TP_ET_NUM:"
+              ]
+            },
+            {
+              "name": "ENUM2STR",
+              "params": [
+                "acc.openingreason"
+              ]
+            },
+            {
+              "name": "DECODE",
+              "params": [
+                "cjr.COUNTRYCODE",
+                "'996'",
+                "'CMN_BIN_YES'",
+                "'CMN_BIN_NO'"
+              ]
+            },
+            {
+              "name": "SUBSTR",
+              "params": [
+                "reg.Account2Number",
+                "1",
+                "3"
+              ]
+            },
+            {
+              "name": "ABS",
+              "params": [
+                "reg.ParentAccountID"
+              ]
+            }
+          ],
+          "model_refs": {},
+          "workflow_refs": {},
+          "inline_query_config": null,
+          "inline_cte_configs": {},
+          "inline_attr_configs": {}
+        },
+        "prepared_sql": {
+          "adb": "                  with /* Если клиент является адвокатом или нотариусом И одновременно управляющим, оставляем только одну запись */\n                       ClientChr1_34 as \n                       (select distinct ClientID as ClientID \n\t\t                      from {{ClientChr}}\n                         where DateBegin <= {{date_end}}\n\t\t                       and DateEnd > {{date_end}}\n                           and {{clientchr_sql_filter}}\n\t\t                       and ClientCharacter in (1,34) --адвокат/нотариус, арбитражный управляющий \n                       )\n                  select {{RF110RestTurnReg_SR}} as ID,\n                         {{calc_id}} as CalcID,\n                         reg.BranchID as BranchID,\n                         reg.ExternalClientID as ExternalClientID,\n                         reg.RowStatus as RowStatus,\n                         reg.VIP as VIP,\n                         reg.AccountID as AccountID,\n                         reg.ContractNumber as ContractNumber,\n                         reg.DealID as DealID,\n                         reg.AccountNumber as AccountNumber,\n                         reg.Account2ID as Account2ID,\n                         reg.Account2Number as Account2Number,\n                         reg.CorrectObjectID as ObjectID,\n                         reg.SumType as SumType,\n                         reg.CorrectObjectBrief as ObjectBrief,\n                         reg.CorrectObjectID as CorrectObjectID,\n                         reg.CurrencyID as CurrencyID,\n                         null as SecCategory,\n                         reg.ClientID as ClientID,\n                         coalesce(cjr.ClientType,reg.ClientType) as ClientType,\n                         reg.Resident as ClientIsResident,\n                         cjr.OwnershipFormID as ClientOwnershipFormID,\n                         cjr.Authority as ClientAuthority,\n                         case\n                           when chr.ClientID is not null\n                             then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLawyerNotary,\n                         cjr.OffshoreResident as MinusLevy,\n                         case\n                         when coalesce(cjr.IsFinancial,'CMN_BIN_NULL') = 'CMN_BIN_NULL'\n                           then 'CMN_BIN_NO'\n                             else cjr.IsFinancial\n                         end as IsFinOrg,\n                         cjr.IsClearingMember as IsClearingMember,\n                         reg.PaymentDelay as PaymentDelay,\n                         reg.PaymentSumRur as OutRestRub,\n                         reg.PaymentSumVal as OutRestVal,\n                         reg.AccountName as AccountName,\n                         reg.ClientName as ClientName,\n                         NULL as LinkAccountID,\n                         NULL as LinkAccountNumber,\n                         NULL as LinkAccount2Number,\n                         NULL as LinkCurrencyCode,\n                         reg.SecurityID as SecurityID,\n                         enum2str(sdr.DealKind) as LoanREPOKind,\n                         null as SecKind,\n                         reg.SecPortfolioID as SecPortfolioID,\n                         case \n                           when reg.ClientID != acc.ClientID then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLoanGuarantor,\n                         cur.Type  as CurrencyType,\n                         cur.Code as CurrencyCode,\n                         enum2str(acc.openingreason) as AccountOpeningReason,\n                         NULL as DepositKind,\n                         DECODE(cjr.COUNTRYCODE, '996', 'CMN_BIN_YES', 'CMN_BIN_NO') as IsInternational290FZ,\n                         reg.ParentDealID,\n                         reg.ParentContractNumber,\n                         reg.AccountRole as AccountRole\n                    from {{AssetRegisterCor}} reg\n                   inner join {{RF110_Reg_Acc2}} a\n                           on a.Account2Number = reg.Account2Number\n                   inner join {{Account}} acc\n                           on acc.ID = reg.AccountID \n                          and acc.DateBegin <= {{date_end}}\n                          and acc.DateEnd > {{date_end}}\n                    left join {{ClientJurRegister}} cjr\n                           on cjr.CalcID = {{calc_clientjurreg_id}}\n                          and cjr.ClientID = reg.ClientID \n                    left join ClientChr1_34 chr\n                           on chr.ClientID = reg.ClientID\n                    left join {{SecDealREPO}} sdr\n                           on sdr.DateBegin <= {{date_end}}\n                          and sdr.DateEnd > {{date_end}}\n                          and sdr.RowStatus = 'A'\n                          and sdr.MainDealID = reg.DealID\n                    left join {{Currency}} cur \n                           on cur.ID = acc.CurrencyID\n                   where reg.CalcID = {{calc_astreg_id}}\n                     and reg.LevelGroup = 0\n                     and reg.RowStatus = 'A'\n                     and (substr(reg.Account2Number,1,3) = '706' or abs(reg.ParentAccountID) != 1 )\n"
+        },
+        "rendered_sql": {
+          "adb": "\nINSERT INTO RF110RestTurnReg (dealid, accountid, objectid, calcid, accountnumber, clientid, loanrepokind, somerequiredattribute)\nSELECT dealid, accountid, objectid, calcid, accountnumber, clientid, loanrepokind, 'test' as somerequiredattribute\nFROM (\n                      with /* Если клиент является адвокатом или нотариусом И одновременно управляющим, оставляем только одну запись */\n                       ClientChr1_34 as \n                       (select distinct ClientID as ClientID \n\t\t                      from {{ClientChr}}\n                         where DateBegin <= {{date_end}}\n\t\t                       and DateEnd > {{date_end}}\n                           and {{clientchr_sql_filter}}\n\t\t                       and ClientCharacter in (1,34) --адвокат/нотариус, арбитражный управляющий \n                       )\n                  select {{RF110RestTurnReg_SR}} as ID,\n                         {{calc_id}} as CalcID,\n                         reg.BranchID as BranchID,\n                         reg.ExternalClientID as ExternalClientID,\n                         reg.RowStatus as RowStatus,\n                         reg.VIP as VIP,\n                         reg.AccountID as AccountID,\n                         reg.ContractNumber as ContractNumber,\n                         reg.DealID as DealID,\n                         reg.AccountNumber as AccountNumber,\n                         reg.Account2ID as Account2ID,\n                         reg.Account2Number as Account2Number,\n                         reg.CorrectObjectID as ObjectID,\n                         reg.SumType as SumType,\n                         reg.CorrectObjectBrief as ObjectBrief,\n                         reg.CorrectObjectID as CorrectObjectID,\n                         reg.CurrencyID as CurrencyID,\n                         null as SecCategory,\n                         reg.ClientID as ClientID,\n                         coalesce(cjr.ClientType,reg.ClientType) as ClientType,\n                         reg.Resident as ClientIsResident,\n                         cjr.OwnershipFormID as ClientOwnershipFormID,\n                         cjr.Authority as ClientAuthority,\n                         case\n                           when chr.ClientID is not null\n                             then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLawyerNotary,\n                         cjr.OffshoreResident as MinusLevy,\n                         case\n                         when coalesce(cjr.IsFinancial,'CMN_BIN_NULL') = 'CMN_BIN_NULL'\n                           then 'CMN_BIN_NO'\n                             else cjr.IsFinancial\n                         end as IsFinOrg,\n                         cjr.IsClearingMember as IsClearingMember,\n                         reg.PaymentDelay as PaymentDelay,\n                         reg.PaymentSumRur as OutRestRub,\n                         reg.PaymentSumVal as OutRestVal,\n                         reg.AccountName as AccountName,\n                         reg.ClientName as ClientName,\n                         NULL as LinkAccountID,\n                         NULL as LinkAccountNumber,\n                         NULL as LinkAccount2Number,\n                         NULL as LinkCurrencyCode,\n                         reg.SecurityID as SecurityID,\n                         enum2str(sdr.DealKind) as LoanREPOKind,\n                         null as SecKind,\n                         reg.SecPortfolioID as SecPortfolioID,\n                         case \n                           when reg.ClientID != acc.ClientID then 'CMN_BIN_YES'\n                           else 'CMN_BIN_NO'\n                         end as IsLoanGuarantor,\n                         cur.Type  as CurrencyType,\n                         cur.Code as CurrencyCode,\n                         enum2str(acc.openingreason) as AccountOpeningReason,\n                         NULL as DepositKind,\n                         DECODE(cjr.COUNTRYCODE, '996', 'CMN_BIN_YES', 'CMN_BIN_NO') as IsInternational290FZ,\n                         reg.ParentDealID,\n                         reg.ParentContractNumber,\n                         reg.AccountRole as AccountRole\n                    from {{AssetRegisterCor}} reg\n                   inner join {{RF110_Reg_Acc2}} a\n                           on a.Account2Number = reg.Account2Number\n                   inner join {{Account}} acc\n                           on acc.ID = reg.AccountID \n                          and acc.DateBegin <= {{date_end}}\n                          and acc.DateEnd > {{date_end}}\n                    left join {{ClientJurRegister}} cjr\n                           on cjr.CalcID = {{calc_clientjurreg_id}}\n                          and cjr.ClientID = reg.ClientID \n                    left join ClientChr1_34 chr\n                           on chr.ClientID = reg.ClientID\n                    left join {{SecDealREPO}} sdr\n                           on sdr.DateBegin <= {{date_end}}\n                          and sdr.DateEnd > {{date_end}}\n                          and sdr.RowStatus = 'A'\n                          and sdr.MainDealID = reg.DealID\n                    left join {{Currency}} cur \n                           on cur.ID = acc.CurrencyID\n                   where reg.CalcID = {{calc_astreg_id}}\n                     and reg.LevelGroup = 0\n                     and reg.RowStatus = 'A'\n                     and (substr(reg.Account2Number,1,3) = '706' or abs(reg.ParentAccountID) != 1 )\n\n) t"
+        },
+        "attributes": [
+          {
+            "name": "id",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "calcid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "branchid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "externalclientid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "rowstatus",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "vip",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "accountid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "contractnumber",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "dealid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "accountnumber",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "account2id",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "account2number",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "objectid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "sumtype",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "objectbrief",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "correctobjectid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "currencyid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "seccategory",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "clientid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "clienttype",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "clientisresident",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "clientownershipformid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "clientauthority",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "minuslevy",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "isclearingmember",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "paymentdelay",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "outrestrub",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "outrestval",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "accountname",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "clientname",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "linkaccountid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "linkaccountnumber",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "linkaccount2number",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "linkcurrencycode",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "securityid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "loanrepokind",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "seckind",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "secportfolioid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "currencytype",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "currencycode",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "accountopeningreason",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "depositkind",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "isinternational290fz",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "parentdealid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "parentcontractnumber",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "accountrole",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          }
+        ],
+        "cte_materialization": null,
+        "cte_config": null,
+        "cte_table_names": {},
+        "target_table": ""
+      },
+      "param_model": null,
+      "dependencies": [
+        "001_Load__distr/004_applySettings_iter/applySettings_default/sql"
+      ],
+      "context": "vtb",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "sql_001_Load_vtb_002_RF110RestTurnReg_ACCRSRV_vtb_vtb",
+      "name": "002_RF110RestTurnReg_ACCRSRV_vtb",
+      "folder": "001_Load__vtb",
+      "full_name": "001_Load__vtb/002_RF110RestTurnReg_ACCRSRV_vtb_vtb/sql",
+      "step_type": "sql",
+      "step_scope": "sql",
+      "sql_model": {
+        "name": "002_RF110RestTurnReg_ACCRSRV_vtb",
+        "path": "/app/projects/rf110/model/RF110RestTurnReg/SQL/001_Load__vtb/002_RF110RestTurnReg_ACCRSRV_vtb.sql",
+        "source_sql": "",
+        "materialization": "insert_fc",
+        "context": "vtb",
+        "metadata": {
+          "parameters": [],
+          "tables": {},
+          "aliases": [],
+          "cte": {},
+          "functions": [],
+          "model_refs": {},
+          "workflow_refs": {},
+          "inline_query_config": null,
+          "inline_cte_configs": {},
+          "inline_attr_configs": {}
+        },
+        "prepared_sql": {},
+        "rendered_sql": {},
+        "attributes": [],
+        "cte_materialization": null,
+        "cte_config": null,
+        "cte_table_names": {},
+        "target_table": ""
+      },
+      "param_model": null,
+      "dependencies": [
+        "001_Load__vtb/001_RF110RestTurnReg_ACCDEMAND_vtb_vtb/sql"
+      ],
+      "context": "vtb",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "sql_002_Update_001_RF110RestTurnReg_QUALITY_default",
+      "name": "001_RF110RestTurnReg_QUALITY",
+      "folder": "002_Update",
+      "full_name": "002_Update/001_RF110RestTurnReg_QUALITY_default/sql",
+      "step_type": "sql",
+      "step_scope": "sql",
+      "sql_model": {
+        "name": "001_RF110RestTurnReg_QUALITY",
+        "path": "/app/projects/rf110/model/RF110RestTurnReg/SQL/002_Update/001_RF110RestTurnReg_QUALITY.sql",
+        "source_sql": "/*\n@config(\n  description: обновление категории качества\n)                   \n*/    \n\nwith b as (\n/*\n@config(\n              cte_materialization:\n                 default: ephemeral\n                 by_context: \n                   vtb: stage_calcid                                     \n              attributes:\n                 - name : t\n                   domain_type: number\n                   distribution_key: 1\n)                   \n*/    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom _m.PSReg.PSRegister r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)",
+        "materialization": "upsert_fc",
+        "context": "default",
+        "metadata": {
+          "parameters": [
+            "calc_psregister_id"
+          ],
+          "tables": {
+            "tbl": {
+              "alias": "tbl",
+              "is_variable": false,
+              "is_cte": false
+            },
+            "_m.PSReg.PSRegister": {
+              "alias": "r",
+              "is_variable": false,
+              "is_cte": false
+            },
+            "b": {
+              "alias": "b",
+              "is_variable": false,
+              "is_cte": true
+            }
+          },
+          "aliases": [
+            {
+              "alias": "dealid",
+              "source": "r",
+              "expression": "r.DealID"
+            },
+            {
+              "alias": "fininstrcategory",
+              "source": "r",
+              "expression": "r.FinInstrCategory"
+            },
+            {
+              "alias": "datefrom",
+              "source": "r",
+              "expression": "r.DateFrom"
+            }
+          ],
+          "cte": {
+            "b": {
+              "source_tables": [],
+              "source_ctes": [
+                "tbl"
+              ]
+            }
+          },
+          "functions": [
+            {
+              "name": "CONFIG",
+              "params": [
+                "description: обновление категории качества"
+              ]
+            },
+            {
+              "name": "CONFIG",
+              "params": [
+                "cte_materialization:\n                 default: ephemeral\n                 by_context: \n                   vtb: stage_calcid                                     \n              attributes:\n                 - name : t\n                   domain_type: number\n                   distribution_key: 1"
+              ]
+            }
+          ],
+          "model_refs": {
+            "_m.PSReg.PSRegister": {
+              "path": "PSReg.PSRegister",
+              "parts": [
+                "PSReg",
+                "PSRegister"
+              ],
+              "type": "table",
+              "full_ref": "_m.PSReg.PSRegister"
+            }
+          },
+          "workflow_refs": {},
+          "inline_query_config": {
+            "description": "обновление категории качества"
+          },
+          "inline_cte_configs": {
+            "b": {
+              "cte_materialization": {
+                "default": "ephemeral",
+                "by_context": {
+                  "vtb": "stage_calcid"
+                }
+              },
+              "attributes": [
+                {
+                  "name": "t",
+                  "domain_type": "number",
+                  "distribution_key": 1
+                }
+              ]
+            }
+          },
+          "inline_attr_configs": {}
+        },
+        "prepared_sql": {
+          "adb": "    \n\nwith b as (\n    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)",
+          "oracle": "    \n\nwith b as (\n    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)",
+          "postgresql": "    \n\nwith b as (\n    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)"
+        },
+        "rendered_sql": {
+          "adb": "\nUPDATE RF110RestTurnReg trg\nSET datefrom = src.datefrom, fininstrcategory = src.fininstrcategory \nFROM (\n        \n\nwith b as (\n    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)\n) src\nWHERE trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid",
+          "oracle": "\nMERGE INTO RF110RestTurnReg trg\nUSING (\n        \n\nwith b as (\n    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)\n) src\nON (trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid)\nWHEN MATCHED THEN\nUPDATE SET\ndatefrom = src.datefrom, fininstrcategory = src.fininstrcategory",
+          "postgresql": "\nUPDATE RF110RestTurnReg trg\nSET datefrom = src.datefrom, fininstrcategory = src.fininstrcategory \nFROM (\n        \n\nwith b as (\n    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)\n) src\nWHERE trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid"
+        },
+        "attributes": [
+          {
+            "name": "dealid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "fininstrcategory",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "datefrom",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          }
+        ],
+        "cte_materialization": null,
+        "cte_config": {
+          "cte_queries": {
+            "b": {
+              "cte_materialization": "ephemeral",
+              "by_context": {
+                "vtb": "stage_calcid"
+              },
+              "attributes": [
+                {
+                  "name": "t",
+                  "domain_type": "number",
+                  "required": false,
+                  "is_key": false,
+                  "constraints": [],
+                  "description": "",
+                  "distribution_key": 1,
+                  "partition_key": null
+                }
+              ]
+            }
+          }
+        },
+        "cte_table_names": {},
+        "target_table": "",
+        "description": "обновление категории качества"
+      },
+      "param_model": null,
+      "dependencies": [
+        "001_Load__vtb/002_RF110RestTurnReg_ACCRSRV_vtb_vtb/sql"
+      ],
+      "context": "default",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb",
+      "name": "sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb",
+      "folder": "002_Update",
+      "full_name": "002_Update/001_RF110RestTurnReg_QUALITY_vtb/cte/b",
+      "step_type": "sql",
+      "step_scope": "sql",
+      "sql_model": {
+        "name": "sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb",
+        "path": ".",
+        "source_sql": "/*\n@config(\n              cte_materialization:\n                 default: ephemeral\n                 by_context: \n                   vtb: stage_calcid                                     \n              attributes:\n                 - name : t\n                   domain_type: number\n                   distribution_key: 1\n)                   \n*/    \n    select 1 as t from tbl",
+        "materialization": "stage_calcid",
+        "context": "vtb",
+        "metadata": {
+          "parameters": [],
+          "tables": {
+            "tbl": {
+              "alias": "tbl",
+              "is_variable": false,
+              "is_cte": false
+            }
+          },
+          "aliases": [
+            {
+              "alias": "t",
+              "source": null,
+              "expression": "1"
+            }
+          ],
+          "cte": {},
+          "functions": [
+            {
+              "name": "CONFIG",
+              "params": [
+                "cte_materialization:\n                 default: ephemeral\n                 by_context: \n                   vtb: stage_calcid                                     \n              attributes:\n                 - name : t\n                   domain_type: number\n                   distribution_key: 1"
+              ]
+            }
+          ],
+          "model_refs": {},
+          "workflow_refs": {},
+          "inline_query_config": {
+            "cte_materialization": {
+              "default": "ephemeral",
+              "by_context": {
+                "vtb": "stage_calcid"
+              }
+            },
+            "attributes": [
+              {
+                "name": "t",
+                "domain_type": "number",
+                "distribution_key": 1
+              }
+            ]
+          },
+          "inline_cte_configs": {},
+          "inline_attr_configs": {}
+        },
+        "prepared_sql": {
+          "adb": "    \n    select 1 as t from tbl"
+        },
+        "rendered_sql": {
+          "adb": "CREATE TABLE tmp_sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb_{{calc_id}} AS\nSELECT \n    RF110.get_base_calc_id() as CalcID,\n    t.*\nFROM (\n        \n    select 1 as t from tbl\n) t\nDISTRIBUTED BY (t)\n"
+        },
+        "attributes": [
+          {
+            "name": "t",
+            "domain_type": "number",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": 1,
+            "partition_key": null
+          }
+        ],
+        "cte_materialization": null,
+        "cte_config": null,
+        "cte_table_names": null,
+        "target_table": "tmp_sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb_{{calc_id}}"
+      },
+      "param_model": null,
+      "dependencies": [
+        "002_Update/001_RF110RestTurnReg_QUALITY_default/sql"
+      ],
+      "context": "vtb",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": [
+        "adb"
+      ]
+    },
+    {
+      "step_id": "sql_002_Update_001_RF110RestTurnReg_QUALITY_vtb",
+      "name": "001_RF110RestTurnReg_QUALITY",
+      "folder": "002_Update",
+      "full_name": "002_Update/001_RF110RestTurnReg_QUALITY_vtb/sql",
+      "step_type": "sql",
+      "step_scope": "sql",
+      "sql_model": {
+        "name": "001_RF110RestTurnReg_QUALITY",
+        "path": "/app/projects/rf110/model/RF110RestTurnReg/SQL/002_Update/001_RF110RestTurnReg_QUALITY.sql",
+        "source_sql": "/*\n@config(\n  description: обновление категории качества\n)                   \n*/    \n\nwith b as (\n/*\n@config(\n              cte_materialization:\n                 default: ephemeral\n                 by_context: \n                   vtb: stage_calcid                                     \n              attributes:\n                 - name : t\n                   domain_type: number\n                   distribution_key: 1\n)                   \n*/    \n    select 1 as t from tbl)\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom _m.PSReg.PSRegister r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 from b)",
+        "materialization": "upsert_fc",
+        "context": "vtb",
+        "metadata": {
+          "parameters": [
+            "calc_psregister_id"
+          ],
+          "tables": {
+            "tbl": {
+              "alias": "tbl",
+              "is_variable": false,
+              "is_cte": false
+            },
+            "_m.PSReg.PSRegister": {
+              "alias": "r",
+              "is_variable": false,
+              "is_cte": false
+            },
+            "b": {
+              "alias": "b",
+              "is_variable": false,
+              "is_cte": true
+            }
+          },
+          "aliases": [
+            {
+              "alias": "dealid",
+              "source": "r",
+              "expression": "r.DealID"
+            },
+            {
+              "alias": "fininstrcategory",
+              "source": "r",
+              "expression": "r.FinInstrCategory"
+            },
+            {
+              "alias": "datefrom",
+              "source": "r",
+              "expression": "r.DateFrom"
+            }
+          ],
+          "cte": {
+            "b": {
+              "source_tables": [],
+              "source_ctes": [
+                "tbl"
+              ]
+            }
+          },
+          "functions": [
+            {
+              "name": "CONFIG",
+              "params": [
+                "description: обновление категории качества"
+              ]
+            },
+            {
+              "name": "CONFIG",
+              "params": [
+                "cte_materialization:\n                 default: ephemeral\n                 by_context: \n                   vtb: stage_calcid                                     \n              attributes:\n                 - name : t\n                   domain_type: number\n                   distribution_key: 1"
+              ]
+            }
+          ],
+          "model_refs": {
+            "_m.PSReg.PSRegister": {
+              "path": "PSReg.PSRegister",
+              "parts": [
+                "PSReg",
+                "PSRegister"
+              ],
+              "type": "table",
+              "full_ref": "_m.PSReg.PSRegister"
+            }
+          },
+          "workflow_refs": {},
+          "inline_query_config": {
+            "description": "обновление категории качества"
+          },
+          "inline_cte_configs": {
+            "b": {
+              "cte_materialization": {
+                "default": "ephemeral",
+                "by_context": {
+                  "vtb": "stage_calcid"
+                }
+              },
+              "attributes": [
+                {
+                  "name": "t",
+                  "domain_type": "number",
+                  "distribution_key": 1
+                }
+              ]
+            }
+          },
+          "inline_attr_configs": {}
+        },
+        "prepared_sql": {
+          "adb": "    \n\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 FROM tmp_sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb_{{calc_id}})"
+        },
+        "rendered_sql": {
+          "adb": "\nUPDATE RF110RestTurnReg trg\nSET datefrom = src.datefrom, fininstrcategory = src.fininstrcategory \nFROM (\n        \n\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 FROM tmp_sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb_{{calc_id}})\n) src\nWHERE trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid"
+        },
+        "attributes": [
+          {
+            "name": "dealid",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "fininstrcategory",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          },
+          {
+            "name": "datefrom",
+            "domain_type": "string",
+            "required": false,
+            "is_key": false,
+            "constraints": [],
+            "description": "",
+            "distribution_key": null,
+            "partition_key": null
+          }
+        ],
+        "cte_materialization": null,
+        "cte_config": {
+          "cte_queries": {
+            "b": {
+              "cte_materialization": "ephemeral",
+              "by_context": {
+                "vtb": "stage_calcid"
+              },
+              "attributes": [
+                {
+                  "name": "t",
+                  "domain_type": "number",
+                  "required": false,
+                  "is_key": false,
+                  "constraints": [],
+                  "description": "",
+                  "distribution_key": 1,
+                  "partition_key": null
+                }
+              ]
+            }
+          }
+        },
+        "cte_table_names": {
+          "b": "tmp_sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb_{{calc_id}}",
+          "b_vtb": "tmp_sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb_{{calc_id}}"
+        },
+        "target_table": "",
+        "description": "обновление категории качества"
+      },
+      "param_model": null,
+      "dependencies": [
+        "002_Update/001_RF110RestTurnReg_QUALITY_vtb/cte/b"
+      ],
+      "context": "vtb",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "post",
+      "name": "post",
+      "folder": "",
+      "full_name": "post",
+      "step_type": "sql",
+      "step_scope": "post",
+      "sql_model": null,
+      "param_model": null,
+      "dependencies": [
+        "002_Update/001_RF110RestTurnReg_QUALITY_vtb/sql"
+      ],
+      "context": "all",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    }
+  ],
+  "tools": [
+    "oracle",
+    "adb",
+    "postgresql"
+  ],
+  "project_name": "RF110",
+  "project_properties": {
+    "repsysname": "f110"
+  },
+  "context_name": null,
+  "all_contexts": {
+    "default": {
+      "name": "default",
+      "project": "distr",
+      "tools": [
+        "adb",
+        "oracle",
+        "postgresql"
+      ],
+      "flags": {
+        "enable_heavy_calc": true,
+        "debug_mode": false,
+        "overduecalcmethod": {
+          "fifo": true,
+          "lifo": false
+        }
+      },
+      "constants": {
+        "schema": "DEFAULT_SCHEMA"
+      },
+      "cte": {}
+    },
+    "vtb": {
+      "name": "vtb",
+      "project": "vtb",
+      "tools": [
+        "adb"
+      ],
+      "flags": {
+        "calcinn": true,
+        "enable_heavy_calc": false,
+        "debug_mode": true,
+        "overduecalcmethod": {
+          "fifo": false,
+          "lifo": true
+        }
+      },
+      "constants": {
+        "schema": "VTB_SCHEMA"
+      },
+      "cte": {}
+    }
+  },
+  "folders": {
+    "": {
+      "name": "",
+      "short_name": "",
+      "enabled": true,
+      "contexts": [
+        "all"
+      ],
+      "materialized": "insert_fc",
+      "pre": [],
+      "post": [
+        "prepost"
+      ]
+    },
+    "001_Load__distr": {
+      "name": "001_Load__distr",
+      "short_name": "001_Load__distr",
+      "enabled": true,
+      "contexts": [
+        "default"
+      ],
+      "materialized": "insert_fc",
+      "pre": [],
+      "post": []
+    },
+    "001_Load__distr/004_applySettings_iter": {
+      "name": "001_Load__distr/004_applySettings_iter",
+      "short_name": "004_applySettings_iter",
+      "enabled": true,
+      "contexts": [
+        "default"
+      ],
+      "materialized": "insert_fc",
+      "pre": [
+        "synch_iter"
+      ],
+      "post": []
+    },
+    "001_Load__vtb": {
+      "name": "001_Load__vtb",
+      "short_name": "001_Load__vtb",
+      "enabled": true,
+      "contexts": [
+        "vtb"
+      ],
+      "materialized": "insert_fc",
+      "pre": [],
+      "post": []
+    },
+    "002_Update": {
+      "name": "002_Update",
+      "short_name": "002_Update",
+      "enabled": true,
+      "contexts": [
+        "all"
+      ],
+      "materialized": "upsert_fc",
+      "pre": [],
+      "post": []
+    }
+  }
+}

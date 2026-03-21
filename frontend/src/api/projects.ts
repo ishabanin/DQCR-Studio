@@ -3,9 +3,18 @@ import { apiClient } from "./client";
 export interface ProjectItem {
   id: string;
   name: string;
+  description?: string | null;
+  project_type?: "internal" | "imported" | "linked";
   source_type?: "internal" | "imported" | "linked";
   source_path?: string | null;
   availability_status?: "available" | "unavailable";
+  visibility?: "public" | "private";
+  tags?: string[];
+  cache_status?: "ready" | "stale" | "building" | "error" | "missing";
+  model_count?: number;
+  folder_count?: number;
+  sql_count?: number;
+  modified_at?: string;
 }
 
 export interface ContextItem {
@@ -22,6 +31,13 @@ export interface CreateProjectResponse {
   source_type?: "internal" | "imported" | "linked";
   source_path?: string | null;
   availability_status?: "available" | "unavailable";
+}
+
+export interface MetadataUpdatePayload {
+  name?: string;
+  description?: string;
+  visibility?: "public" | "private";
+  tags?: string[];
 }
 
 export interface FileNode {
@@ -240,13 +256,16 @@ export interface WorkflowModelState {
   workflow?: Record<string, unknown> | null;
 }
 
+export type WorkflowStatus = "ready" | "stale" | "building" | "error" | "missing";
+
 export interface WorkflowProjectStatus {
   project_id: string;
-  status: "ready" | "stale" | "building" | "error" | "missing";
+  status?: WorkflowStatus;
+  overall?: WorkflowStatus;
   models: Array<{
     project_id: string;
     model_id: string;
-    status: "ready" | "stale" | "building" | "error" | "missing";
+    status: WorkflowStatus;
     updated_at: string | null;
     error: string | null;
     source: "framework_cli" | "fallback";
@@ -262,6 +281,12 @@ export interface ValidationQuickFixResponse {
   message: string;
   changed_files: string[];
   validation: ValidationRunResult | null;
+}
+
+export interface ValidationQuickFixDryRunResponse {
+  file_path: string;
+  diff: string;
+  description: string;
 }
 
 export interface ProjectParameterValueItem {
@@ -359,6 +384,21 @@ export async function fetchProjects(): Promise<ProjectItem[]> {
   const { data } = await apiClient.get<ProjectItem[]>("/projects");
   if (!Array.isArray(data)) return [];
   return data.filter((item): item is ProjectItem => isRecord(item) && typeof item.id === "string" && typeof item.name === "string");
+}
+
+export async function fetchProject(projectId: string): Promise<ProjectItem> {
+  const { data } = await apiClient.get<ProjectItem>(`/projects/${projectId}`);
+  return data;
+}
+
+export async function patchProjectMetadata(projectId: string, payload: MetadataUpdatePayload): Promise<{ ok: boolean }> {
+  const { data } = await apiClient.patch<{ ok: boolean }>(`/projects/${projectId}/metadata`, payload);
+  return data;
+}
+
+export async function deleteProject(projectId: string): Promise<{ ok: boolean }> {
+  const { data } = await apiClient.delete<{ ok: boolean }>(`/projects/${projectId}`);
+  return data;
 }
 
 export async function createProject(payload: {
@@ -461,8 +501,9 @@ export async function rebuildModelWorkflow(projectId: string, modelId: string): 
   return data;
 }
 
-export async function fetchModelLineage(projectId: string, modelId: string): Promise<LineageResponse> {
-  const { data } = await apiClient.get<LineageResponse>(`/projects/${projectId}/models/${modelId}/lineage`);
+export async function fetchModelLineage(projectId: string, modelId: string, context?: string): Promise<LineageResponse> {
+  const params = context && context.trim() ? { context: context.trim() } : undefined;
+  const { data } = await apiClient.get<LineageResponse>(`/projects/${projectId}/models/${modelId}/lineage`, { params });
   return data;
 }
 
@@ -608,6 +649,18 @@ export async function applyValidationQuickFix(
   },
 ): Promise<ValidationQuickFixResponse> {
   const { data } = await apiClient.post<ValidationQuickFixResponse>(`/projects/${projectId}/validate/quickfix`, payload);
+  return data;
+}
+
+export async function getDryRunQuickFix(
+  projectId: string,
+  payload: { type: "add_field" | "rename_folder"; model_id: string; field_name?: string; file_path?: string; new_name?: string },
+): Promise<ValidationQuickFixDryRunResponse> {
+  const { data } = await apiClient.post<ValidationQuickFixDryRunResponse>(`/projects/${projectId}/validate/quickfix`, {
+    ...payload,
+    dry_run: true,
+    rerun: false,
+  });
   return data;
 }
 

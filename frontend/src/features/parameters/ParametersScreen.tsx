@@ -61,6 +61,8 @@ function cloneParameter(param: ProjectParameterItem): ProjectParameterItem {
 export default function ParametersScreen() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const addToast = useUiStore((state) => state.addToast);
+  const initialParam = useUiStore((state) => state.initialParam);
+  const setInitialParam = useUiStore((state) => state.setInitialParam);
   const queryClient = useQueryClient();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<ProjectParameterItem | null>(null);
@@ -111,6 +113,18 @@ export default function ParametersScreen() {
       setSelectedKey(parameterKey(parameterItems[0]));
     }
   }, [parameterItems, selectedKey, isNewDraft]);
+
+  useEffect(() => {
+    if (!initialParam || parameterItems.length === 0) return;
+    const match =
+      parameterItems.find((item) => item.name === initialParam.id && (initialParam.scope === "model" ? item.scope.startsWith("model:") : item.scope === "global")) ??
+      parameterItems.find((item) => item.name === initialParam.id) ??
+      null;
+    if (match) {
+      setSelectedKey(parameterKey(match));
+    }
+    setInitialParam(null);
+  }, [initialParam, parameterItems, setInitialParam]);
 
   useEffect(() => {
     if (!selectedItem || isNewDraft) return;

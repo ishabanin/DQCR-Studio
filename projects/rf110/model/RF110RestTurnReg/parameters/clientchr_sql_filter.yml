@@ -2,11 +2,14 @@ parameter:
   name: clientchr_sql_filter
   description: "Фильтр на статус записи в Характерах клиента"
   domain_type: sql.condition
-  
+
   values:
     all:
       type: static
       value: "rowstatus = 'A'"
     vtb:
+      type: static
+      value: "1=1"
+    rush:
       type: static
       value: "1=1"

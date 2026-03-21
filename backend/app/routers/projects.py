@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.fs import ensure_within_base, resolve_project_path
@@ -18,6 +19,7 @@ from app.core.project_registry import (
     derive_link_availability,
     get_registry_entry,
     load_registry,
+    save_registry,
     upsert_registry_entry,
 )
 from app.schemas.project import ContextSchema, ProjectSchema
@@ -1299,6 +1301,46 @@ def _normalize_sql_relative_path(
     return workflow_root_relative
 
 
+def _resolve_existing_sql_relative_path(
+    project_path: Path,
+    project_id: str,
+    model_id: str,
+    workflow_root_relative: str,
+    folder: str,
+    raw_sql_path: str | None,
+    sql_model_name: str | None,
+) -> str | None:
+    normalized_relative_path = _normalize_sql_relative_path(
+        project_id=project_id,
+        model_id=model_id,
+        workflow_root_relative=workflow_root_relative,
+        folder=folder,
+        raw_sql_path=raw_sql_path,
+    )
+
+    candidates: list[str] = [normalized_relative_path]
+    if isinstance(sql_model_name, str) and sql_model_name.strip():
+        normalized_name = sql_model_name.strip()
+        if not normalized_name.endswith(".sql"):
+            normalized_name = f"{normalized_name}.sql"
+        folder_relative = str((Path(workflow_root_relative) / folder).as_posix())
+        candidates.append(str((Path(folder_relative) / normalized_name).as_posix()))
+
+    for relative_candidate in candidates:
+        try:
+            candidate = _resolve_sql_path(project_path, relative_candidate)
+        except HTTPException:
+            continue
+        if candidate is None or not candidate.exists() or not candidate.is_file():
+            continue
+        if candidate.suffix.lower() != ".sql":
+            continue
+        relative = _as_relative_path(project_path, candidate)
+        if isinstance(relative, str) and relative:
+            return relative.replace("\\", "/")
+    return None
+
+
 def _build_lineage_from_workflow(
     project_path: Path,
     project_id: str,
@@ -1338,6 +1380,7 @@ def _build_lineage_from_workflow(
         folder = str(step.get("folder", "")).strip().replace("\\", "/")
         if not folder:
             continue
+        folder_relative_path = str((Path(workflow_root_relative) / folder).as_posix())
         if folder not in folder_order:
             folder_order.append(folder)
         sql_step_by_full_name[str(step.get("full_name", ""))] = step
@@ -1347,18 +1390,16 @@ def _build_lineage_from_workflow(
             continue
 
         raw_sql_path = sql_model.get("path")
-        relative_sql_path = _normalize_sql_relative_path(
+        existing_sql_relative_path = _resolve_existing_sql_relative_path(
+            project_path=project_path,
             project_id=project_id,
             model_id=model_id,
             workflow_root_relative=workflow_root_relative,
             folder=folder,
             raw_sql_path=str(raw_sql_path) if isinstance(raw_sql_path, str) else None,
+            sql_model_name=str(sql_model.get("name")) if isinstance(sql_model.get("name"), str) else None,
         )
-
-        file_name = Path(relative_sql_path).name
-        if not file_name or "." not in file_name:
-            fallback_name = str(sql_model.get("name", "")).strip()
-            file_name = f"{fallback_name}.sql" if fallback_name and not fallback_name.endswith(".sql") else fallback_name
+        file_name = Path(existing_sql_relative_path).name if isinstance(existing_sql_relative_path, str) else None
 
         node = folder_nodes.get(folder)
         if node is None:
@@ -1377,7 +1418,7 @@ def _build_lineage_from_workflow(
             node = {
                 "id": folder,
                 "name": folder,
-                "path": str(Path(relative_sql_path).parent).replace("\\", "/"),
+                "path": folder_relative_path,
                 "materialized": materialized or "n/a",
                 "enabled_contexts_set": set(),
                 "enabled_for_all_contexts": False,
@@ -1401,11 +1442,17 @@ def _build_lineage_from_workflow(
                 query_set.add(file_name)
 
         materialization = sql_model.get("materialization")
-        if isinstance(materialization, str) and materialization.strip() and str(node.get("materialized")) == "n/a":
+        if (
+            isinstance(file_name, str)
+            and file_name
+            and isinstance(materialization, str)
+            and materialization.strip()
+            and str(node.get("materialized")) == "n/a"
+        ):
             node["materialized"] = materialization.strip()
 
         metadata = sql_model.get("metadata")
-        if isinstance(metadata, dict):
+        if isinstance(file_name, str) and file_name and isinstance(metadata, dict):
             parameters = metadata.get("parameters")
             if isinstance(parameters, list):
                 for item in parameters:
@@ -2453,7 +2500,9 @@ def _write_project_from_wizard(base_projects: Path, payload: dict[str, object]) 
     description = str(payload.get("description", "")).strip() or f"Project {name_raw}"
     template = str(payload.get("template", "flx")).strip() or "flx"
     properties_raw = payload.get("properties")
-    properties = properties_raw if isinstance(properties_raw, dict) else {}
+    properties = dict(properties_raw) if isinstance(properties_raw, dict) else {}
+    properties["dqcr_visibility"] = _sanitize_visibility(payload.get("visibility", properties.get("dqcr_visibility", "private")))
+    properties["dqcr_tags"] = ",".join(_parse_tags(payload.get("tags", properties.get("dqcr_tags", []))))
 
     contexts_raw = payload.get("contexts")
     contexts_input = contexts_raw if isinstance(contexts_raw, list) else ["default"]
@@ -2528,16 +2577,191 @@ def _write_project_from_wizard(base_projects: Path, payload: dict[str, object]) 
     }
 
 
-def _extract_project_name_from_yml(project_path: Path) -> str | None:
+def _extract_project_field_from_yml(project_path: Path, field: str) -> str | None:
     project_file = project_path / "project.yml"
     if not project_file.exists() or not project_file.is_file():
         return None
     raw = project_file.read_text(encoding="utf-8")
-    match = re.search(r"^\s*name:\s*(.+?)\s*$", raw, re.MULTILINE)
+    match = re.search(rf"^\s*{re.escape(field)}\s*:\s*(.+?)\s*$", raw, re.MULTILINE)
     if not match:
         return None
     value = str(match.group(1)).strip().strip("\"'")
     return value or None
+
+
+def _extract_project_name_from_yml(project_path: Path) -> str | None:
+    return _extract_project_field_from_yml(project_path, "name")
+
+
+def _extract_project_description_from_yml(project_path: Path) -> str | None:
+    return _extract_project_field_from_yml(project_path, "description")
+
+
+def _extract_properties_block(raw: str) -> dict[str, str]:
+    lines = raw.splitlines()
+    in_properties = False
+    properties: dict[str, str] = {}
+    for line in lines:
+        if re.match(r"^\s*properties:\s*$", line):
+            in_properties = True
+            continue
+        if not in_properties:
+            continue
+        if line.strip() and len(line) - len(line.lstrip(" ")) <= 1:
+            break
+        prop_match = re.match(r"^\s{2}([A-Za-z0-9_.-]+)\s*:\s*(.*?)\s*$", line)
+        if not prop_match:
+            continue
+        key = prop_match.group(1).strip()
+        value = prop_match.group(2).strip().strip("\"'")
+        properties[key] = value
+    return properties
+
+
+def _parse_tags(raw: object) -> list[str]:
+    if isinstance(raw, list):
+        values = [str(item).strip().lower() for item in raw if str(item).strip()]
+    elif isinstance(raw, str):
+        values = [part.strip().lower() for part in raw.split(",") if part.strip()]
+    else:
+        values = []
+    result: list[str] = []
+    seen: set[str] = set()
+    for tag in values:
+        clean = re.sub(r"[^a-z0-9_-]", "", tag.replace(" ", "-"))[:20]
+        if not clean or clean in seen:
+            continue
+        seen.add(clean)
+        result.append(clean)
+        if len(result) >= 10:
+            break
+    return result
+
+
+def _sanitize_visibility(raw: object) -> str:
+    return "public" if str(raw).strip().lower() == "public" else "private"
+
+
+def _read_project_metadata(project_path: Path, project_type: str, registry_entry: dict[str, object] | None) -> dict[str, object]:
+    if project_type == "internal":
+        project_file = project_path / "project.yml"
+        if project_file.exists() and project_file.is_file():
+            raw = project_file.read_text(encoding="utf-8")
+            props = _extract_properties_block(raw)
+            return {
+                "name": _extract_project_name_from_yml(project_path),
+                "description": _extract_project_description_from_yml(project_path),
+                "visibility": _sanitize_visibility(props.get("dqcr_visibility", "private")),
+                "tags": _parse_tags(props.get("dqcr_tags", "")),
+            }
+    if registry_entry:
+        return {
+            "name": registry_entry.get("name"),
+            "description": registry_entry.get("description"),
+            "visibility": _sanitize_visibility(registry_entry.get("visibility", "private")),
+            "tags": _parse_tags(registry_entry.get("tags", [])),
+        }
+    return {"name": None, "description": None, "visibility": "private", "tags": []}
+
+
+def _count_project_objects(project_path: Path) -> tuple[int, int, int]:
+    model_root = project_path / "model"
+    if not model_root.exists() or not model_root.is_dir():
+        return 0, 0, 0
+
+    model_count = sum(1 for item in model_root.iterdir() if item.is_dir())
+    folder_count = 0
+    sql_count = 0
+    for model_dir in [item for item in model_root.iterdir() if item.is_dir()]:
+        for root_name in ("SQL", "workflow"):
+            workflow_root = model_dir / root_name
+            if not workflow_root.exists() or not workflow_root.is_dir():
+                continue
+            for folder in workflow_root.iterdir():
+                if not folder.is_dir():
+                    continue
+                folder_count += 1
+                sql_count += len([file for file in folder.glob("*.sql") if file.is_file()])
+            break
+    return model_count, folder_count, sql_count
+
+
+def _project_modified_at(project_path: Path) -> str:
+    latest = datetime.fromtimestamp(project_path.stat().st_mtime, tz=timezone.utc)
+    for item in project_path.rglob("*"):
+        if not item.exists():
+            continue
+        if item.name.startswith(".dqcr_"):
+            continue
+        try:
+            ts = datetime.fromtimestamp(item.stat().st_mtime, tz=timezone.utc)
+        except OSError:
+            continue
+        if ts > latest:
+            latest = ts
+    return latest.isoformat()
+
+
+def _update_internal_project_yml_metadata(project_path: Path, payload: dict[str, object]) -> None:
+    project_file = project_path / "project.yml"
+    if not project_file.exists() or not project_file.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project.yml not found.")
+
+    raw = project_file.read_text(encoding="utf-8")
+    lines = raw.splitlines()
+    name_value = payload.get("name")
+    description_value = payload.get("description")
+    visibility_value = payload.get("visibility")
+    tags_value = payload.get("tags")
+
+    def _replace_top_level(field: str, value: str | None) -> None:
+        if value is None:
+            return
+        pattern = re.compile(rf"^\s*{re.escape(field)}\s*:\s*.*$")
+        for index, line in enumerate(lines):
+            if pattern.match(line):
+                lines[index] = f"{field}: {value}"
+                return
+        insert_at = 0
+        lines.insert(insert_at, f"{field}: {value}")
+
+    _replace_top_level("name", str(name_value).strip() if isinstance(name_value, str) else None)
+    _replace_top_level("description", str(description_value).strip() if isinstance(description_value, str) else None)
+
+    props_start = None
+    props_end = None
+    for index, line in enumerate(lines):
+        if re.match(r"^\s*properties:\s*$", line):
+            props_start = index
+            props_end = len(lines)
+            for j in range(index + 1, len(lines)):
+                candidate = lines[j]
+                if candidate.strip() and len(candidate) - len(candidate.lstrip(" ")) <= 1:
+                    props_end = j
+                    break
+            break
+
+    prop_lines = lines[props_start + 1 : props_end] if props_start is not None and props_end is not None else []
+    props = _extract_properties_block("\n".join(["properties:"] + prop_lines))
+
+    if visibility_value is not None:
+        props["dqcr_visibility"] = _sanitize_visibility(visibility_value)
+    if tags_value is not None:
+        props["dqcr_tags"] = ",".join(_parse_tags(tags_value))
+
+    if props_start is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append("properties:")
+        for key, value in sorted(props.items(), key=lambda pair: pair[0].lower()):
+            lines.append(f"  {key}: {value}")
+    else:
+        rebuilt = ["properties:"]
+        for key, value in sorted(props.items(), key=lambda pair: pair[0].lower()):
+            rebuilt.append(f"  {key}: {value}")
+        lines = lines[:props_start] + rebuilt + lines[props_end:]
+
+    project_file.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
 def _validate_source_project_structure(source_path: Path) -> None:
@@ -2613,6 +2837,9 @@ def _import_project_from_path(base_projects: Path, payload: dict[str, object]) -
             "source_type": "imported",
             "source_path": str(source_path),
             "availability_status": "available",
+            "description": str(payload.get("description", "")).strip(),
+            "visibility": _sanitize_visibility(payload.get("visibility", "private")),
+            "tags": _parse_tags(payload.get("tags", [])),
         },
     )
     return {
@@ -2672,6 +2899,9 @@ async def _import_project_from_uploaded_files(
             "source_type": "imported",
             "source_path": None,
             "availability_status": "available",
+            "description": str(payload.get("description", "")).strip(),
+            "visibility": _sanitize_visibility(payload.get("visibility", "private")),
+            "tags": _parse_tags(payload.get("tags", [])),
         },
     )
     return {
@@ -2707,6 +2937,9 @@ def _connect_project_from_path(base_projects: Path, payload: dict[str, object]) 
             "source_type": "linked",
             "source_path": str(source_path),
             "availability_status": availability,
+            "description": str(payload.get("description", "")).strip(),
+            "visibility": _sanitize_visibility(payload.get("visibility", "private")),
+            "tags": _parse_tags(payload.get("tags", [])),
         },
     )
     return {
@@ -2721,6 +2954,83 @@ def _connect_project_from_path(base_projects: Path, payload: dict[str, object]) 
     }
 
 
+def _resolve_project_source_path(
+    base: Path,
+    project_id: str,
+    source_type: str,
+    source_path: str | None,
+) -> Path | None:
+    local_path = ensure_within_base(base, base / project_id)
+    if local_path.exists() and local_path.is_dir():
+        return local_path
+    if source_type == "linked" and source_path:
+        linked = Path(source_path).expanduser().resolve()
+        if linked.exists() and linked.is_dir():
+            return linked
+    return None
+
+
+def _build_project_schema(base: Path, project_id: str, registry_item: dict[str, object] | None) -> ProjectSchema | None:
+    source_type = str(registry_item.get("source_type")) if registry_item else "internal"
+    source_path = str(registry_item.get("source_path")) if registry_item and registry_item.get("source_path") else None
+    path = _resolve_project_source_path(base, project_id, source_type, source_path)
+
+    availability_status = "available"
+    if source_type == "linked":
+        availability_status = derive_link_availability(source_path)
+        if registry_item and availability_status != registry_item.get("availability_status"):
+            upsert_registry_entry(
+                base,
+                {
+                    "id": project_id,
+                    "name": str(registry_item.get("name", project_id)),
+                    "source_type": "linked",
+                    "source_path": source_path,
+                    "availability_status": availability_status,
+                    "description": str(registry_item.get("description", "")),
+                    "visibility": _sanitize_visibility(registry_item.get("visibility", "private")),
+                    "tags": _parse_tags(registry_item.get("tags", [])),
+                },
+            )
+
+    if not path and source_type != "linked":
+        return None
+
+    metadata = _read_project_metadata(path, source_type, registry_item) if path else _read_project_metadata(base / project_id, source_type, registry_item)
+    model_count, folder_count, sql_count = _count_project_objects(path) if path else (0, 0, 0)
+    modified_at = _project_modified_at(path) if path else datetime.now(timezone.utc).isoformat()
+
+    try:
+        workflow_status_payload = _resolve_project_workflow_status(path) if path else {}
+        cache_status = str(workflow_status_payload.get("overall") or "missing")
+    except Exception:
+        cache_status = "missing"
+
+    return ProjectSchema(
+        id=project_id,
+        name=str(metadata.get("name") or (registry_item.get("name") if registry_item else project_id)),
+        description=str(metadata.get("description")) if metadata.get("description") is not None else None,
+        project_type=source_type,
+        source_type=source_type,
+        source_path=source_path,
+        availability_status=availability_status,
+        visibility=_sanitize_visibility(metadata.get("visibility", "private")),
+        tags=_parse_tags(metadata.get("tags", [])),
+        model_count=model_count,
+        folder_count=folder_count,
+        sql_count=sql_count,
+        modified_at=modified_at,
+        cache_status=cache_status,
+    )
+
+
+class ProjectMetadataUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    visibility: str | None = None
+    tags: list[str] | None = None
+
+
 @router.get("")
 def list_projects() -> list[ProjectSchema]:
     base = Path(settings.projects_path)
@@ -2733,49 +3043,79 @@ def list_projects() -> list[ProjectSchema]:
     } | set(registry.keys())
     projects: list[ProjectSchema] = []
     for project_id in sorted(project_ids, key=lambda value: value.lower()):
-        local_path = ensure_within_base(base, base / project_id)
-        if local_path.exists() and local_path.is_dir():
-            registry_item = registry.get(project_id)
-            source_type = registry_item["source_type"] if registry_item else "internal"
-            source_path = registry_item["source_path"] if registry_item else None
-            availability_status = "available"
-            name = registry_item["name"] if registry_item else project_id
-            projects.append(
-                ProjectSchema(
-                    id=project_id,
-                    name=name,
-                    source_type=source_type,
-                    source_path=source_path,
-                    availability_status=availability_status,
-                )
-            )
-            continue
-
-        registry_item = registry.get(project_id)
-        if not registry_item:
-            continue
-        availability_status = derive_link_availability(registry_item.get("source_path"))
-        if availability_status != registry_item.get("availability_status"):
-            upsert_registry_entry(
-                base,
-                {
-                    "id": registry_item["id"],
-                    "name": registry_item["name"],
-                    "source_type": registry_item["source_type"],
-                    "source_path": registry_item["source_path"],
-                    "availability_status": availability_status,
-                },
-            )
-        projects.append(
-            ProjectSchema(
-                id=project_id,
-                name=registry_item["name"],
-                source_type=registry_item["source_type"],
-                source_path=registry_item["source_path"],
-                availability_status=availability_status,
-            )
-        )
+        schema = _build_project_schema(base, project_id, registry.get(project_id))
+        if schema:
+            projects.append(schema)
     return projects
+
+
+@router.get("/{project_id}")
+def get_project(project_id: str) -> ProjectSchema:
+    base = Path(settings.projects_path)
+    registry = load_registry(base)
+    schema = _build_project_schema(base, project_id, registry.get(project_id))
+    if not schema:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Project '{project_id}' not found.")
+    return schema
+
+
+@router.patch("/{project_id}/metadata")
+def update_project_metadata(project_id: str, payload: ProjectMetadataUpdate) -> dict[str, object]:
+    base = Path(settings.projects_path)
+    registry = load_registry(base)
+    registry_entry = registry.get(project_id)
+    source_type = str(registry_entry.get("source_type")) if registry_entry else "internal"
+
+    if source_type == "internal":
+        project_path = resolve_project_path(base, project_id)
+        update_payload = payload.model_dump(exclude_unset=True)
+        _update_internal_project_yml_metadata(project_path, update_payload)
+        if registry_entry:
+            registry_entry = {
+                **registry_entry,
+                "name": update_payload.get("name", registry_entry.get("name", project_id)),
+                "description": update_payload.get("description", registry_entry.get("description", "")),
+                "visibility": _sanitize_visibility(update_payload.get("visibility", registry_entry.get("visibility", "private"))),
+                "tags": _parse_tags(update_payload.get("tags", registry_entry.get("tags", []))),
+            }
+            registry[project_id] = registry_entry
+            save_registry(base, registry)
+        trigger_workflow_rebuild(project_id)
+        return {"ok": True}
+
+    if not registry_entry:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Project '{project_id}' not found.")
+
+    updated = payload.model_dump(exclude_unset=True)
+    if "name" in updated and isinstance(updated["name"], str):
+        registry_entry["name"] = updated["name"].strip() or registry_entry.get("name", project_id)
+    if "description" in updated and isinstance(updated["description"], str):
+        registry_entry["description"] = updated["description"].strip()
+    if "visibility" in updated:
+        registry_entry["visibility"] = _sanitize_visibility(updated.get("visibility"))
+    if "tags" in updated:
+        registry_entry["tags"] = _parse_tags(updated.get("tags"))
+    registry[project_id] = registry_entry
+    save_registry(base, registry)
+    return {"ok": True}
+
+
+@router.delete("/{project_id}")
+def delete_project(project_id: str) -> dict[str, object]:
+    base = Path(settings.projects_path)
+    registry = load_registry(base)
+    registry_entry = registry.get(project_id)
+    source_type = str(registry_entry.get("source_type")) if registry_entry else "internal"
+
+    local_path = ensure_within_base(base, base / project_id)
+    if source_type in {"internal", "imported"} and local_path.exists() and local_path.is_dir():
+        shutil.rmtree(local_path)
+
+    if project_id in registry:
+        del registry[project_id]
+        save_registry(base, registry)
+
+    return {"ok": True}
 
 
 @router.post("")
@@ -2794,6 +3134,9 @@ def create_project(payload: dict[str, object] = Body(...)) -> dict[str, object]:
                 "source_type": "internal",
                 "source_path": None,
                 "availability_status": "available",
+                "description": str(payload.get("description", "")).strip(),
+                "visibility": _sanitize_visibility(payload.get("visibility", "private")),
+                "tags": _parse_tags(payload.get("tags", [])),
             },
         )
         result["source_type"] = "internal"
@@ -3095,9 +3438,31 @@ def test_project_parameter(
 
 
 @router.get("/{project_id}/models/{model_id}/lineage")
-def get_model_lineage(project_id: str, model_id: str) -> dict[str, object]:
+def get_model_lineage(project_id: str, model_id: str, context: str | None = Query(default=None)) -> dict[str, object]:
     project_path = FW_SERVICE.load_project(project_id)
     _ = FW_SERVICE.load_model(project_id, model_id)
+    requested_context = context.strip() if isinstance(context, str) and context.strip() else None
+    if requested_context:
+        try:
+            build_result = FW_SERVICE.run_workflow_build(project_id=project_id, model_id=model_id, context=requested_context)
+            workflow_payload_for_context = build_result.get("workflow")
+            if isinstance(workflow_payload_for_context, dict):
+                return _build_lineage_from_workflow(project_path, project_id, model_id, workflow_payload_for_context)
+            _log_workflow_fallback(
+                endpoint="lineage",
+                project_id=project_id,
+                model_id=model_id,
+                reason=f"context_build_invalid_payload:{requested_context}",
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "workflow.context_build_failed endpoint=lineage project_id=%s model_id=%s context=%s error=%s",
+                project_id,
+                model_id,
+                requested_context,
+                str(exc),
+            )
+
     workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
     if isinstance(workflow_payload, dict):
         return _build_lineage_from_workflow(project_path, project_id, model_id, workflow_payload)

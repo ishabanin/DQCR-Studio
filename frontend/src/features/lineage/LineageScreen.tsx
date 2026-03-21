@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { toPng } from "html-to-image";
 import "reactflow/dist/style.css";
 
-import { fetchModelLineage, fetchProjectTree, FileNode } from "../../api/projects";
+import { fetchModelLineage, fetchProjectTree, fetchProjectWorkflowStatus, rebuildModelWorkflow, FileNode } from "../../api/projects";
 import { useContextStore } from "../../app/store/contextStore";
 import { useEditorStore } from "../../app/store/editorStore";
 import { useProjectStore } from "../../app/store/projectStore";
@@ -57,9 +57,31 @@ export default function LineageScreen() {
   }, [modelIds, modelId]);
 
   const lineageQuery = useQuery({
-    queryKey: ["lineage", currentProjectId, modelId],
-    queryFn: () => fetchModelLineage(currentProjectId as string, modelId),
+    queryKey: ["lineage", currentProjectId, modelId, multiMode ? "all" : activeContext],
+    queryFn: () => fetchModelLineage(currentProjectId as string, modelId, multiMode ? undefined : activeContext),
     enabled: Boolean(currentProjectId && modelId),
+  });
+  const workflowStatusQuery = useQuery({
+    queryKey: ["workflowStatus", currentProjectId],
+    queryFn: () => fetchProjectWorkflowStatus(currentProjectId as string),
+    enabled: Boolean(currentProjectId),
+    refetchInterval: currentProjectId ? 10000 : false,
+  });
+  const rebuildMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentProjectId) return;
+      const models = workflowStatusQuery.data?.models ?? [];
+      const targetModels = modelId
+        ? models.filter((item) => item.model_id === modelId && (item.status === "stale" || item.status === "error"))
+        : models.filter((item) => item.status === "stale" || item.status === "error");
+      await Promise.all(targetModels.map((item) => rebuildModelWorkflow(currentProjectId, item.model_id)));
+    },
+    onSuccess: () => {
+      addToast("Workflow rebuild started", "info");
+    },
+    onError: () => {
+      addToast("Workflow rebuild failed", "error");
+    },
   });
 
   const visibleNodes = useMemo(() => {
@@ -80,6 +102,14 @@ export default function LineageScreen() {
     const nodeIds = new Set(visibleNodes.map((node) => node.id));
     return lineageQuery.data.edges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
   }, [lineageQuery.data?.edges, visibleNodes]);
+  const activeWorkflowModelState = useMemo(() => {
+    const models = workflowStatusQuery.data?.models ?? [];
+    if (modelId) {
+      const selected = models.find((item) => item.model_id === modelId);
+      if (selected) return selected;
+    }
+    return models[0] ?? null;
+  }, [modelId, workflowStatusQuery.data?.models]);
 
   useEffect(() => {
     if (!visibleNodes.length) {
@@ -192,6 +222,19 @@ export default function LineageScreen() {
           Export PNG
         </button>
       </div>
+      {activeWorkflowModelState?.source === "fallback" ? (
+        <div className="lineage-fallback-banner">
+          <span>Данные из файловой структуры (fallback) — workflow cache устарел</span>
+          <button
+            type="button"
+            className="action-btn"
+            disabled={rebuildMutation.isPending}
+            onClick={() => rebuildMutation.mutate()}
+          >
+            {rebuildMutation.isPending ? "⟳ building…" : "↻ Rebuild"}
+          </button>
+        </div>
+      ) : null}
 
       {lineageQuery.isLoading ? <p>Loading lineage graph...</p> : null}
       {lineageQuery.isError ? <p>Failed to load lineage data.</p> : null}

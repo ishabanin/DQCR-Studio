@@ -1,0 +1,8 @@
+{
+  "project_id": "new-project",
+  "model_id": "SampleModel",
+  "status": "error",
+  "updated_at": "2026-03-21T15:48:41.105644+00:00",
+  "source": "framework_cli",
+  "error": "Failed to run workflow build: Framework build failed: Traceback (most recent call last):\n  File \"/usr/local/bin/fw2\", line 6, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/usr/local/lib/python3.11/site-packages/FW/cli.py\", line 508, in main\n    build_command(args.project_path, args.model_name, args.context, args.output)\n  File \"/usr/local/lib/python3.11/site-packages/FW/cli.py\", line 164, in build_command\n    workflow_model = builder.build(model_name, context)\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.11/site-packages/FW/generation/DefaultBuilder.py\", line 237, in build\n    raise ValueError(f\"Model not found: {model_name}\")\nValueError: Model not found: SampleModel"
+}

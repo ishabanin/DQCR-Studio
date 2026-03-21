@@ -8,7 +8,7 @@ import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
 
 type TemplateId = "flx" | "dwh_mart" | "dq_control";
-type WizardMode = "create" | "import" | "connect";
+type WizardMode = "create" | "import";
 
 const TEMPLATE_CARDS: Array<{ id: TemplateId; title: string; description: string }> = [
   { id: "flx", title: "FLX", description: "Flexible template for general SQL workflows." },
@@ -19,7 +19,6 @@ const TEMPLATE_CARDS: Array<{ id: TemplateId; title: string; description: string
 const MODE_CARDS: Array<{ id: WizardMode; title: string; description: string; disabled?: boolean }> = [
   { id: "create", title: "Create New", description: "Generate a new project structure with wizard settings." },
   { id: "import", title: "Upload Folder", description: "Copy an existing local project folder into workspace storage." },
-  { id: "connect", title: "Connect Folder", description: "Attach an existing local folder without copying files.", disabled: true },
 ];
 
 interface WizardFormState {
@@ -121,8 +120,8 @@ function validateSourceState(mode: WizardMode, state: SourceFormState): string[]
 }
 
 function makeSourcePreview(mode: WizardMode, state: SourceFormState): string[] {
-  const modeLabel = mode === "import" ? "Upload Folder" : "Connect Folder";
-  const action = mode === "import" ? "Files will be copied into internal projects storage." : "Files will stay in external location and be linked.";
+  const modeLabel = "Upload Folder";
+  const action = "Files will be copied into internal projects storage.";
   return [
     `Mode: ${modeLabel}`,
     `Source path: ${state.sourcePath || "<not selected>"}`,
@@ -301,13 +300,7 @@ export default function ProjectWizardModal() {
       if (mode === "import") {
         throw new Error("No folder files captured. Re-select folder using 'Choose Folder' or drag-and-drop.");
       }
-      return createProject({
-        mode,
-        source_path: sourceState.sourcePath.trim(),
-        project_id: sourceState.projectId.trim() || undefined,
-        name: sourceState.name.trim() || undefined,
-        description: sourceState.description.trim() || undefined,
-      });
+      throw new Error("Unsupported wizard mode.");
     },
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
@@ -316,7 +309,7 @@ export default function ProjectWizardModal() {
       setProject(result.id);
       setActiveTab(mode === "import" ? "sql" : "build");
       setProjectWizardOpen(false);
-      const actionLabel = mode === "create" ? "created" : mode === "import" ? "uploaded" : "connected";
+      const actionLabel = mode === "create" ? "created" : "uploaded";
       addToast(`Project ${result.id} ${actionLabel}`, "success");
     },
     onError: (error: unknown) => {
@@ -736,22 +729,13 @@ export default function ProjectWizardModal() {
                 </button>
               )}
             </>
-          ) : mode === "import" ? (
+          ) : (
             <>
               <button type="button" className="action-btn" onClick={() => setProjectWizardOpen(false)}>
                 Cancel
               </button>
               <button type="button" className="action-btn action-btn-primary" disabled={createMutation.isPending || !canSubmitSource} onClick={() => createMutation.mutate()}>
-                {createMutation.isPending ? "Processing..." : mode === "import" ? "Upload Project" : "Connect Project"}
-              </button>
-            </>
-          ) : (
-            <>
-              <button type="button" className="action-btn" onClick={() => setProjectWizardOpen(false)}>
-                Close
-              </button>
-              <button type="button" className="action-btn" disabled>
-                Connect Folder Disabled
+                {createMutation.isPending ? "Processing..." : "Upload Project"}
               </button>
             </>
           )}

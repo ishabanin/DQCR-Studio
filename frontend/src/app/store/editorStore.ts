@@ -1,10 +1,16 @@
 import { create } from "zustand";
 
-export type TabId = "lineage" | "model" | "sql" | "validate" | "parameters" | "build" | "admin";
+export type TabId = "project" | "lineage" | "model" | "sql" | "validate" | "parameters" | "build" | "admin";
 
 export interface EditorNavigationTarget {
   path: string;
   line: number | null;
+}
+
+export interface EditorCursorState {
+  position: { lineNumber: number; column: number } | null;
+  scrollTop: number;
+  scrollLeft: number;
 }
 
 interface EditorStore {
@@ -12,6 +18,8 @@ interface EditorStore {
   openFiles: string[];
   activeFilePath: string | null;
   dirtyFiles: Record<string, boolean>;
+  cursorStateByFile: Record<string, EditorCursorState>;
+  navigateTo: EditorNavigationTarget | null;
   pendingNavigationTarget: EditorNavigationTarget | null;
   setActiveTab: (tab: TabId) => void;
   openFile: (path: string) => void;
@@ -19,14 +27,18 @@ interface EditorStore {
   closeFile: (path: string) => void;
   reorderFiles: (fromPath: string, toPath: string) => void;
   setDirty: (path: string, dirty: boolean) => void;
+  setCursorState: (filePath: string, state: EditorCursorState) => void;
+  setNavigateTo: (target: EditorNavigationTarget | null) => void;
   setPendingNavigationTarget: (target: EditorNavigationTarget | null) => void;
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
-  activeTab: "lineage",
+  activeTab: "project",
   openFiles: [],
   activeFilePath: null,
   dirtyFiles: {},
+  cursorStateByFile: {},
+  navigateTo: null,
   pendingNavigationTarget: null,
   setActiveTab: (tab) => set({ activeTab: tab }),
   openFile: (path) =>
@@ -62,5 +74,13 @@ export const useEditorStore = create<EditorStore>((set) => ({
         [path]: dirty,
       },
     })),
-  setPendingNavigationTarget: (target) => set({ pendingNavigationTarget: target }),
+  setCursorState: (filePath, state) =>
+    set((prev) => ({
+      cursorStateByFile: {
+        ...prev.cursorStateByFile,
+        [filePath]: state,
+      },
+    })),
+  setNavigateTo: (target) => set({ navigateTo: target, pendingNavigationTarget: target }),
+  setPendingNavigationTarget: (target) => set({ pendingNavigationTarget: target, navigateTo: target }),
 }));

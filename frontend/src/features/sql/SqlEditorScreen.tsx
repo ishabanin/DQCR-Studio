@@ -159,6 +159,8 @@ function resolveEditorLanguage(path: string | null): string {
   return "plaintext";
 }
 
+const DEFAULT_VALIDATE_CATEGORIES = ["general", "sql", "descriptions"];
+
 function PriorityChainPanel({
   levels,
   resolved,
@@ -301,18 +303,24 @@ function PriorityChainPanel({
 
 export default function SqlEditorScreen() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
+  const activeTab = useEditorStore((state) => state.activeTab);
   const activeFilePath = useEditorStore((state) => state.activeFilePath);
   const openFile = useEditorStore((state) => state.openFile);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
   const setDirty = useEditorStore((state) => state.setDirty);
-  const pendingNavigationTarget = useEditorStore((state) => state.pendingNavigationTarget);
-  const setPendingNavigationTarget = useEditorStore((state) => state.setPendingNavigationTarget);
+  const cursorStateByFile = useEditorStore((state) => state.cursorStateByFile);
+  const setCursorState = useEditorStore((state) => state.setCursorState);
+  const navigateTo = useEditorStore((state) => state.navigateTo);
+  const setNavigateTo = useEditorStore((state) => state.setNavigateTo);
   const addToast = useUiStore((state) => state.addToast);
+  const setLastSavedAt = useUiStore((state) => state.setLastSavedAt);
+  const userRole = useUiStore((state) => state.role);
   const queryClient = useQueryClient();
   const validationAutoRun = useUiStore((state) => state.validationAutoRun);
   const setValidationAutoRun = useUiStore((state) => state.setValidationAutoRun);
   const latestValidationRun = useValidationStore((state) => state.latestRun);
   const setLatestValidationRun = useValidationStore((state) => state.setLatestRun);
+  const lastValidationCategories = useValidationStore((state) => state.lastCategories);
   const { theme } = useTheme();
   const [draft, setDraft] = useState("");
   const [findVisible, setFindVisible] = useState(false);
@@ -328,6 +336,10 @@ export default function SqlEditorScreen() {
   const monacoRef = useRef<typeof Monaco | null>(null);
   const findInputRef = useRef<HTMLInputElement | null>(null);
   const quickOpenInputRef = useRef<HTMLInputElement | null>(null);
+  const prevActiveTabRef = useRef(activeTab);
+  const prevActiveFilePathRef = useRef<string | null>(activeFilePath);
+  const navigationDecorationsRef = useRef<string[]>([]);
+  const navigationDecorationTimerRef = useRef<number | null>(null);
   const modelId = useMemo(() => extractModelIdFromPath(activeFilePath), [activeFilePath]);
   const editorLanguage = useMemo(() => resolveEditorLanguage(activeFilePath), [activeFilePath]);
 
@@ -442,22 +454,87 @@ export default function SqlEditorScreen() {
   }, [contentQuery.data, activeFilePath, setDirty]);
 
   useEffect(() => {
-    if (!pendingNavigationTarget) return;
-    if (!activeFilePath || pendingNavigationTarget.path !== activeFilePath) return;
-    if (contentQuery.status !== "success") return;
-
+    const prevTab = prevActiveTabRef.current;
     const editor = editorRef.current;
+    if (prevTab === "sql" && activeTab !== "sql" && editor && activeFilePath) {
+      setCursorState(activeFilePath, {
+        position: editor.getPosition(),
+        scrollTop: editor.getScrollTop(),
+        scrollLeft: editor.getScrollLeft(),
+      });
+    }
+    prevActiveTabRef.current = activeTab;
+  }, [activeFilePath, activeTab, setCursorState]);
+
+  useEffect(() => {
+    const prevPath = prevActiveFilePathRef.current;
+    const editor = editorRef.current;
+    if (activeTab === "sql" && prevPath && prevPath !== activeFilePath && editor) {
+      setCursorState(prevPath, {
+        position: editor.getPosition(),
+        scrollTop: editor.getScrollTop(),
+        scrollLeft: editor.getScrollLeft(),
+      });
+    }
+    prevActiveFilePathRef.current = activeFilePath;
+  }, [activeFilePath, activeTab, setCursorState]);
+
+  useEffect(() => {
+    if (activeTab !== "sql") return;
+    const editor = editorRef.current;
+    if (!editor || !activeFilePath) return;
+    const state = cursorStateByFile[activeFilePath] ?? { position: null, scrollTop: 0, scrollLeft: 0 };
+    const timer = window.setTimeout(() => {
+      if (state.position) {
+        editor.setPosition(state.position);
+        editor.revealPositionInCenter(state.position, 0);
+      }
+      editor.setScrollTop(state.scrollTop);
+      editor.setScrollLeft(state.scrollLeft);
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [activeFilePath, activeTab, cursorStateByFile]);
+
+  useEffect(() => {
+    if (!navigateTo) return;
+    if (!activeFilePath || navigateTo.path !== activeFilePath) return;
+    if (contentQuery.status !== "success") return;
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
     const model = editor?.getModel();
-    if (!editor || !model) return;
+    if (!editor || !monaco || !model) return;
+
+    if (navigationDecorationTimerRef.current !== null) {
+      window.clearTimeout(navigationDecorationTimerRef.current);
+      navigationDecorationTimerRef.current = null;
+    }
+    navigationDecorationsRef.current = editor.deltaDecorations(navigationDecorationsRef.current, []);
 
     const maxLine = model.getLineCount();
-    const line = pendingNavigationTarget.line ?? 1;
+    const line = navigateTo.line ?? 1;
     const targetLine = Math.min(Math.max(1, line), Math.max(1, maxLine));
-    editor.setPosition({ lineNumber: targetLine, column: 1 });
     editor.revealLineInCenter(targetLine);
+    editor.setPosition({ lineNumber: targetLine, column: 1 });
+    navigationDecorationsRef.current = editor.deltaDecorations([], [
+      {
+        range: new monaco.Range(targetLine, 1, targetLine, 1),
+        options: {
+          isWholeLine: true,
+          className: "validate-error-highlight",
+          linesDecorationsClassName: "validate-error-gutter",
+        },
+      },
+    ]);
     editor.focus();
-    setPendingNavigationTarget(null);
-  }, [activeFilePath, contentQuery.status, pendingNavigationTarget, setPendingNavigationTarget]);
+    setNavigateTo(null);
+
+    navigationDecorationTimerRef.current = window.setTimeout(() => {
+      const currentEditor = editorRef.current;
+      if (!currentEditor) return;
+      navigationDecorationsRef.current = currentEditor.deltaDecorations(navigationDecorationsRef.current, []);
+      navigationDecorationTimerRef.current = null;
+    }, 3000);
+  }, [activeFilePath, contentQuery.status, navigateTo, setNavigateTo]);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -490,6 +567,8 @@ export default function SqlEditorScreen() {
     mutationFn: () => saveFileContent(currentProjectId as string, activeFilePath as string, draft),
     onSuccess: async () => {
       if (activeFilePath) setDirty(activeFilePath, false);
+      const savedAt = new Date();
+      setLastSavedAt(savedAt);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["configChain", currentProjectId, modelId, activeFilePath] }),
         queryClient.invalidateQueries({ queryKey: ["autocomplete", currentProjectId] }),
@@ -498,7 +577,32 @@ export default function SqlEditorScreen() {
         queryClient.invalidateQueries({ queryKey: ["workflowStatus", currentProjectId] }),
         queryClient.invalidateQueries({ queryKey: ["modelWorkflow", currentProjectId, modelId] }),
       ]);
-      addToast("File saved", "success");
+      const validationTimestamp = latestValidationRun?.timestamp ? new Date(latestValidationRun.timestamp).getTime() : null;
+      const showValidateHint = userRole !== "viewer" && (validationTimestamp === null || validationTimestamp < savedAt.getTime());
+      if (showValidateHint && currentProjectId) {
+        addToast("✓ Сохранено", "success", {
+          description: "Рекомендуется запустить Validate перед Build",
+          autoCloseMs: 6000,
+          action: {
+            label: "Запустить →",
+            onClick: async () => {
+              setActiveTab("validate");
+              try {
+                const result = await runProjectValidation(currentProjectId, {
+                  model_id: modelId ?? undefined,
+                  categories: lastValidationCategories ?? DEFAULT_VALIDATE_CATEGORIES,
+                });
+                setLatestValidationRun(result);
+                addToast("Validation completed", result.summary.errors > 0 ? "error" : "success");
+              } catch {
+                addToast("Validation failed", "error");
+              }
+            },
+          },
+        });
+      } else {
+        addToast("✓ Сохранено", "success", { autoCloseMs: 2000 });
+      }
       if (validationAutoRun && currentProjectId && modelId) {
         try {
           const result = await runProjectValidation(currentProjectId, { model_id: modelId });
@@ -711,6 +815,7 @@ export default function SqlEditorScreen() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [
+    activeTab,
     activeFilePath,
     saveMutation,
     draft,
@@ -847,6 +952,10 @@ export default function SqlEditorScreen() {
             onChange={(value) => {
               const nextValue = value ?? "";
               setDraft(nextValue);
+              const editor = editorRef.current;
+              if (editor && navigationDecorationsRef.current.length > 0) {
+                navigationDecorationsRef.current = editor.deltaDecorations(navigationDecorationsRef.current, []);
+              }
               setDirty(activeFilePath, nextValue !== (contentQuery.data ?? ""));
             }}
           />

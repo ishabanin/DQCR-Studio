@@ -9,6 +9,10 @@ Foundation scaffold for DQCR Studio.
 - `infra/docker/` — Docker Compose and Nginx proxy config
 - `Docs/` — product and engineering documentation
 
+Main system reference:
+
+- `Docs/SYSTEM_REFERENCE.md` — architecture, API, internal folders, runtime flows, and testing context
+
 ## Quick start
 
 1. Run `make dev`

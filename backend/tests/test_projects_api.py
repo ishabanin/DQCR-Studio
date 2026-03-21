@@ -289,6 +289,10 @@ def test_lineage_uses_workflow_order_for_edges(api_client: TestClient) -> None:
 
 def test_lineage_prefers_framework_workflow_cache(api_client: TestClient, tmp_path: Path) -> None:
     projects_root = tmp_path / "projects"
+    publish_dir = projects_root / "demo" / "model" / "SampleModel" / "workflow" / "02_publish"
+    publish_dir.mkdir(parents=True, exist_ok=True)
+    (publish_dir / "001_publish.sql").write_text("select 1\n", encoding="utf-8")
+
     cache_file = projects_root / "demo" / ".dqcr_workflow_cache" / "SampleModel.json"
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     cache_file.write_text(
@@ -321,6 +325,19 @@ def test_lineage_prefers_framework_workflow_cache(api_client: TestClient, tmp_pa
                             "metadata": {"parameters": ["date_end"], "cte": {}},
                         },
                     },
+                    {
+                        "full_name": "02_publish/sql_virtual/cte/tmp",
+                        "step_type": "sql",
+                        "folder": "02_publish",
+                        "dependencies": ["02_publish/001_publish/sql"],
+                        "context": "default",
+                        "sql_model": {
+                            "name": "sql_virtual_tmp",
+                            "path": ".",
+                            "materialization": "ephemeral",
+                            "metadata": {"parameters": ["ghost_param"], "cte": {"ghost_cte": {}}},
+                        },
+                    },
                 ],
                 "config": {
                     "folders": {
@@ -346,7 +363,49 @@ def test_lineage_prefers_framework_workflow_cache(api_client: TestClient, tmp_pa
             "status": "resolved",
         }
     ]
+    stage_node = next(node for node in lineage["nodes"] if node["id"] == "01_stage")
+    publish_node = next(node for node in lineage["nodes"] if node["id"] == "02_publish")
+    assert stage_node["queries"] == ["001_main.sql"]
+    assert publish_node["queries"] == ["001_publish.sql"]
+    assert publish_node["ctes"] == []
     assert lineage["summary"]["params"] == 2
+
+
+def test_lineage_builds_with_requested_context(api_client: TestClient, monkeypatch) -> None:
+    requested_contexts: list[str | None] = []
+
+    def _fake_run_workflow_build(project_id: str, model_id: str, context: str | None = None) -> dict[str, object]:
+        requested_contexts.append(context)
+        return {
+            "workflow": {
+                "steps": [
+                    {
+                        "full_name": "01_stage/001_main/sql",
+                        "step_type": "sql",
+                        "folder": "01_stage",
+                        "dependencies": [],
+                        "context": context or "all",
+                        "sql_model": {
+                            "name": "001_main",
+                            "path": "model/SampleModel/workflow/01_stage/001_main.sql",
+                            "materialization": "insert_fc",
+                            "metadata": {"parameters": [], "cte": {}},
+                        },
+                    }
+                ],
+                "config": {"folders": {"01_stage": {"materialized": "insert_fc"}}},
+            }
+        }
+
+    monkeypatch.setattr(projects_router.FW_SERVICE, "run_workflow_build", _fake_run_workflow_build)
+
+    lineage_response = api_client.get("/api/v1/projects/demo/models/SampleModel/lineage", params={"context": "default"})
+    assert lineage_response.status_code == 200
+    lineage = lineage_response.json()
+
+    assert requested_contexts == ["default"]
+    assert [node["id"] for node in lineage["nodes"]] == ["01_stage"]
+    assert lineage["nodes"][0]["queries"] == ["001_main.sql"]
 
 
 def test_model_object_prefers_framework_workflow_cache(api_client: TestClient, tmp_path: Path) -> None:

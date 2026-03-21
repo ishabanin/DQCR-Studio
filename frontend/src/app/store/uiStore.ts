@@ -1,11 +1,21 @@
 import { create } from "zustand";
 
 type ToastType = "success" | "info" | "error";
+type WorkflowCacheStatus = "ready" | "stale" | "building" | "error" | "missing";
+type UserRole = "user" | "admin" | "viewer";
+
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
 
 interface ToastItem {
   id: string;
-  message: string;
+  title: string;
+  description?: string;
   type: ToastType;
+  autoCloseMs: number | null;
+  action?: ToastAction;
 }
 
 interface UiStore {
@@ -16,18 +26,38 @@ interface UiStore {
   toasts: ToastItem[];
   apiLogs: string[];
   projectWizardOpen: boolean;
-  userRole: "user" | "admin";
+  userRole: UserRole;
+  role: UserRole;
+  userEmail: string;
   validationAutoRun: boolean;
+  cacheStatus: WorkflowCacheStatus | null;
+  lastSavedAt: Date | null;
+  initialParam: { id: string; scope: string } | null;
+  initialModelId: string | null;
+  dismissedHistoryWarning: boolean;
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
   toggleBottomPanel: () => void;
   setBottomPanelTab: (tab: "terminal" | "logs" | "output") => void;
   setProjectWizardOpen: (open: boolean) => void;
-  setUserRole: (role: "user" | "admin") => void;
+  setUserRole: (role: UserRole) => void;
   setValidationAutoRun: (enabled: boolean) => void;
+  setCacheStatus: (status: WorkflowCacheStatus | null) => void;
+  setLastSavedAt: (d: Date | null) => void;
+  setInitialParam: (p: { id: string; scope: string } | null) => void;
+  setInitialModelId: (modelId: string | null) => void;
+  setDismissedHistoryWarning: (v: boolean) => void;
   addApiLog: (line: string) => void;
   clearApiLogs: () => void;
-  addToast: (message: string, type?: ToastType) => void;
+  addToast: (
+    title: string,
+    type?: ToastType,
+    options?: {
+      description?: string;
+      autoCloseMs?: number | null;
+      action?: ToastAction;
+    },
+  ) => void;
   removeToast: (id: string) => void;
 }
 
@@ -39,8 +69,15 @@ export const useUiStore = create<UiStore>((set) => ({
   toasts: [],
   apiLogs: [],
   projectWizardOpen: false,
-  userRole: (window.localStorage.getItem("dqcr_role") as "user" | "admin") || "user",
+  userRole: (window.localStorage.getItem("dqcr_role") as UserRole) || "user",
+  role: (window.localStorage.getItem("dqcr_role") as UserRole) || "user",
+  userEmail: window.localStorage.getItem("dqcr_user_email") || "admin@corp.ru",
   validationAutoRun: false,
+  cacheStatus: null,
+  lastSavedAt: null,
+  initialParam: null,
+  initialModelId: null,
+  dismissedHistoryWarning: window.localStorage.getItem("dqcr_dismissed_history_warning") === "true",
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
   setSidebarWidth: (width) => {
     const nextWidth = Math.min(420, Math.max(220, Math.round(width)));
@@ -52,17 +89,35 @@ export const useUiStore = create<UiStore>((set) => ({
   setProjectWizardOpen: (open) => set({ projectWizardOpen: open }),
   setUserRole: (role) => {
     window.localStorage.setItem("dqcr_role", role);
-    set({ userRole: role });
+    set({ userRole: role, role });
   },
   setValidationAutoRun: (enabled) => set({ validationAutoRun: enabled }),
+  setCacheStatus: (status) => set({ cacheStatus: status }),
+  setLastSavedAt: (d) => set({ lastSavedAt: d }),
+  setInitialParam: (p) => set({ initialParam: p }),
+  setInitialModelId: (modelId) => set({ initialModelId: modelId }),
+  setDismissedHistoryWarning: (v) => {
+    window.localStorage.setItem("dqcr_dismissed_history_warning", v ? "true" : "false");
+    set({ dismissedHistoryWarning: v });
+  },
   addApiLog: (line) =>
     set((state) => ({
       apiLogs: [...state.apiLogs, line].slice(-500),
     })),
   clearApiLogs: () => set({ apiLogs: [] }),
-  addToast: (message, type = "info") =>
+  addToast: (title, type = "info", options) =>
     set((state) => ({
-      toasts: [...state.toasts, { id: `${Date.now()}-${Math.random()}`, message, type }],
+      toasts: [
+        ...state.toasts,
+        {
+          id: `${Date.now()}-${Math.random()}`,
+          title,
+          description: options?.description,
+          type,
+          autoCloseMs: options?.autoCloseMs ?? 2500,
+          action: options?.action,
+        },
+      ],
     })),
   removeToast: (id) =>
     set((state) => ({

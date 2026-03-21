@@ -3,9 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   applyValidationQuickFix,
+  fetchFileContent,
   fetchModelWorkflow,
   fetchProjectWorkflowStatus,
   fetchValidationHistory,
+  getDryRunQuickFix,
   runProjectValidation,
   type ValidationRuleResult,
   type ValidationRunResult,
@@ -14,9 +16,27 @@ import { useEditorStore } from "../../app/store/editorStore";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
 import { useValidationStore } from "../../app/store/validationStore";
+import QuickFixPreviewModal from "./QuickFixPreviewModal";
+import { getRouteLabel, routeValidationError } from "./utils/fileRouter";
 
 type RuleStatusFilter = "all" | "pass" | "warning" | "error";
 type QuickFixType = "add_field" | "rename_folder";
+
+type QuickFixPreviewPayload = {
+  payload: {
+    type: QuickFixType;
+    model_id?: string;
+    file_path?: string;
+    field_name?: string;
+    new_name?: string;
+  };
+  preview: {
+    filePath: string;
+    description: string;
+    diff: string;
+  };
+  ruleKey: string;
+};
 
 const CATEGORY_OPTIONS = ["general", "sql", "descriptions", "adb", "oracle", "postgresql"];
 
@@ -106,19 +126,21 @@ function SummaryBar({
 function RuleRow({
   item,
   ruleKey,
-  quickFixPending,
+  quickFixState,
   onQuickFix,
 }: {
   item: ValidationRuleResult;
   ruleKey: string;
-  quickFixPending: boolean;
+  quickFixState: "idle" | "loading" | "applied";
   onQuickFix: (item: ValidationRuleResult, type: QuickFixType, key: string) => void;
 }) {
   const openFile = useEditorStore((state) => state.openFile);
+  const setNavigateTo = useEditorStore((state) => state.setNavigateTo);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
-  const setPendingNavigationTarget = useEditorStore((state) => state.setPendingNavigationTarget);
+  const setInitialParam = useUiStore((state) => state.setInitialParam);
+  const setInitialModelId = useUiStore((state) => state.setInitialModelId);
 
-  const canOpen = Boolean(item.file_path);
+  const routeLabel = getRouteLabel(item.file_path, item.line);
   const quickFixType = resolveQuickFixType(item);
   const canQuickFix = item.status !== "pass" && quickFixType !== null;
 
@@ -138,32 +160,44 @@ function RuleRow({
         </div>
       </div>
       <div className="validate-rule-actions">
-        {canOpen ? (
-          <button
-            type="button"
-            className="action-btn"
-            onClick={() => {
-              if (!item.file_path) return;
-              openFile(item.file_path);
-              setPendingNavigationTarget({
-                path: item.file_path,
-                line: item.line,
-              });
-              setActiveTab("sql");
-            }}
-          >
-            Open file
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className="action-btn"
+          onClick={() => {
+            const route = routeValidationError(item.file_path, item.line);
+            switch (route.tab) {
+              case "sql":
+                openFile(route.filePath);
+                setNavigateTo({ path: route.filePath, line: route.line ?? null });
+                setActiveTab("sql");
+                break;
+              case "model":
+                setInitialModelId(route.modelId || null);
+                setActiveTab("model");
+                break;
+              case "parameters":
+                if (route.paramId) {
+                  setInitialParam({ id: route.paramId, scope: route.scope ?? "global" });
+                }
+                setActiveTab("parameters");
+                break;
+              case "lineage":
+                setActiveTab("lineage");
+                break;
+            }
+          }}
+        >
+          {routeLabel}
+        </button>
         {canQuickFix ? (
           <button
             type="button"
             className="action-btn"
-            disabled={quickFixPending}
+            disabled={quickFixState === "loading"}
             onClick={() => onQuickFix(item, quickFixType as QuickFixType, ruleKey)}
             title={quickFixType === "add_field" ? "Add missing description field to model.yml" : "Rename folder"}
           >
-            {quickFixPending ? "Fixing..." : "Quick fix"}
+            {quickFixState === "loading" ? "⟳" : quickFixState === "applied" ? "✓ Применено" : "✦ Quick fix"}
           </button>
         ) : null}
       </div>
@@ -176,12 +210,14 @@ function CategoryGroup({
   items,
   defaultExpanded,
   quickFixPendingKey,
+  appliedQuickFixKeys,
   onQuickFix,
 }: {
   category: string;
   items: ValidationRuleResult[];
   defaultExpanded: boolean;
   quickFixPendingKey: string | null;
+  appliedQuickFixKeys: Set<string>;
   onQuickFix: (item: ValidationRuleResult, type: QuickFixType, key: string) => void;
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -200,15 +236,8 @@ function CategoryGroup({
         <ul className="validate-rule-list">
           {items.map((item, index) => {
             const key = makeRuleKey(item, index);
-            return (
-              <RuleRow
-                key={key}
-                item={item}
-                ruleKey={key}
-                quickFixPending={quickFixPendingKey === key}
-                onQuickFix={onQuickFix}
-              />
-            );
+            const quickFixState = quickFixPendingKey === key ? "loading" : appliedQuickFixKeys.has(key) ? "applied" : "idle";
+            return <RuleRow key={key} item={item} ruleKey={key} quickFixState={quickFixState} onQuickFix={onQuickFix} />;
           })}
         </ul>
       ) : null}
@@ -216,15 +245,52 @@ function CategoryGroup({
   );
 }
 
+function buildFrontendQuickFixPreview(options: {
+  filePath: string;
+  content: string;
+  type: QuickFixType;
+}): { filePath: string; description: string; diff: string } {
+  const lines = options.content.split("\n");
+  if (options.type === "add_field") {
+    const insertAfter = lines.findIndex((line) => line.includes("- name:"));
+    if (insertAfter >= 0) {
+      const contextLine = lines[insertAfter] ?? "";
+      return {
+        filePath: options.filePath,
+        description: "добавить поле description",
+        diff: `${contextLine}\n+     description: \"\"`,
+      };
+    }
+    return {
+      filePath: options.filePath,
+      description: "добавить поле description",
+      diff: "+ description: \"\"",
+    };
+  }
+
+  return {
+    filePath: options.filePath,
+    description: "переименовать folder",
+    diff: "~ folder name will be updated",
+  };
+}
+
 export default function ValidateScreen() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const addToast = useUiStore((state) => state.addToast);
+  const dismissedHistoryWarning = useUiStore((state) => state.dismissedHistoryWarning);
+  const setDismissedHistoryWarning = useUiStore((state) => state.setDismissedHistoryWarning);
   const latestRun = useValidationStore((state) => state.latestRun);
   const setLatestRun = useValidationStore((state) => state.setLatestRun);
+  const setLastCategories = useValidationStore((state) => state.setLastCategories);
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<RuleStatusFilter>("all");
   const [selectedCategories, setSelectedCategories] = useState<string[]>(CATEGORY_OPTIONS);
   const [quickFixPendingKey, setQuickFixPendingKey] = useState<string | null>(null);
+  const [appliedQuickFixKeys, setAppliedQuickFixKeys] = useState<Set<string>>(new Set());
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<QuickFixPreviewPayload | null>(null);
   const [wsProgress, setWsProgress] = useState<number | null>(null);
   const [wsStage, setWsStage] = useState<string | null>(null);
 
@@ -247,6 +313,7 @@ export default function ValidateScreen() {
       }),
     onSuccess: async (run) => {
       setLatestRun(run);
+      setLastCategories(selectedCategories);
       await queryClient.invalidateQueries({ queryKey: ["validationHistory", currentProjectId] });
       addToast("Validation completed", run.summary.errors > 0 ? "error" : "success");
     },
@@ -261,6 +328,7 @@ export default function ValidateScreen() {
     const ws = new WebSocket(`${protocol}://${window.location.host}/ws/validation/${currentProjectId}`);
     setWsProgress(0);
     setWsStage("connecting");
+    setLastCategories(selectedCategories);
 
     ws.onopen = () => {
       ws.send(
@@ -316,22 +384,29 @@ export default function ValidateScreen() {
       : historyLatest;
   }, [currentProjectId, historyQuery.data, latestRun]);
 
-  const quickFixMutation = useMutation({
-    mutationFn: ({ item, type }: { item: ValidationRuleResult; type: QuickFixType }) => {
-      const payload = {
-        type,
-        model_id: activeRun?.model,
-        file_path: item.file_path ?? undefined,
-        field_name: type === "add_field" ? "description" : undefined,
+  const quickFixApplyMutation = useMutation({
+    mutationFn: async (payload: QuickFixPreviewPayload) =>
+      applyValidationQuickFix(currentProjectId as string, {
+        ...payload.payload,
         rerun: true,
-      };
-      return applyValidationQuickFix(currentProjectId as string, payload);
-    },
-    onSuccess: async (result) => {
-      addToast(result.message, result.applied ? "success" : "info");
+      }),
+    onSuccess: async (result, payload) => {
       if (result.validation) {
         setLatestRun(result.validation);
       }
+      addToast(`✓ Исправлено: ${payload.preview.description}`, "success");
+      setAppliedQuickFixKeys((prev) => {
+        const next = new Set(prev);
+        next.add(payload.ruleKey);
+        return next;
+      });
+      window.setTimeout(() => {
+        setAppliedQuickFixKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(payload.ruleKey);
+          return next;
+        });
+      }, 3000);
       await queryClient.invalidateQueries({ queryKey: ["validationHistory", currentProjectId] });
     },
     onError: () => {
@@ -354,6 +429,7 @@ export default function ValidateScreen() {
     const items = historyQuery.data ?? [];
     return items.slice(0, 5);
   }, [historyQuery.data]);
+
   const activeRunWorkflowQuery = useQuery({
     queryKey: ["modelWorkflow", currentProjectId, activeRun?.model],
     queryFn: () => fetchModelWorkflow(currentProjectId as string, activeRun?.model as string),
@@ -449,8 +525,8 @@ export default function ValidateScreen() {
             Last run: {formatRunTimestamp(activeRun.timestamp)} | Model: <code>{activeRun.model}</code>
           </p>
           <p className="validate-meta">
-            Workflow state: {activeRunWorkflowQuery.data?.status ?? workflowStatusQuery.data?.status ?? "missing"} | Workflow updated:{" "}
-            {activeRunWorkflowQuery.data?.updated_at ? formatRunTimestamp(activeRunWorkflowQuery.data.updated_at) : "—"}
+            Workflow state: {activeRunWorkflowQuery.data?.status ?? workflowStatusQuery.data?.overall ?? workflowStatusQuery.data?.status ?? "missing"} |
+            Workflow updated: {activeRunWorkflowQuery.data?.updated_at ? formatRunTimestamp(activeRunWorkflowQuery.data.updated_at) : "—"}
             {validationIsStale ? " | Validation is stale" : ""}
           </p>
           <div className="validate-groups">
@@ -464,9 +540,57 @@ export default function ValidateScreen() {
                   items={group.rules}
                   defaultExpanded={group.rules.some((item) => item.status !== "pass")}
                   quickFixPendingKey={quickFixPendingKey}
-                  onQuickFix={(item, type, key) => {
+                  appliedQuickFixKeys={appliedQuickFixKeys}
+                  onQuickFix={async (item, type, key) => {
+                    if (!currentProjectId) return;
                     setQuickFixPendingKey(key);
-                    quickFixMutation.mutate({ item, type });
+                    setPreviewLoading(true);
+                    const payload = {
+                      type,
+                      model_id: activeRun?.model,
+                      file_path: item.file_path ?? undefined,
+                      field_name: type === "add_field" ? "description" : undefined,
+                    };
+                    try {
+                      const dryRun = await getDryRunQuickFix(currentProjectId, {
+                        ...payload,
+                        model_id: payload.model_id ?? "",
+                      });
+                      setPreviewData({
+                        payload,
+                        ruleKey: key,
+                        preview: {
+                          filePath: dryRun.file_path,
+                          description: dryRun.description,
+                          diff: dryRun.diff,
+                        },
+                      });
+                    } catch {
+                      const fallbackPath = payload.file_path ?? `model/${payload.model_id}/model.yml`;
+                      try {
+                        const content = await fetchFileContent(currentProjectId, fallbackPath);
+                        const preview = buildFrontendQuickFixPreview({
+                          type,
+                          filePath: fallbackPath,
+                          content,
+                        });
+                        setPreviewData({ payload, ruleKey: key, preview });
+                      } catch {
+                        setPreviewData({
+                          payload,
+                          ruleKey: key,
+                          preview: {
+                            filePath: fallbackPath,
+                            description: type === "add_field" ? "добавить поле description" : "переименовать folder",
+                            diff: type === "add_field" ? "+ description: \"\"" : "~ folder name will be updated",
+                          },
+                        });
+                      }
+                    } finally {
+                      setPreviewLoading(false);
+                      setPreviewModalOpen(true);
+                      setQuickFixPendingKey(null);
+                    }
                   }}
                 />
               ))
@@ -477,6 +601,14 @@ export default function ValidateScreen() {
 
       <section className="validate-history">
         <h2>Recent runs</h2>
+        {!dismissedHistoryWarning ? (
+          <div className="session-history-banner">
+            <span>История сессии - сбрасывается при перезапуске сервера</span>
+            <button type="button" onClick={() => setDismissedHistoryWarning(true)}>
+              Понятно ✕
+            </button>
+          </div>
+        ) : null}
         {historyItems.length === 0 ? (
           <p className="validate-empty">No history yet.</p>
         ) : (
@@ -498,6 +630,22 @@ export default function ValidateScreen() {
           </ul>
         )}
       </section>
+
+      <QuickFixPreviewModal
+        isOpen={previewModalOpen}
+        isLoading={quickFixApplyMutation.isPending || previewLoading}
+        preview={previewData?.preview ?? null}
+        onClose={() => {
+          setPreviewModalOpen(false);
+          setPreviewData(null);
+          setQuickFixPendingKey(null);
+        }}
+        onConfirm={() => {
+          if (!previewData) return;
+          setPreviewModalOpen(false);
+          quickFixApplyMutation.mutate(previewData);
+        }}
+      />
     </section>
   );
 }

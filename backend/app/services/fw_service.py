@@ -6,6 +6,7 @@ import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+import re
 from typing import Callable
 
 from fastapi import HTTPException
@@ -260,7 +261,12 @@ class FWService:
         context: str | None,
     ) -> dict[str, object]:
         build_id = f"wf-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
-        relative_output = Path(".dqcr_workflow_cache") / f"{model_id}.json"
+        if context and context.strip():
+            safe_context = re.sub(r"[^A-Za-z0-9_.-]+", "_", context.strip()).strip("._-") or "context"
+            output_name = f"{model_id}__{safe_context}.json"
+        else:
+            output_name = f"{model_id}.json"
+        relative_output = Path(".dqcr_workflow_cache") / output_name
         absolute_output = project_path / relative_output
         absolute_output.parent.mkdir(parents=True, exist_ok=True)
 

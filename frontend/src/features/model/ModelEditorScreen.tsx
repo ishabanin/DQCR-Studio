@@ -62,6 +62,8 @@ function normalizeAttrName(value: string, index: number): string {
 export default function ModelEditorScreen() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const addToast = useUiStore((state) => state.addToast);
+  const initialModelId = useUiStore((state) => state.initialModelId);
+  const setInitialModelId = useUiStore((state) => state.setInitialModelId);
   const queryClient = useQueryClient();
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ModelObjectResponse["model"] | null>(null);
@@ -135,6 +137,14 @@ export default function ModelEditorScreen() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!initialModelId || modelIds.length === 0) return;
+    if (modelIds.includes(initialModelId)) {
+      setSelectedModelId(initialModelId);
+    }
+    setInitialModelId(null);
+  }, [initialModelId, modelIds, setInitialModelId]);
 
   useEffect(() => {
     if (!workingModel) {
