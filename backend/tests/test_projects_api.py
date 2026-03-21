@@ -139,6 +139,28 @@ def test_projects_import_upload(api_client: TestClient) -> None:
     assert body["source_path"] is None
 
 
+def test_create_model_scaffold(api_client: TestClient) -> None:
+    response = api_client.post("/api/v1/projects/demo/files/model", json={"model_id": "RevenueMart"})
+    assert response.status_code == 200, response.text
+
+    body = response.json()
+    assert body["model_id"] == "RevenueMart"
+    assert body["path"] == "model/RevenueMart"
+    assert body["file_path"] == "model/RevenueMart/model.yml"
+
+    content_response = api_client.get("/api/v1/projects/demo/files/content", params={"path": "model/RevenueMart/model.yml"})
+    assert content_response.status_code == 200
+    assert content_response.json()["content"] == "target_table:\n  attributes:\n\nworkflow:\n\n  folders:\n"
+
+    model_response = api_client.get("/api/v1/projects/demo/models/RevenueMart")
+    assert model_response.status_code == 200, model_response.text
+    model_body = model_response.json()
+    assert model_body["model_id"] == "RevenueMart"
+    assert model_body["path"] == "model/RevenueMart/model.yml"
+    assert model_body["model"]["target_table"]["attributes"] == []
+    assert model_body["model"]["workflow"]["folders"] == []
+
+
 def test_validate_api_and_history(api_client: TestClient) -> None:
     response = api_client.post(
         "/api/v1/projects/demo/validate",
@@ -642,6 +664,14 @@ def test_autocomplete_uses_workflow_contexts_and_parameters(api_client: TestClie
         json.dumps(
             {
                 "all_contexts": ["default", "vtb"],
+                "target_table": {
+                    "name": "sample_table",
+                    "schema": "dm",
+                    "attributes": [
+                        {"name": "id", "domain_type": "number", "is_key": True},
+                        {"name": "amount", "domain_type": "number", "is_key": False},
+                    ],
+                },
                 "steps": [
                     {
                         "step_type": "param",
@@ -651,7 +681,24 @@ def test_autocomplete_uses_workflow_contexts_and_parameters(api_client: TestClie
                             "domain_type": "date",
                             "values": {"all": {"type": "static", "value": "2026-01-01"}},
                         },
-                    }
+                    },
+                    {
+                        "step_type": "sql",
+                        "folder": "01_stage",
+                        "full_name": "01_stage/001_main/sql",
+                        "name": "001_main",
+                        "sql_model": {
+                            "name": "001_main",
+                            "path": "/app/projects/demo/model/SampleModel/workflow/01_stage/001_main.sql",
+                            "attributes": [
+                                {"name": "id", "domain_type": "number", "is_key": True},
+                                {"name": "amount", "domain_type": "number", "is_key": False},
+                            ],
+                            "metadata": {
+                                "aliases": [{"alias": "id"}, {"alias": "amount"}],
+                            },
+                        },
+                    },
                 ],
             },
             ensure_ascii=False,
@@ -659,7 +706,7 @@ def test_autocomplete_uses_workflow_contexts_and_parameters(api_client: TestClie
         encoding="utf-8",
     )
 
-    response = api_client.get("/api/v1/projects/demo/autocomplete")
+    response = api_client.get("/api/v1/projects/demo/autocomplete", params={"model_id": "SampleModel"})
     assert response.status_code == 200
     body = response.json()
     assert body["data_source"] == "workflow"
@@ -667,6 +714,29 @@ def test_autocomplete_uses_workflow_contexts_and_parameters(api_client: TestClie
     assert "vtb" in body["all_contexts"]
     param_names = {item["name"] for item in body["parameters"]}
     assert "date_start" in param_names
+    object_names = {item["name"] for item in body["objects"]}
+    assert "dm.sample_table" in object_names
+    assert "_w.01_stage.001_main" in object_names
+    target_table = next(item for item in body["objects"] if item["name"] == "dm.sample_table")
+    assert {column["name"] for column in target_table["columns"]} == {"id", "amount"}
+    workflow_query = next(item for item in body["objects"] if item["name"] == "_w.01_stage.001_main")
+    assert workflow_query["path"] == "model/SampleModel/workflow/01_stage/001_main.sql"
+    assert {column["name"] for column in workflow_query["columns"]} == {"id", "amount"}
+
+
+def test_autocomplete_falls_back_to_model_yml_objects_when_workflow_missing(api_client: TestClient, monkeypatch) -> None:
+    def _raise_build(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(projects_router.FW_SERVICE, "run_workflow_build", _raise_build)
+
+    response = api_client.get("/api/v1/projects/demo/autocomplete", params={"model_id": "SampleModel"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["fallback"] is True
+    assert body["data_source"] == "fallback"
+    object_names = {item["name"] for item in body["objects"]}
+    assert "dm.sample_table" in object_names
 
 
 def test_workflow_status_missing_when_cache_absent(api_client: TestClient) -> None:

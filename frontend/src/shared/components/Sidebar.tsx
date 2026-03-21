@@ -1,21 +1,14 @@
-import { type MouseEvent as ReactMouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { createProjectFolder, deleteProjectPath, fetchProjectTree, fetchProjects, FileNode, renameProjectPath, saveFileContent } from "../../api/projects";
+import { createProjectFolder, createProjectModel, deleteProjectPath, fetchProjectTree, fetchProjects, FileNode, renameProjectPath, saveFileContent } from "../../api/projects";
 import { useEditorStore } from "../../app/store/editorStore";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
+import ProjectStructureDialog, { type ProjectStructureActionMode, type ProjectStructureActionState } from "./ProjectStructureDialog";
 import Tooltip from "./ui/Tooltip";
 
-type SidebarActionMode = "rename" | "delete" | "new-file" | "new-folder";
-
-interface SidebarActionState {
-  mode: SidebarActionMode;
-  path: string;
-  nodeType: "file" | "directory";
-}
-
-type ActionIconName = "new-file" | "new-folder" | "rename" | "delete" | "collapse-all" | "reveal-active" | "system-folders";
+type ActionIconName = "new-file" | "new-folder" | "new-model" | "rename" | "delete" | "collapse-all" | "reveal-active" | "system-folders";
 type NodeVisualKind =
   | "project"
   | "readme"
@@ -146,6 +139,27 @@ function getModelIdFromPath(path: string): string | null {
 function isModelRootDirectory(path: string): boolean {
   const parts = splitNormalizedPath(path);
   return parts.length === 2 && ["model", "models"].includes(parts[0].toLowerCase());
+}
+
+function canCreateModelAtPath(path: string, nodeType: "file" | "directory"): boolean {
+  if (nodeType !== "directory") return false;
+  const normalized = normalizeRootPath(path).toLowerCase();
+  return normalized === "" || normalized === "model";
+}
+
+function getAvailableActionModes(path: string, nodeType: "file" | "directory"): ProjectStructureActionMode[] {
+  if (nodeType === "file") {
+    return ["rename", "delete"];
+  }
+
+  const modes: ProjectStructureActionMode[] = ["new-file", "new-folder"];
+  if (canCreateModelAtPath(path, nodeType)) {
+    modes.push("new-model");
+  }
+  if (path !== ".") {
+    modes.push("rename", "delete");
+  }
+  return modes;
 }
 
 function getParameterScopeFilterFromPath(path: string): string | null {
@@ -327,6 +341,15 @@ function ActionGlyph({ name }: { name: ActionIconName }) {
     );
   }
 
+  if (name === "new-model") {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M8 2.8 12.2 5v6L8 13.2 3.8 11V5L8 2.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+        <path d="M3.8 5 8 7.2 12.2 5M8 7.2V13M12.8 3.7v3.2M11.2 5.3h3.2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
   if (name === "rename") {
     return (
       <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -415,7 +438,7 @@ function SidebarTreeNode({
   expandedPaths: Record<string, boolean>;
   onToggle: (path: string) => void;
   onOpen: (path: string, nodeType: "file" | "directory") => void;
-  onAction: (mode: SidebarActionMode, path: string, nodeType: "file" | "directory") => void;
+  onAction: (mode: ProjectStructureActionMode, path: string, nodeType: "file" | "directory") => void;
   rootLabel: string;
   registerRowRef: (path: string, element: HTMLLIElement | null) => void;
   parentPath?: string | null;
@@ -485,6 +508,9 @@ function SidebarTreeNode({
             <>
               <TreeActionButton icon="new-file" label="New file" onClick={() => onAction("new-file", node.path, "directory")} />
               <TreeActionButton icon="new-folder" label="New folder" onClick={() => onAction("new-folder", node.path, "directory")} />
+              {canCreateModelAtPath(node.path, node.type) ? (
+                <TreeActionButton icon="new-model" label="New model" onClick={() => onAction("new-model", node.path, "directory")} />
+              ) : null}
               {node.path !== "." ? <TreeActionButton icon="rename" label="Rename" onClick={() => onAction("rename", node.path, "directory")} /> : null}
               {node.path !== "." ? <TreeActionButton icon="delete" label="Delete" onClick={() => onAction("delete", node.path, "directory")} /> : null}
             </>
@@ -519,87 +545,6 @@ function SidebarTreeNode({
   );
 }
 
-function SidebarActionDialog({
-  state,
-  value,
-  onValueChange,
-  onModeChange,
-  onCancel,
-  onConfirm,
-  pending,
-}: {
-  state: SidebarActionState | null;
-  value: string;
-  onValueChange: (value: string) => void;
-  onModeChange: (mode: SidebarActionMode) => void;
-  onCancel: () => void;
-  onConfirm: () => void;
-  pending: boolean;
-}) {
-  if (!state) return null;
-
-  const baseName = state.path.split("/").pop() ?? state.path;
-  const parentPath = state.nodeType === "directory" ? state.path : state.path.split("/").slice(0, -1).join("/");
-  const title =
-    state.mode === "rename"
-      ? `Rename ${state.nodeType}`
-      : state.mode === "delete"
-        ? `Delete ${state.nodeType}`
-        : state.mode === "new-file"
-          ? "Create file"
-          : "Create folder";
-
-  return (
-    <div className="sidebar-dialog-overlay" role="dialog" aria-modal="true">
-      <div className="sidebar-dialog">
-        <div className="sidebar-dialog-head">
-          <h2>{title}</h2>
-          <button type="button" className="action-btn" onClick={onCancel}>
-            Close
-          </button>
-        </div>
-        <div className="sidebar-dialog-mode-list">
-          {(["rename", "new-file", "new-folder", "delete"] as SidebarActionMode[]).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              className={mode === state.mode ? "sidebar-dialog-mode sidebar-dialog-mode-active" : "sidebar-dialog-mode"}
-              onClick={() => onModeChange(mode)}
-            >
-              {mode}
-            </button>
-          ))}
-        </div>
-        {state.mode === "delete" ? (
-          <p className="sidebar-dialog-copy">
-            Delete <code>{state.path}</code>? This action removes the item from the project tree.
-          </p>
-        ) : (
-          <>
-            <p className="sidebar-dialog-copy">
-              {state.mode === "rename"
-                ? `Current name: ${baseName}`
-                : `Base path: ${normalizeRootPath(parentPath) || "project root"}`}
-            </p>
-            <label className="sidebar-dialog-field">
-              <span>{state.mode === "rename" ? "New name" : "Path"}</span>
-              <input className="ui-input" value={value} onChange={(event) => onValueChange(event.target.value)} autoFocus />
-            </label>
-          </>
-        )}
-        <div className="sidebar-dialog-actions">
-          <button type="button" className="action-btn" onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="button" className="action-btn action-btn-primary" onClick={onConfirm} disabled={pending}>
-            {pending ? "Working..." : state.mode === "delete" ? "Delete" : "Apply"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function Sidebar() {
   const queryClient = useQueryClient();
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
@@ -615,7 +560,7 @@ export default function Sidebar() {
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
   const activeFilePath = useEditorStore((state) => state.activeFilePath);
   const setLineageTarget = useEditorStore((state) => state.setLineageTarget);
-  const [actionState, setActionState] = useState<SidebarActionState | null>(null);
+  const [actionState, setActionState] = useState<ProjectStructureActionState | null>(null);
   const [actionValue, setActionValue] = useState("");
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({ ".": true });
   const [showSystemFolders, setShowSystemFolders] = useState(false);
@@ -718,9 +663,31 @@ export default function Sidebar() {
     onError: () => addToast("Failed to create folder", "error"),
   });
 
-  const pending = renameMutation.isPending || deleteMutation.isPending || createFileMutation.isPending || createFolderMutation.isPending;
+  const createModelMutation = useMutation({
+    mutationFn: ({ modelId }: { modelId: string }) => createProjectModel(currentProjectId as string, modelId),
+    onSuccess: async (payload) => {
+      setExpandedPaths((previous) => ({
+        ...previous,
+        model: true,
+        [payload.path]: true,
+      }));
+      await Promise.all([
+        refreshTree(),
+        queryClient.invalidateQueries({ queryKey: ["project-info", "tree", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["project-info", "workflow", currentProjectId] }),
+      ]);
+      setInitialModelId(payload.model_id);
+      setActiveTab("model");
+      addToast("Model created", "success");
+      setActionState(null);
+    },
+    onError: () => addToast("Failed to create model", "error"),
+  });
 
-  const openActionDialog = (mode: SidebarActionMode, path: string, nodeType: "file" | "directory") => {
+  const pending =
+    renameMutation.isPending || deleteMutation.isPending || createFileMutation.isPending || createFolderMutation.isPending || createModelMutation.isPending;
+
+  const openActionDialog = (mode: ProjectStructureActionMode, path: string, nodeType: "file" | "directory") => {
     const currentName = path.split("/").pop() ?? "";
     const basePath = nodeType === "directory" ? path : path.split("/").slice(0, -1).join("/");
     const nextValue =
@@ -730,13 +697,15 @@ export default function Sidebar() {
           ? joinPath(basePath, "new_file.sql")
           : mode === "new-folder"
             ? joinPath(basePath, "new_folder")
+            : mode === "new-model"
+              ? "NewModel"
             : "";
 
     setActionState({ mode, path, nodeType });
     setActionValue(nextValue);
   };
 
-  const switchActionMode = (mode: SidebarActionMode) => {
+  const switchActionMode = (mode: ProjectStructureActionMode) => {
     if (!actionState) return;
     openActionDialog(mode, actionState.path, actionState.nodeType);
   };
@@ -749,7 +718,7 @@ export default function Sidebar() {
       return;
     }
 
-    const trimmed = actionValue.trim().replace(/^\/+/g, "");
+    const trimmed = actionState.mode === "new-model" ? actionValue.trim() : actionValue.trim().replace(/^\/+/g, "");
     if (!trimmed) {
       addToast("Value is required", "error");
       return;
@@ -762,6 +731,11 @@ export default function Sidebar() {
 
     if (actionState.mode === "new-folder") {
       createFolderMutation.mutate({ path: trimmed });
+      return;
+    }
+
+    if (actionState.mode === "new-model") {
+      createModelMutation.mutate({ modelId: trimmed });
       return;
     }
 
@@ -835,6 +809,7 @@ export default function Sidebar() {
               <>
                 <TreeActionButton icon="new-file" label="New file" onClick={() => openActionDialog("new-file", ".", "directory")} />
                 <TreeActionButton icon="new-folder" label="New folder" onClick={() => openActionDialog("new-folder", ".", "directory")} />
+                <TreeActionButton icon="new-model" label="New model" onClick={() => openActionDialog("new-model", ".", "directory")} />
                 <TreeActionButton
                   icon="system-folders"
                   label={showSystemFolders ? "Скрыть системные папки" : "Показать системные папки"}
@@ -918,9 +893,10 @@ export default function Sidebar() {
         ) : null}
       </aside>
 
-      <SidebarActionDialog
+      <ProjectStructureDialog
         state={actionState}
         value={actionValue}
+        availableModes={actionState ? getAvailableActionModes(actionState.path, actionState.nodeType) : []}
         onValueChange={setActionValue}
         onModeChange={switchActionMode}
         onCancel={() => setActionState(null)}

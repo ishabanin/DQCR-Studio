@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
 
 import {
+  createProjectModel,
   fetchModelObject,
   fetchModelYmlSchema,
   fetchProjectTree,
@@ -13,6 +14,7 @@ import {
 import { useTheme } from "../../app/providers/ThemeProvider";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
+import ProjectStructureDialog, { type ProjectStructureActionState } from "../../shared/components/ProjectStructureDialog";
 import Tooltip from "../../shared/components/ui/Tooltip";
 import { getDqcrTheme } from "../sql/dqcrLanguage";
 import { formToYaml, yamlToForm } from "./syncEngine";
@@ -71,6 +73,8 @@ export default function ModelEditorScreen() {
   const [yamlText, setYamlText] = useState("");
   const [yamlError, setYamlError] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("synced");
+  const [createModelState, setCreateModelState] = useState<ProjectStructureActionState | null>(null);
+  const [createModelValue, setCreateModelValue] = useState("NewModel");
   const formToYamlTimerRef = useRef<number | null>(null);
   const yamlToFormTimerRef = useRef<number | null>(null);
 
@@ -112,6 +116,29 @@ export default function ModelEditorScreen() {
     },
     onError: () => {
       addToast("Failed to save model", "error");
+    },
+  });
+
+  const createModelMutation = useMutation({
+    mutationFn: (modelId: string) => createProjectModel(currentProjectId as string, modelId),
+    onSuccess: async (payload) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["projectTree", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["project-info", "tree", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["project-info", "workflow", currentProjectId] }),
+      ]);
+      setSelectedModelId(payload.model_id);
+      setInitialModelId(payload.model_id);
+      setDraft(null);
+      setMode("visual");
+      setYamlText("");
+      setYamlError(null);
+      setSyncStatus("synced");
+      setCreateModelState(null);
+      addToast("Model created", "success");
+    },
+    onError: () => {
+      addToast("Failed to create model", "error");
     },
   });
 
@@ -269,9 +296,20 @@ export default function ModelEditorScreen() {
       <div className="model-editor-head">
         <h1>Model Editor</h1>
         <div className="model-editor-head-actions">
+          <button
+            type="button"
+            className="action-btn"
+            onClick={() => {
+              setCreateModelValue("NewModel");
+              setCreateModelState({ mode: "new-model", path: ".", nodeType: "directory" });
+            }}
+          >
+            New model
+          </button>
           <select
             className="ui-select"
             value={activeModelId ?? ""}
+            disabled={modelIds.length === 0}
             onChange={(event) => {
               setSelectedModelId(event.target.value || null);
               setDraft(null);
@@ -280,6 +318,7 @@ export default function ModelEditorScreen() {
               setSyncStatus("synced");
             }}
           >
+            {modelIds.length === 0 ? <option value="">No models yet</option> : null}
             {modelIds.map((item) => (
               <option key={item} value={item}>
                 {item}
@@ -344,7 +383,23 @@ export default function ModelEditorScreen() {
       </div>
 
       {!workingModel ? (
-        <p>No model selected.</p>
+        <section className="model-editor-empty">
+          <span className="model-editor-empty-eyebrow">model/</span>
+          <h2>Create a model shell first</h2>
+          <p>
+            New models start as <code>model/&lt;ModelId&gt;/model.yml</code> with an empty scaffold, so you can fill the structure in visual mode or YAML.
+          </p>
+          <button
+            type="button"
+            className="action-btn action-btn-primary"
+            onClick={() => {
+              setCreateModelValue("NewModel");
+              setCreateModelState({ mode: "new-model", path: ".", nodeType: "directory" });
+            }}
+          >
+            Create model
+          </button>
+        </section>
       ) : mode === "yaml" ? (
         <section className="model-editor-section">
           <h2>YAML Mode</h2>
@@ -523,6 +578,24 @@ export default function ModelEditorScreen() {
           </section>
         </div>
       )}
+
+      <ProjectStructureDialog
+        state={createModelState}
+        value={createModelValue}
+        availableModes={["new-model"]}
+        onValueChange={setCreateModelValue}
+        onModeChange={(_mode) => undefined}
+        onCancel={() => setCreateModelState(null)}
+        onConfirm={() => {
+          const modelId = createModelValue.trim();
+          if (!modelId) {
+            addToast("Model ID is required", "error");
+            return;
+          }
+          createModelMutation.mutate(modelId);
+        }}
+        pending={createModelMutation.isPending}
+      />
     </section>
   );
 }

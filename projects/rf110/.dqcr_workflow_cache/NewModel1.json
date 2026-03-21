@@ -1,0 +1,169 @@
+{
+  "model_name": "NewModel1",
+  "model_path": "/app/projects/rf110/model/NewModel1",
+  "target_table": {
+    "name": "NewModel1",
+    "context": "all",
+    "schema": null,
+    "attributes": [],
+    "primary_keys": []
+  },
+  "settings": {
+    "workflow_template": null,
+    "materialization_map": {},
+    "folder_contexts": {}
+  },
+  "config": {},
+  "steps": [
+    {
+      "step_id": "param_date_end_default",
+      "name": "param_date_end",
+      "folder": "",
+      "full_name": "param_date_end_default",
+      "step_type": "param",
+      "step_scope": "params",
+      "sql_model": null,
+      "param_model": {
+        "name": "date_end",
+        "domain_type": "date",
+        "description": "Дата расчета",
+        "attributes": [],
+        "values": {
+          "all": {
+            "type": "static",
+            "value": ":DATE_END:"
+          },
+          "vtb": {
+            "type": "dynamic",
+            "value": "SELECT MAX(calc_date) FROM vtb_dates"
+          }
+        },
+        "source_sql": null,
+        "prepared_sql": {
+          "adb": "",
+          "oracle": "",
+          "postgresql": ""
+        },
+        "rendered_sql": {
+          "adb": "\n\nSELECT ':DATE_END:' as date_end\n",
+          "oracle": "\n\nSELECT ':DATE_END:' as date_end\n",
+          "postgresql": "\n\nSELECT ':DATE_END:' as date_end\n"
+        }
+      },
+      "dependencies": [],
+      "context": "default",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    },
+    {
+      "step_id": "param_date_end_vtb",
+      "name": "param_date_end",
+      "folder": "",
+      "full_name": "param_date_end_vtb",
+      "step_type": "param",
+      "step_scope": "params",
+      "sql_model": null,
+      "param_model": {
+        "name": "date_end",
+        "domain_type": "date",
+        "description": "Дата расчета",
+        "attributes": [],
+        "values": {
+          "all": {
+            "type": "static",
+            "value": ":DATE_END:"
+          },
+          "vtb": {
+            "type": "dynamic",
+            "value": "SELECT MAX(calc_date) FROM vtb_dates"
+          }
+        },
+        "source_sql": null,
+        "prepared_sql": {
+          "adb": "SELECT MAX(calc_date) FROM vtb_dates"
+        },
+        "rendered_sql": {
+          "adb": "\n\nSELECT ':DATE_END:' as date_end\n"
+        }
+      },
+      "dependencies": [
+        "param_date_end_default"
+      ],
+      "context": "vtb",
+      "is_ephemeral": false,
+      "enabled": true,
+      "asynch": false,
+      "loop_step_ref": null,
+      "tools": null
+    }
+  ],
+  "tools": [
+    "oracle",
+    "adb",
+    "postgresql"
+  ],
+  "project_name": "RF110",
+  "project_properties": {
+    "repsysname": "f110"
+  },
+  "context_name": null,
+  "all_contexts": {
+    "default": {
+      "name": "default",
+      "project": "distr",
+      "tools": [
+        "adb",
+        "oracle",
+        "postgresql"
+      ],
+      "flags": {
+        "enable_heavy_calc": true,
+        "debug_mode": false,
+        "overduecalcmethod": {
+          "fifo": true,
+          "lifo": false
+        }
+      },
+      "constants": {
+        "schema": "DEFAULT_SCHEMA"
+      },
+      "cte": {}
+    },
+    "vtb": {
+      "name": "vtb",
+      "project": "vtb",
+      "tools": [
+        "adb"
+      ],
+      "flags": {
+        "calcinn": true,
+        "enable_heavy_calc": false,
+        "debug_mode": true,
+        "overduecalcmethod": {
+          "fifo": false,
+          "lifo": true
+        }
+      },
+      "constants": {
+        "schema": "VTB_SCHEMA"
+      },
+      "cte": {}
+    }
+  },
+  "folders": {
+    "": {
+      "name": "",
+      "short_name": "",
+      "enabled": true,
+      "contexts": [
+        "all"
+      ],
+      "materialized": "insert_fc",
+      "pre": [],
+      "post": []
+    }
+  }
+}

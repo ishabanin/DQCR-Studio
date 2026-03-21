@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import YAML from "yaml";
 
-import { fetchProjects, saveFileContent } from "../../api/projects";
+import { createProjectModel, fetchProjects, saveFileContent } from "../../api/projects";
 import { useEditorStore } from "../../app/store/editorStore";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
+import ProjectStructureDialog, { type ProjectStructureActionState } from "../../shared/components/ProjectStructureDialog";
 import { ContextsCard } from "./components/ContextsCard";
 import { ModelSummaryGrid } from "./components/ModelSummaryGrid";
 import { ParametersSummaryCard } from "./components/ParametersSummaryCard";
@@ -167,6 +168,7 @@ export function ProjectInfoScreen() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
   const addToast = useUiStore((state) => state.addToast);
+  const setInitialModelId = useUiStore((state) => state.setInitialModelId);
   const setBottomPanelTab = useUiStore((state) => state.setBottomPanelTab);
   const toggleBottomPanel = useUiStore((state) => state.toggleBottomPanel);
   const bottomPanelExpanded = useUiStore((state) => state.bottomPanelExpanded);
@@ -183,6 +185,8 @@ export function ProjectInfoScreen() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [draftSettings, setDraftSettings] = useState<ProjectSettings | null>(null);
   const [draftProperties, setDraftProperties] = useState<PropertyEntry[] | null>(null);
+  const [createModelState, setCreateModelState] = useState<ProjectStructureActionState | null>(null);
+  const [createModelValue, setCreateModelValue] = useState("NewModel");
 
   useEffect(() => {
     if (!data || isDirty) return;
@@ -194,6 +198,22 @@ export function ProjectInfoScreen() {
     () => projectsQuery.data?.find((project) => project.id === currentProjectId) ?? null,
     [currentProjectId, projectsQuery.data],
   );
+
+  const createModelMutation = useMutation({
+    mutationFn: (modelId: string) => createProjectModel(currentProjectId as string, modelId),
+    onSuccess: async (payload) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["projectTree", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["project-info", "tree", currentProjectId] }),
+        queryClient.invalidateQueries({ queryKey: ["project-info", "workflow", currentProjectId] }),
+      ]);
+      setInitialModelId(payload.model_id);
+      setActiveTab("model");
+      setCreateModelState(null);
+      addToast("Model created", "success");
+    },
+    onError: () => addToast("Failed to create model", "error"),
+  });
 
   const handleSave = async () => {
     if (!currentProjectId || !data || !draftSettings || !draftProperties || isSaving) return;
@@ -236,6 +256,20 @@ export function ProjectInfoScreen() {
     if (!bottomPanelExpanded) {
       toggleBottomPanel();
     }
+  };
+
+  const handleOpenCreateModel = () => {
+    setCreateModelValue("NewModel");
+    setCreateModelState({ mode: "new-model", path: ".", nodeType: "directory" });
+  };
+
+  const handleCreateModel = () => {
+    const modelId = createModelValue.trim();
+    if (!modelId) {
+      addToast("Model ID is required", "error");
+      return;
+    }
+    createModelMutation.mutate(modelId);
   };
 
   if (!currentProjectId) {
@@ -346,6 +380,7 @@ export function ProjectInfoScreen() {
             totalFolders={data.totalFolders}
             totalSql={data.totalSqlFiles}
             onOpenModel={handleOpenModel}
+            onCreateModel={handleOpenCreateModel}
           />
 
           <div className="pi-two-col" style={{ marginBottom: 0 }}>
@@ -357,6 +392,17 @@ export function ProjectInfoScreen() {
           </div>
         </>
       ) : null}
+
+      <ProjectStructureDialog
+        state={createModelState}
+        value={createModelValue}
+        availableModes={["new-model"]}
+        onValueChange={setCreateModelValue}
+        onModeChange={(_mode) => undefined}
+        onCancel={() => setCreateModelState(null)}
+        onConfirm={handleCreateModel}
+        pending={createModelMutation.isPending}
+      />
     </div>
   );
 }

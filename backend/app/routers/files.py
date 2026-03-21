@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from fastapi import APIRouter, Body, HTTPException, Query, status
 from pydantic import BaseModel
@@ -33,7 +34,43 @@ class FolderCreateRequest(BaseModel):
     path: str
 
 
+class ModelCreateRequest(BaseModel):
+    model_id: str
+
+
 FileNode.model_rebuild()
+MODEL_ID_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*$")
+
+
+def _render_empty_model_yml() -> str:
+    return (
+        "target_table:\n"
+        "  attributes:\n"
+        "\n"
+        "workflow:\n"
+        "\n"
+        "  folders:\n"
+    )
+
+
+def _validate_model_id(raw_value: str) -> str:
+    model_id = raw_value.strip()
+    if not model_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Model id is required.",
+        )
+    if "/" in model_id or "\\" in model_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Model id must not contain path separators.",
+        )
+    if not MODEL_ID_PATTERN.match(model_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Model id must match ^[A-Za-z_][A-Za-z0-9_.-]*$.",
+        )
+    return model_id
 
 
 def _build_tree(root: Path, current: Path) -> FileNode:
@@ -113,6 +150,36 @@ def create_folder(project_id: str, payload: FolderCreateRequest = Body(...)) -> 
     relative_path = str(target.relative_to(project_path))
     trigger_workflow_rebuild(project_id, changed_paths=[relative_path])
     return {"status": "created", "path": relative_path}
+
+
+@router.post("/model")
+def create_model(project_id: str, payload: ModelCreateRequest = Body(...)) -> dict[str, str]:
+    model_id = _validate_model_id(payload.model_id)
+
+    base_projects = Path(settings.projects_path)
+    project_path = resolve_project_path(base_projects, project_id)
+    model_root = ensure_within_base(project_path, project_path / "model")
+    model_dir = ensure_within_base(project_path, model_root / model_id)
+    model_yml_path = ensure_within_base(project_path, model_dir / "model.yml")
+
+    if model_dir.exists():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Model '{model_id}' already exists.",
+        )
+
+    model_dir.mkdir(parents=True, exist_ok=False)
+    model_yml_path.write_text(_render_empty_model_yml(), encoding="utf-8")
+
+    relative_dir = str(model_dir.relative_to(project_path))
+    relative_file = str(model_yml_path.relative_to(project_path))
+    trigger_workflow_rebuild(project_id, changed_paths=[relative_dir, relative_file])
+    return {
+        "status": "created",
+        "path": relative_dir,
+        "model_id": model_id,
+        "file_path": relative_file,
+    }
 
 
 @router.post("/rename")

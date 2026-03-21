@@ -1990,6 +1990,259 @@ def _collect_project_parameters_primary(
     return merged, all_contexts, fallback_models
 
 
+def _normalize_project_relative_path(
+    project_id: str,
+    project_path: Path,
+    raw_path: object,
+) -> str | None:
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        return None
+
+    normalized = raw_path.strip().replace("\\", "/")
+    project_marker = f"/{project_id}/"
+    if normalized.startswith(f"{project_id}/"):
+        return normalized[len(project_id) + 1 :]
+    if project_marker in normalized:
+        return normalized.split(project_marker, 1)[1]
+
+    try:
+        path_obj = Path(normalized)
+        if path_obj.is_absolute():
+            return str(path_obj.relative_to(project_path)).replace("\\", "/")
+    except Exception:
+        return normalized
+
+    return normalized
+
+
+def _normalize_autocomplete_lookup_keys(keys: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for raw in keys:
+        value = raw.strip()
+        if not value:
+            continue
+        token = value.lower()
+        if token in seen:
+            continue
+        seen.add(token)
+        result.append(value)
+    return result
+
+
+def _normalize_autocomplete_columns(columns_raw: object) -> list[dict[str, object]]:
+    columns = columns_raw if isinstance(columns_raw, list) else []
+    result: list[dict[str, object]] = []
+    seen: set[str] = set()
+
+    for item in columns:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        if not name:
+            continue
+        token = name.lower()
+        if token in seen:
+            continue
+        seen.add(token)
+        result.append(
+            {
+                "name": name,
+                "domain_type": item.get("domain_type"),
+                "is_key": item.get("is_key"),
+            }
+        )
+
+    return result
+
+
+def _columns_from_sql_metadata_aliases(sql_model: dict[str, object]) -> list[dict[str, object]]:
+    metadata_raw = sql_model.get("metadata")
+    metadata = metadata_raw if isinstance(metadata_raw, dict) else {}
+    aliases_raw = metadata.get("aliases")
+    aliases = aliases_raw if isinstance(aliases_raw, list) else []
+    result: list[dict[str, object]] = []
+    seen: set[str] = set()
+
+    for item in aliases:
+        if not isinstance(item, dict):
+            continue
+        alias = str(item.get("alias", "")).strip()
+        if not alias:
+            continue
+        token = alias.lower()
+        if token in seen:
+            continue
+        seen.add(token)
+        result.append({"name": alias, "domain_type": None, "is_key": None})
+
+    return result
+
+
+def _build_target_table_autocomplete_object(
+    project_id: str,
+    model_id: str,
+    target_table_raw: object,
+    *,
+    source: str,
+) -> dict[str, object] | None:
+    target_table = target_table_raw if isinstance(target_table_raw, dict) else {}
+    table_name = str(target_table.get("name", "")).strip()
+    if not table_name:
+        return None
+
+    schema_name = str(target_table.get("schema", "")).strip()
+    canonical_name = f"{schema_name}.{table_name}" if schema_name else table_name
+    lookup_keys = _normalize_autocomplete_lookup_keys([canonical_name, table_name])
+    columns = _normalize_autocomplete_columns(target_table.get("attributes"))
+
+    return {
+        "name": canonical_name,
+        "kind": "target_table",
+        "source": source,
+        "model_id": model_id,
+        "path": f"model/{model_id}/model.yml",
+        "lookup_keys": lookup_keys,
+        "columns": columns,
+    }
+
+
+def _build_workflow_query_autocomplete_objects(
+    project_id: str,
+    project_path: Path,
+    model_id: str,
+    workflow_payload: dict[str, object],
+) -> list[dict[str, object]]:
+    steps_raw = workflow_payload.get("steps")
+    steps = [item for item in steps_raw if isinstance(item, dict)] if isinstance(steps_raw, list) else []
+    result: list[dict[str, object]] = []
+    seen_names: set[str] = set()
+
+    for step in steps:
+        if str(step.get("step_type", "")).lower() != "sql":
+            continue
+
+        full_name = str(step.get("full_name", "")).strip()
+        if "/cte/" in full_name:
+            continue
+
+        folder = str(step.get("folder", "")).strip()
+        if not folder:
+            continue
+
+        sql_model_raw = step.get("sql_model")
+        sql_model = sql_model_raw if isinstance(sql_model_raw, dict) else {}
+        query_name = str(sql_model.get("name") or step.get("name") or "").strip()
+        if not query_name:
+            continue
+
+        canonical_name = f"_w.{folder.replace('/', '.').strip('.')}.{query_name}"
+        token = canonical_name.lower()
+        if token in seen_names:
+            continue
+        seen_names.add(token)
+
+        columns = _normalize_autocomplete_columns(sql_model.get("attributes"))
+        if not columns:
+            columns = _columns_from_sql_metadata_aliases(sql_model)
+
+        result.append(
+            {
+                "name": canonical_name,
+                "kind": "workflow_query",
+                "source": "project_workflow",
+                "model_id": model_id,
+                "path": _normalize_project_relative_path(project_id, project_path, sql_model.get("path")),
+                "lookup_keys": [canonical_name],
+                "columns": columns,
+            }
+        )
+
+    return result
+
+
+def _merge_autocomplete_objects(objects: list[dict[str, object]]) -> list[dict[str, object]]:
+    merged: dict[tuple[str, str], dict[str, object]] = {}
+
+    for item in objects:
+        name = str(item.get("name", "")).strip()
+        kind = str(item.get("kind", "")).strip()
+        if not name or not kind:
+            continue
+
+        key = (kind.lower(), name.lower())
+        existing = merged.get(key)
+        if existing is None:
+            merged[key] = item
+            continue
+
+        existing_lookup = existing.get("lookup_keys")
+        current_lookup = item.get("lookup_keys")
+        existing["lookup_keys"] = _normalize_autocomplete_lookup_keys(
+            [*(existing_lookup if isinstance(existing_lookup, list) else []), *(current_lookup if isinstance(current_lookup, list) else [])]
+        )
+
+        existing_columns = existing.get("columns")
+        current_columns = item.get("columns")
+        existing_count = len(existing_columns) if isinstance(existing_columns, list) else 0
+        current_count = len(current_columns) if isinstance(current_columns, list) else 0
+        if current_count > existing_count:
+            existing["columns"] = current_columns
+        if not existing.get("path") and item.get("path"):
+            existing["path"] = item.get("path")
+        if not existing.get("model_id") and item.get("model_id"):
+            existing["model_id"] = item.get("model_id")
+
+    return sorted(
+        merged.values(),
+        key=lambda item: (
+            0 if str(item.get("kind", "")).lower() == "workflow_query" else 1,
+            str(item.get("model_id", "")).lower(),
+            str(item.get("name", "")).lower(),
+        ),
+    )
+
+
+def _collect_project_autocomplete_objects(
+    project_path: Path,
+    project_id: str,
+    active_model_id: str | None,
+) -> tuple[list[dict[str, object]], list[str]]:
+    objects: list[dict[str, object]] = []
+    fallback_models: list[str] = []
+
+    for model_id in _list_model_ids(project_path):
+        workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
+        if isinstance(workflow_payload, dict):
+            target_object = _build_target_table_autocomplete_object(
+                project_id,
+                model_id,
+                workflow_payload.get("target_table"),
+                source="project_workflow",
+            )
+            if target_object is not None:
+                objects.append(target_object)
+            if active_model_id and model_id == active_model_id:
+                objects.extend(_build_workflow_query_autocomplete_objects(project_id, project_path, model_id, workflow_payload))
+            continue
+
+        fallback_models.append(model_id)
+        model_yml_path = ensure_within_base(project_path, _resolve_model_path(project_path, model_id) / "model.yml")
+        if not model_yml_path.exists() or not model_yml_path.is_file():
+            continue
+        fallback_model = _parse_model_yml_to_object(model_yml_path)
+        target_object = _build_target_table_autocomplete_object(
+            project_id,
+            model_id,
+            fallback_model.get("target_table"),
+            source="project_model_fallback",
+        )
+        if target_object is not None:
+            objects.append(target_object)
+
+    return _merge_autocomplete_objects(objects), sorted(set(fallback_models), key=str.lower)
+
+
 def _ensure_workflow_payload(
     project_id: str,
     model_id: str,
@@ -3393,12 +3646,14 @@ def rebuild_model_workflow(project_id: str, model_id: str) -> dict[str, object]:
 
 
 @router.get("/{project_id}/autocomplete")
-def get_project_autocomplete(project_id: str) -> dict[str, object]:
+def get_project_autocomplete(project_id: str, model_id: str | None = Query(default=None)) -> dict[str, object]:
     base_projects = Path(settings.projects_path)
     project_path = resolve_project_path(base_projects, project_id)
-    parameters, all_contexts, fallback_models = _collect_project_parameters_primary(project_path, project_id)
+    parameters, all_contexts, parameter_fallback_models = _collect_project_parameters_primary(project_path, project_id)
+    objects, object_fallback_models = _collect_project_autocomplete_objects(project_path, project_id, model_id)
 
     macros = [{"name": macro_name, "source": "builtin"} for macro_name in DEFAULT_MACROS]
+    fallback_models = sorted(set([*parameter_fallback_models, *object_fallback_models]), key=str.lower)
     used_fallback = len(fallback_models) > 0
     if used_fallback:
         _log_workflow_fallback(
@@ -3419,6 +3674,7 @@ def get_project_autocomplete(project_id: str) -> dict[str, object]:
         ],
         "macros": macros,
         "config_keys": DQCR_CONFIG_KEYS,
+        "objects": objects,
         "all_contexts": sorted(all_contexts),
         "data_source": "fallback" if used_fallback else "workflow",
         "fallback": used_fallback,

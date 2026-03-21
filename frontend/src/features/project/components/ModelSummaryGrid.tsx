@@ -7,12 +7,14 @@ export function ModelSummaryGrid({
   totalFolders,
   totalSql,
   onOpenModel,
+  onCreateModel,
 }: {
   models: ModelSummary[];
   cacheStatuses: Record<string, ModelCacheStatus>;
   totalFolders: number;
   totalSql: number;
   onOpenModel: (modelId: string) => void;
+  onCreateModel?: () => void;
 }) {
   return (
     <div style={{ marginBottom: "var(--pi-gap-lg)" }}>
@@ -25,9 +27,16 @@ export function ModelSummaryGrid({
         }}
       >
         <span style={{ fontSize: "var(--pi-text-base)", fontWeight: "var(--pi-weight-medium)" }}>Models</span>
-        <span style={{ fontSize: "var(--pi-text-xs)", color: "var(--color-text-tertiary)" }}>
-          {models.length} models · {totalFolders} folders · {totalSql} SQL files
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: "var(--pi-text-xs)", color: "var(--color-text-tertiary)" }}>
+            {models.length} models · {totalFolders} folders · {totalSql} SQL files
+          </span>
+          {onCreateModel ? (
+            <button className="pi-btn-secondary" style={{ padding: "5px 10px", fontSize: 11 }} onClick={onCreateModel}>
+              New model
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {models.length === 0 ? (
@@ -51,8 +60,13 @@ export function ModelSummaryGrid({
               margin: "0 auto",
             }}
           >
-            Create a model directory in model/ and add model.yml to get started
+            Create a model scaffold in <code>model/&lt;ModelId&gt;/model.yml</code> to get started
           </div>
+          {onCreateModel ? (
+            <button className="pi-btn-primary visible" style={{ marginTop: 14, padding: "7px 14px", fontSize: 11 }} onClick={onCreateModel}>
+              Create first model
+            </button>
+          ) : null}
         </div>
       ) : (
         <div className="pi-models-grid">

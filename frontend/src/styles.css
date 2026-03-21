@@ -2632,6 +2632,42 @@ body {
   font-size: 12px;
 }
 
+.model-editor-empty {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 22px;
+  border: 1px dashed rgba(15, 110, 86, 0.24);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(29, 158, 117, 0.1), transparent 36%),
+    linear-gradient(180deg, rgba(240, 253, 250, 0.86), rgba(255, 255, 255, 0.74));
+}
+
+.model-editor-empty h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.model-editor-empty p {
+  margin: 0;
+  max-width: 620px;
+  color: var(--text-muted);
+}
+
+.model-editor-empty-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(15, 110, 86, 0.08);
+  color: var(--accent-700);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .model-sync-badge {
   display: inline-flex;
   align-items: center;

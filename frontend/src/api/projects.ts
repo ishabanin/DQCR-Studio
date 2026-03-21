@@ -47,6 +47,13 @@ export interface FileNode {
   children?: FileNode[];
 }
 
+export interface CreateProjectModelResponse {
+  status: string;
+  path: string;
+  model_id: string;
+  file_path: string;
+}
+
 export interface AutocompleteParameterItem {
   name: string;
   scope: string;
@@ -60,10 +67,27 @@ export interface AutocompleteMacroItem {
   source: string;
 }
 
+export interface AutocompleteObjectColumnItem {
+  name: string;
+  domain_type: string | null;
+  is_key: boolean | null;
+}
+
+export interface AutocompleteObjectItem {
+  name: string;
+  kind: "target_table" | "workflow_query";
+  source: "project_workflow" | "project_model_fallback";
+  model_id: string | null;
+  path: string | null;
+  lookup_keys: string[];
+  columns: AutocompleteObjectColumnItem[];
+}
+
 export interface ProjectAutocompleteResponse {
   parameters: AutocompleteParameterItem[];
   macros: AutocompleteMacroItem[];
   config_keys: string[];
+  objects: AutocompleteObjectItem[];
   all_contexts?: string[];
   data_source?: "workflow" | "fallback";
   fallback?: boolean;
@@ -490,6 +514,11 @@ export async function createProjectFolder(projectId: string, path: string): Prom
   await apiClient.post(`/projects/${projectId}/files/folder`, { path });
 }
 
+export async function createProjectModel(projectId: string, modelId: string): Promise<CreateProjectModelResponse> {
+  const { data } = await apiClient.post<CreateProjectModelResponse>(`/projects/${projectId}/files/model`, { model_id: modelId });
+  return data;
+}
+
 export async function fetchFileContent(projectId: string, path: string): Promise<string> {
   const { data } = await apiClient.get<{ path: string; content: string }>(`/projects/${projectId}/files/content`, {
     params: { path },
@@ -501,8 +530,10 @@ export async function saveFileContent(projectId: string, path: string, content: 
   await apiClient.put(`/projects/${projectId}/files/content`, { path, content });
 }
 
-export async function fetchProjectAutocomplete(projectId: string): Promise<ProjectAutocompleteResponse> {
-  const { data } = await apiClient.get<ProjectAutocompleteResponse>(`/projects/${projectId}/autocomplete`);
+export async function fetchProjectAutocomplete(projectId: string, modelId?: string | null): Promise<ProjectAutocompleteResponse> {
+  const { data } = await apiClient.get<ProjectAutocompleteResponse>(`/projects/${projectId}/autocomplete`, {
+    params: modelId ? { model_id: modelId } : undefined,
+  });
   return data;
 }
 

@@ -113,7 +113,7 @@ async function mockApi(page: Page): Promise<void> {
     }
 
     if (path === `/api/v1/projects/${PROJECT_ID}/autocomplete`) {
-      await route.fulfill({ json: { parameters: [], macros: [], config_keys: [] } });
+      await route.fulfill({ json: { parameters: [], macros: [], config_keys: [], objects: [] } });
       return;
     }
 

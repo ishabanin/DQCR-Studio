@@ -350,8 +350,8 @@ export default function SqlEditorScreen() {
     enabled: Boolean(currentProjectId && activeFilePath),
   });
   const autocompleteQuery = useQuery({
-    queryKey: ["autocomplete", currentProjectId],
-    queryFn: () => fetchProjectAutocomplete(currentProjectId as string),
+    queryKey: ["autocomplete", currentProjectId, modelId],
+    queryFn: () => fetchProjectAutocomplete(currentProjectId as string, modelId),
     enabled: Boolean(currentProjectId),
   });
   const configChainQuery = useQuery({
@@ -444,8 +444,10 @@ export default function SqlEditorScreen() {
       parameters: autocompleteQuery.data.parameters.map((item) => item.name),
       macros: autocompleteQuery.data.macros.map((item) => item.name),
       configKeys: autocompleteQuery.data.config_keys,
+      objects: autocompleteQuery.data.objects ?? [],
+      activeModelId: modelId,
     });
-  }, [autocompleteQuery.data]);
+  }, [autocompleteQuery.data, modelId]);
 
   useEffect(() => {
     if (contentQuery.data !== undefined) {
