@@ -1,4 +1,6 @@
 from fastapi.testclient import TestClient
+
+from app.routers import projects as projects_router
 from pathlib import Path
 import json
 
@@ -191,6 +193,66 @@ def test_build_api_history_and_files(api_client: TestClient) -> None:
     assert download_response.headers["content-type"].startswith("application/zip")
 
 
+def test_build_history_persists_after_memory_reset(api_client: TestClient) -> None:
+    build_response = api_client.post(
+        "/api/v1/projects/demo/build",
+        json={
+            "model_id": "SampleModel",
+            "engine": "dqcr",
+            "context": "default",
+            "dry_run": False,
+        },
+    )
+    assert build_response.status_code == 200
+    build_id = build_response.json()["build_id"]
+
+    projects_router._BUILD_HISTORY.clear()
+
+    history_response = api_client.get("/api/v1/projects/demo/build/history")
+    assert history_response.status_code == 200
+    history = history_response.json()
+    assert len(history) >= 1
+    assert history[0]["build_id"] == build_id
+
+
+def test_build_history_discovers_existing_build_dirs_without_history_file(api_client: TestClient) -> None:
+    project_root = Path(projects_router.settings.projects_path) / "demo"
+    build_dir = project_root / ".dqcr_builds" / "bld-legacy1234" / "SampleModel" / "workflow" / "01_stage"
+    build_dir.mkdir(parents=True, exist_ok=True)
+    (build_dir / "001_main.sql").write_text("select 1;\n", encoding="utf-8")
+
+    history_file = project_root / ".dqcr_builds" / "history.json"
+    if history_file.exists():
+        history_file.unlink()
+    projects_router._BUILD_HISTORY.clear()
+
+    history_response = api_client.get("/api/v1/projects/demo/build/history")
+    assert history_response.status_code == 200
+    history = history_response.json()
+    assert len(history) >= 1
+    assert history[0]["build_id"] == "bld-legacy1234"
+    assert history[0]["files_count"] >= 1
+    assert history[0]["model"] == "SampleModel"
+
+
+def test_build_history_discovers_builds_in_custom_output_paths(api_client: TestClient) -> None:
+    project_root = Path(projects_router.settings.projects_path) / "demo"
+    build_dir = project_root / "custom_output" / "bld-custom1234" / "SampleModel"
+    build_dir.mkdir(parents=True, exist_ok=True)
+    (build_dir / "result.sql").write_text("select 42;\n", encoding="utf-8")
+
+    history_file = project_root / ".dqcr_builds" / "history.json"
+    if history_file.exists():
+        history_file.unlink()
+    projects_router._BUILD_HISTORY.clear()
+
+    history_response = api_client.get("/api/v1/projects/demo/build/history")
+    assert history_response.status_code == 200
+    history = history_response.json()
+    custom_item = next((item for item in history if item["build_id"] == "bld-custom1234"), None)
+    assert custom_item is not None
+    assert custom_item["output_path"].startswith("custom_output/bld-custom1234")
+    assert custom_item["files_count"] >= 1
 def test_workflow_status_and_model_workflow_endpoints(api_client: TestClient) -> None:
     status_response = api_client.get("/api/v1/projects/demo/workflow/status")
     assert status_response.status_code == 200

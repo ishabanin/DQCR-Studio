@@ -15,7 +15,7 @@ interface SidebarActionState {
   nodeType: "file" | "directory";
 }
 
-type ActionIconName = "new-file" | "new-folder" | "rename" | "delete" | "collapse-all" | "reveal-active";
+type ActionIconName = "new-file" | "new-folder" | "rename" | "delete" | "collapse-all" | "reveal-active" | "system-folders";
 type NodeVisualKind =
   | "project"
   | "readme"
@@ -55,6 +55,26 @@ function getAncestorPaths(path: string): string[] {
 function shouldAutoExpand(node: FileNode): boolean {
   if (node.path === ".") return true;
   return ["contexts", "parameters", "model"].includes(node.path.toLowerCase());
+}
+
+function isSystemDirectory(node: FileNode): boolean {
+  return node.type === "directory" && node.path !== "." && node.name.startsWith(".");
+}
+
+function filterTreeForDisplay(node: FileNode, showSystemFolders: boolean): FileNode | null {
+  if (!showSystemFolders && isSystemDirectory(node)) {
+    return null;
+  }
+
+  if (node.type !== "directory") {
+    return node;
+  }
+
+  const filteredChildren = (node.children ?? [])
+    .map((child) => filterTreeForDisplay(child, showSystemFolders))
+    .filter((child): child is FileNode => Boolean(child));
+
+  return { ...node, children: filteredChildren };
 }
 
 function inferNodeKind(node: FileNode, parentPath: string | null): NodeVisualKind {
@@ -108,6 +128,36 @@ function getLineageTargetFromPath(path: string): { modelId: string; nodePath: st
   }
 
   return { modelId, nodePath: normalized };
+}
+
+function splitNormalizedPath(path: string): string[] {
+  return normalizeRootPath(path)
+    .split("/")
+    .filter(Boolean);
+}
+
+function getModelIdFromPath(path: string): string | null {
+  const parts = splitNormalizedPath(path);
+  if (parts.length < 2) return null;
+  if (!["model", "models"].includes(parts[0].toLowerCase())) return null;
+  return parts[1] ?? null;
+}
+
+function isModelRootDirectory(path: string): boolean {
+  const parts = splitNormalizedPath(path);
+  return parts.length === 2 && ["model", "models"].includes(parts[0].toLowerCase());
+}
+
+function getParameterScopeFilterFromPath(path: string): string | null {
+  const parts = splitNormalizedPath(path);
+  if (parts.length === 1 && parts[0].toLowerCase() === "parameters") {
+    return "global";
+  }
+  if (parts.length >= 3 && ["model", "models"].includes(parts[0].toLowerCase()) && parts[2].toLowerCase() === "parameters") {
+    const modelId = parts[1];
+    return modelId ? `model:${modelId}` : null;
+  }
+  return null;
 }
 
 function NodeIcon({ kind }: { kind: NodeVisualKind }) {
@@ -304,6 +354,16 @@ function ActionGlyph({ name }: { name: ActionIconName }) {
     );
   }
 
+  if (name === "system-folders") {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M2.6 4.8a1 1 0 0 1 1-1h2.2l1.1 1.1h5.5a1 1 0 0 1 1 1v5.1a1 1 0 0 1-1 1h-8.8a1 1 0 0 1-1-1V4.8Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+        <circle cx="11.8" cy="10.7" r="2.1" stroke="currentColor" strokeWidth="1.1" />
+        <path d="M10.6 10.7h2.4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
   return (
     <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M4.5 5.5h7M6 5.5v6M10 5.5v6M3.5 4h9l-.7 8.3a1 1 0 0 1-1 .9H5.2a1 1 0 0 1-1-.9L3.5 4ZM6 2.8h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -354,7 +414,7 @@ function SidebarTreeNode({
   activeFilePath: string | null;
   expandedPaths: Record<string, boolean>;
   onToggle: (path: string) => void;
-  onOpen: (path: string) => void;
+  onOpen: (path: string, nodeType: "file" | "directory") => void;
   onAction: (mode: SidebarActionMode, path: string, nodeType: "file" | "directory") => void;
   rootLabel: string;
   registerRowRef: (path: string, element: HTMLLIElement | null) => void;
@@ -366,6 +426,8 @@ function SidebarTreeNode({
   const hasChildren = Boolean(node.children && node.children.length > 0);
   const expanded = isDirectory ? expandedPaths[node.path] ?? shouldAutoExpand(node) : false;
   const lineageTarget = getLineageTargetFromPath(node.path);
+  const parameterScopeFilter = getParameterScopeFilterFromPath(node.path);
+  const shouldOpenOnDirectoryClick = Boolean(lineageTarget || parameterScopeFilter || isModelRootDirectory(node.path));
   const style = { paddingLeft: `${12 + depth * 14}px` };
   const rowClassName = [
     "tree-row",
@@ -396,16 +458,16 @@ function SidebarTreeNode({
           onClick={() => {
             if (isDirectory) {
               if (node.path === ".") {
-                onOpen(node.path);
+                onOpen(node.path, node.type);
                 return;
               }
               onToggle(node.path);
-              if (lineageTarget) {
-                onOpen(node.path);
+              if (shouldOpenOnDirectoryClick) {
+                onOpen(node.path, node.type);
               }
               return;
             }
-            onOpen(node.path);
+            onOpen(node.path, node.type);
           }}
         >
           {isDirectory ? (
@@ -546,6 +608,8 @@ export default function Sidebar() {
   const sidebarWidth = useUiStore((state) => state.sidebarWidth);
   const toggleSidebar = useUiStore((state) => state.toggleSidebar);
   const setSidebarWidth = useUiStore((state) => state.setSidebarWidth);
+  const setInitialModelId = useUiStore((state) => state.setInitialModelId);
+  const setInitialParamScopeFilter = useUiStore((state) => state.setInitialParamScopeFilter);
   const addToast = useUiStore((state) => state.addToast);
   const openFile = useEditorStore((state) => state.openFile);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
@@ -554,6 +618,7 @@ export default function Sidebar() {
   const [actionState, setActionState] = useState<SidebarActionState | null>(null);
   const [actionValue, setActionValue] = useState("");
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({ ".": true });
+  const [showSystemFolders, setShowSystemFolders] = useState(false);
   const rowRefs = useRef<Record<string, HTMLLIElement | null>>({});
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
@@ -752,6 +817,10 @@ export default function Sidebar() {
   };
 
   const projectName = useMemo(() => projectsQuery.data?.find((project) => project.id === currentProjectId)?.name ?? "Project Explorer", [currentProjectId, projectsQuery.data]);
+  const visibleTree = useMemo(() => {
+    if (!treeQuery.data) return null;
+    return filterTreeForDisplay(treeQuery.data, showSystemFolders);
+  }, [treeQuery.data, showSystemFolders]);
 
   return (
     <>
@@ -766,6 +835,11 @@ export default function Sidebar() {
               <>
                 <TreeActionButton icon="new-file" label="New file" onClick={() => openActionDialog("new-file", ".", "directory")} />
                 <TreeActionButton icon="new-folder" label="New folder" onClick={() => openActionDialog("new-folder", ".", "directory")} />
+                <TreeActionButton
+                  icon="system-folders"
+                  label={showSystemFolders ? "Скрыть системные папки" : "Показать системные папки"}
+                  onClick={() => setShowSystemFolders((previous) => !previous)}
+                />
                 <TreeActionButton icon="collapse-all" label="Collapse all" onClick={collapseAll} />
                 <TreeActionButton icon="reveal-active" label="Reveal active file" onClick={revealActiveFile} />
               </>
@@ -781,22 +855,46 @@ export default function Sidebar() {
           <div className="sidebar-body">
             <ul className="tree-list tree-root-list">
               <SidebarTreeNode
-                node={treeQuery.data}
+                node={visibleTree ?? treeQuery.data}
                 depth={0}
                 activeFilePath={activeFilePath}
                 expandedPaths={expandedPaths}
                 onToggle={togglePath}
-                onOpen={(path) => {
+                onOpen={(path, nodeType) => {
                   if (path === ".") {
                     setActiveTab("project");
                     return;
                   }
+
+                  if (nodeType === "file") {
+                    openFile(path);
+                    setActiveTab("sql");
+                    return;
+                  }
+
+                  const parameterScopeFilter = getParameterScopeFilterFromPath(path);
+                  if (parameterScopeFilter) {
+                    setInitialParamScopeFilter(parameterScopeFilter);
+                    setActiveTab("parameters");
+                    return;
+                  }
+
+                  if (isModelRootDirectory(path)) {
+                    const modelId = getModelIdFromPath(path);
+                    if (modelId) {
+                      setInitialModelId(modelId);
+                    }
+                    setActiveTab("model");
+                    return;
+                  }
+
                   const lineageTarget = getLineageTargetFromPath(path);
                   if (lineageTarget) {
                     setLineageTarget(lineageTarget);
                     setActiveTab("lineage");
                     return;
                   }
+
                   openFile(path);
                   setActiveTab("sql");
                 }}

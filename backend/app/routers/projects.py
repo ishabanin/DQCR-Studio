@@ -78,8 +78,151 @@ INLINE_CONFIG_BLOCK_PATTERN = re.compile(r"@config\s*\((.*?)\)", re.IGNORECASE |
 _VALIDATION_HISTORY: dict[str, list[dict[str, object]]] = {}
 _BUILD_HISTORY: dict[str, list[dict[str, object]]] = {}
 _SUPPORTED_BUILD_ENGINES = {"dqcr", "airflow", "oracle_plsql", "dbt"}
+_BUILD_HISTORY_LIMIT = 10
 PROJECT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{1,63}$")
 LOGGER = logging.getLogger(__name__)
+
+
+def _build_history_file(project_path: Path) -> Path:
+    return ensure_within_base(project_path, project_path / ".dqcr_builds" / "history.json")
+
+
+def _read_build_history_from_disk(project_path: Path) -> list[dict[str, object]]:
+    history_file = _build_history_file(project_path)
+    if not history_file.exists() or not history_file.is_file():
+        return []
+    try:
+        raw = json.loads(history_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+    if not isinstance(raw, list):
+        return []
+    parsed: list[dict[str, object]] = []
+    for item in raw:
+        if isinstance(item, dict) and isinstance(item.get("build_id"), str):
+            parsed.append(item)
+    return parsed[:_BUILD_HISTORY_LIMIT]
+
+
+def _write_build_history_to_disk(project_path: Path, history: list[dict[str, object]]) -> None:
+    history_file = _build_history_file(project_path)
+    history_file.parent.mkdir(parents=True, exist_ok=True)
+    history_file.write_text(
+        json.dumps(history[:_BUILD_HISTORY_LIMIT], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _detect_model_from_generated_files(files: list[dict[str, object]], project_path: Path) -> str:
+    candidate_paths: list[str] = []
+    for item in files:
+        raw = item.get("path")
+        if isinstance(raw, str) and raw.strip():
+            candidate_paths.append(raw.strip().replace("\\", "/"))
+    if candidate_paths:
+        first_parts = [Path(path).parts[0] for path in candidate_paths if Path(path).parts]
+        unique = sorted(set(first_parts), key=str.lower)
+        if len(unique) == 1 and unique[0]:
+            return unique[0]
+        if unique:
+            return unique[0]
+    model_ids = _list_model_ids(project_path)
+    return model_ids[0] if model_ids else "unknown"
+
+
+def _collect_generated_files_from_output_dir(output_dir: Path) -> list[dict[str, object]]:
+    files: list[dict[str, object]] = []
+    for file_path in sorted(output_dir.rglob("*"), key=lambda item: str(item).lower()):
+        if not file_path.is_file():
+            continue
+        files.append(
+            {
+                "path": str(file_path.relative_to(output_dir)).replace("\\", "/"),
+                "source_path": None,
+                "size_bytes": file_path.stat().st_size,
+            }
+        )
+    return files
+
+
+def _discover_build_history_from_disk(project_id: str, project_path: Path) -> list[dict[str, object]]:
+    candidates: list[Path] = []
+    ignored_roots = {".git", "node_modules", ".venv", "__pycache__"}
+    for candidate in project_path.rglob("bld-*"):
+        if not candidate.is_dir():
+            continue
+        relative_parts = candidate.relative_to(project_path).parts
+        if any(part in ignored_roots for part in relative_parts):
+            continue
+        candidates.append(candidate)
+
+    if not candidates:
+        return []
+
+    discovered: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for output_dir in sorted(candidates, key=lambda item: item.stat().st_mtime, reverse=True):
+        relative_output = str(output_dir.relative_to(project_path)).replace("\\", "/")
+        if relative_output in seen:
+            continue
+        seen.add(relative_output)
+        files = _collect_generated_files_from_output_dir(output_dir)
+        model_id = _detect_model_from_generated_files(files, project_path)
+        mtime = datetime.fromtimestamp(output_dir.stat().st_mtime, tz=timezone.utc).isoformat()
+        workflow_state = _workflow_state_for_model(project_path, model_id) if model_id and model_id != "unknown" else {}
+        discovered.append(
+            {
+                "build_id": output_dir.name,
+                "timestamp": mtime,
+                "project": project_id,
+                "model": model_id,
+                "engine": "dqcr",
+                "context": "default",
+                "dry_run": False,
+                "output_path": relative_output,
+                "files_count": len(files),
+                "files": files,
+                "workflow_updated_at": _workflow_updated_at_for_model(project_path, model_id) if model_id and model_id != "unknown" else None,
+                "workflow_status": workflow_state.get("status"),
+                "workflow_source": workflow_state.get("source"),
+                "workflow_attached": bool(workflow_state.get("has_cache")),
+                "discovered_from_disk": True,
+            }
+        )
+        if len(discovered) >= _BUILD_HISTORY_LIMIT:
+            break
+    return discovered[:_BUILD_HISTORY_LIMIT]
+
+
+def _get_project_build_history(project_id: str) -> list[dict[str, object]]:
+    cached = _BUILD_HISTORY.get(project_id)
+    if cached is not None:
+        return cached[:_BUILD_HISTORY_LIMIT]
+
+    base_projects = Path(settings.projects_path)
+    project_path = resolve_project_path(base_projects, project_id)
+    persisted = _read_build_history_from_disk(project_path)
+    if not persisted:
+        persisted = _discover_build_history_from_disk(project_id, project_path)
+        if persisted:
+            _write_build_history_to_disk(project_path, persisted)
+    _BUILD_HISTORY[project_id] = persisted[:_BUILD_HISTORY_LIMIT]
+    return _BUILD_HISTORY[project_id]
+
+
+def _record_build_result(project_id: str, result: dict[str, object]) -> None:
+    build_id = str(result.get("build_id", "")).strip()
+    if not build_id:
+        return
+    history = list(_get_project_build_history(project_id))
+    history = [item for item in history if str(item.get("build_id")) != build_id]
+    history.insert(0, result)
+    history = history[:_BUILD_HISTORY_LIMIT]
+    _BUILD_HISTORY[project_id] = history
+
+    base_projects = Path(settings.projects_path)
+    project_path = resolve_project_path(base_projects, project_id)
+    _write_build_history_to_disk(project_path, history)
 
 
 def _extract_parameter_name(raw: str) -> str | None:
@@ -1028,14 +1171,12 @@ def _run_project_generation(
         "workflow_source": workflow_state.get("source"),
         "workflow_attached": isinstance(workflow_payload, dict),
     }
-    history = _BUILD_HISTORY.setdefault(project_id, [])
-    history.insert(0, result)
-    _BUILD_HISTORY[project_id] = history[:20]
+    _record_build_result(project_id, result)
     return result
 
 
 def _find_project_build(project_id: str, build_id: str) -> dict[str, object]:
-    for item in _BUILD_HISTORY.get(project_id, []):
+    for item in _get_project_build_history(project_id):
         if str(item.get("build_id")) == build_id:
             return item
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Build '{build_id}' not found.")
@@ -3580,18 +3721,13 @@ def run_project_build(project_id: str, payload: dict[str, object] = Body(default
 
     result_raw = FW_SERVICE.run_generation(project_id, model_id, engine, context, dry_run, output_path)
     result = _attach_workflow_context(result_raw, project_path, model_id)
-
-    build_id = str(result.get("build_id", "")).strip()
-    if build_id and not any(str(item.get("build_id")) == build_id for item in _BUILD_HISTORY.get(project_id, [])):
-        history = _BUILD_HISTORY.setdefault(project_id, [])
-        history.insert(0, result)
-        _BUILD_HISTORY[project_id] = history[:20]
+    _record_build_result(project_id, result)
     return result
 
 
 @router.get("/{project_id}/build/history")
 def get_project_build_history(project_id: str) -> list[dict[str, object]]:
-    return _BUILD_HISTORY.get(project_id, [])[:10]
+    return _get_project_build_history(project_id)
 
 
 @router.get("/{project_id}/build/{build_id}/files")

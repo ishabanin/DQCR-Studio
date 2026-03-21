@@ -330,6 +330,7 @@ export default function SqlEditorScreen() {
   const [quickOpenVisible, setQuickOpenVisible] = useState(false);
   const [quickOpenQuery, setQuickOpenQuery] = useState("");
   const [quickOpenIndex, setQuickOpenIndex] = useState(0);
+  const [isEditorExpanded, setIsEditorExpanded] = useState(false);
   const [previewEngine, setPreviewEngine] = useState<string | null>(null);
   const [previewContent, setPreviewContent] = useState("");
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -809,7 +810,25 @@ export default function SqlEditorScreen() {
           event.preventDefault();
           setQuickOpenVisible(false);
           setQuickOpenQuery("");
+          return;
         }
+      }
+
+      if (findVisible && event.key === "Escape") {
+        event.preventDefault();
+        setFindVisible(false);
+        return;
+      }
+
+      if (isEditorExpanded && event.key === "Escape") {
+        event.preventDefault();
+        setIsEditorExpanded(false);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === ".") {
+        event.preventDefault();
+        setIsEditorExpanded((current) => !current);
+        return;
       }
     };
     window.addEventListener("keydown", handler);
@@ -827,6 +846,8 @@ export default function SqlEditorScreen() {
     quickOpenVisible,
     quickOpenCandidates,
     quickOpenIndex,
+    findVisible,
+    isEditorExpanded,
     openFile,
   ]);
 
@@ -845,8 +866,19 @@ export default function SqlEditorScreen() {
   }
 
   return (
-    <section className="workbench">
-      <h1>SQL Editor: {title}</h1>
+    <section className={isEditorExpanded ? "workbench workbench-editor-expanded" : "workbench"}>
+      <div className="workbench-head">
+        <h1>SQL Editor: {title}</h1>
+        <button
+          type="button"
+          className="editor-expand-btn"
+          onClick={() => setIsEditorExpanded((current) => !current)}
+          aria-label={isEditorExpanded ? "Collapse editor" : "Expand editor"}
+          title={isEditorExpanded ? "Collapse editor" : "Expand editor"}
+        >
+          {isEditorExpanded ? "⤡" : "⤢"}
+        </button>
+      </div>
       <FileTabs />
       <Breadcrumb path={activeFilePath} />
       {quickOpenVisible ? (
@@ -928,10 +960,25 @@ export default function SqlEditorScreen() {
           </div>
         </div>
       ) : null}
-      <div className="sql-layout">
-        <div>
+      <div className={isEditorExpanded ? "sql-layout sql-layout-expanded" : "sql-layout"}>
+        <div className={isEditorExpanded ? "sql-editor-panel sql-editor-panel-expanded" : "sql-editor-panel"}>
+          <div className="sql-editor-panel-head">
+            <div className="sql-editor-panel-copy">
+              <span className="sql-editor-panel-eyebrow">{isEditorExpanded ? "Expanded workspace" : "Query workspace"}</span>
+              <strong className="sql-editor-panel-title">{title}</strong>
+            </div>
+            <button
+              type="button"
+              className="editor-expand-btn"
+              onClick={() => setIsEditorExpanded((current) => !current)}
+              aria-label={isEditorExpanded ? "Collapse editor" : "Expand editor"}
+              title={isEditorExpanded ? "Collapse editor" : "Expand editor"}
+            >
+              {isEditorExpanded ? "⤡" : "⤢"}
+            </button>
+          </div>
           <Editor
-            height="420px"
+            height={isEditorExpanded ? "76vh" : "420px"}
             beforeMount={configureDqcrMonaco}
             onMount={(editor, monaco) => {
               editorRef.current = editor;

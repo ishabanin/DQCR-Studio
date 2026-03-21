@@ -1,0 +1,50 @@
+[
+  {
+    "build_id": "bld-20260320211459",
+    "timestamp": "2026-03-20T21:14:59.611024+00:00",
+    "project": "rf110",
+    "model": "f110",
+    "engine": "dqcr",
+    "context": "default",
+    "dry_run": false,
+    "output_path": ".dqcr_builds/bld-20260320211459",
+    "files_count": 6,
+    "files": [
+      {
+        "path": "f110/main_f110.xml",
+        "source_path": null,
+        "size_bytes": 456
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_default_adb.xml",
+        "source_path": null,
+        "size_bytes": 14851
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_default_oracle.xml",
+        "source_path": null,
+        "size_bytes": 14493
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_default_postgresql.xml",
+        "source_path": null,
+        "size_bytes": 15156
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_main.xml",
+        "source_path": null,
+        "size_bytes": 999
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_vtb_adb.xml",
+        "source_path": null,
+        "size_bytes": 2616
+      }
+    ],
+    "workflow_updated_at": null,
+    "workflow_status": "missing",
+    "workflow_source": "framework_cli",
+    "workflow_attached": false,
+    "discovered_from_disk": true
+  }
+]

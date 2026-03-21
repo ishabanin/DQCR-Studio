@@ -18,6 +18,8 @@ export default function App() {
   const projectWizardOpen = useUiStore((state) => state.projectWizardOpen);
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
   const sidebarWidth = useUiStore((state) => state.sidebarWidth);
+  const bottomPanelExpanded = useUiStore((state) => state.bottomPanelExpanded);
+  const bottomPanelHeight = useUiStore((state) => state.bottomPanelHeight);
   const hasActiveProject = Boolean(currentProjectId);
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function App() {
           style={
             {
               "--width-sidebar": `${sidebarCollapsed ? 64 : sidebarWidth}px`,
+              "--height-bottom-panel": `${bottomPanelExpanded ? bottomPanelHeight : 24}px`,
             } as CSSProperties
           }
         >

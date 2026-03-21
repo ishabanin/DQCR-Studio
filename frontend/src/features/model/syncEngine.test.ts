@@ -26,6 +26,8 @@ describe("syncEngine", () => {
   it("serializes model to yaml with trailing newline", () => {
     const result = formToYaml(SAMPLE_MODEL);
     expect(result).toContain("target_table:");
+    expect(result).toContain("folders:");
+    expect(result).toContain("01_stage");
     expect(result.endsWith("\n")).toBe(true);
   });
 
@@ -40,6 +42,7 @@ describe("syncEngine", () => {
     if (parsed.ok) {
       expect(parsed.model.target_table.name).toBe("sales_report");
       expect(parsed.model.workflow.folders).toHaveLength(1);
+      expect(parsed.model.workflow.folders[0].id).toBe("01_stage");
     }
   });
 
@@ -56,4 +59,3 @@ describe("syncEngine", () => {
     }
   });
 });
-

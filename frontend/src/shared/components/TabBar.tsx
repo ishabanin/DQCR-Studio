@@ -7,8 +7,8 @@ const tabs: Array<{ id: TabId; label: string }> = [
   { id: "lineage", label: "⬡ Lineage" },
   { id: "model", label: "⊞ Model editor" },
   { id: "sql", label: "{} SQL editor" },
-  { id: "validate", label: "✓ Validate" },
   { id: "parameters", label: "⊕ Parameters" },
+  { id: "validate", label: "✓ Validate" },
   { id: "build", label: "⚙ Build" },
   { id: "admin", label: "Admin" },
 ];

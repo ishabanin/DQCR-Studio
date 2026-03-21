@@ -8,17 +8,15 @@ import {
   fetchProjectTree,
   saveModelObject,
   type ModelAttributeItem,
-  type ModelFolderItem,
   type ModelObjectResponse,
 } from "../../api/projects";
+import { useTheme } from "../../app/providers/ThemeProvider";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
 import Tooltip from "../../shared/components/ui/Tooltip";
+import { getDqcrTheme } from "../sql/dqcrLanguage";
 import { formToYaml, yamlToForm } from "./syncEngine";
 import { areModelsEqual, normalizeYamlText, resolveYamlSyncStatus, type SyncStatus } from "./yamlSync";
-
-const MATERIALIZATION_OPTIONS = ["insert_fc", "upsert_fc", "stage_calcid", "append", "view"];
-const FOLDER_PATTERNS = ["load", "transform", "aggregate", "custom"];
 
 type EditorMode = "visual" | "yaml";
 function HelpLabel({ text, help }: { text: string; help: string }) {
@@ -65,13 +63,10 @@ export default function ModelEditorScreen() {
   const initialModelId = useUiStore((state) => state.initialModelId);
   const setInitialModelId = useUiStore((state) => state.setInitialModelId);
   const queryClient = useQueryClient();
+  const { theme } = useTheme();
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ModelObjectResponse["model"] | null>(null);
   const [draggedAttrIndex, setDraggedAttrIndex] = useState<number | null>(null);
-  const [draggedFolderIndex, setDraggedFolderIndex] = useState<number | null>(null);
-  const [newFolderName, setNewFolderName] = useState("");
-  const [newFolderPattern, setNewFolderPattern] = useState("load");
-  const [newCteContext, setNewCteContext] = useState("");
   const [mode, setMode] = useState<EditorMode>("visual");
   const [yamlText, setYamlText] = useState("");
   const [yamlError, setYamlError] = useState<string | null>(null);
@@ -145,6 +140,24 @@ export default function ModelEditorScreen() {
     }
     setInitialModelId(null);
   }, [initialModelId, modelIds, setInitialModelId]);
+
+  useEffect(() => {
+    setDraft(null);
+    setDraggedAttrIndex(null);
+    setMode("visual");
+    setYamlText("");
+    setYamlError(null);
+    setSyncStatus("synced");
+
+    if (formToYamlTimerRef.current !== null) {
+      window.clearTimeout(formToYamlTimerRef.current);
+      formToYamlTimerRef.current = null;
+    }
+    if (yamlToFormTimerRef.current !== null) {
+      window.clearTimeout(yamlToFormTimerRef.current);
+      yamlToFormTimerRef.current = null;
+    }
+  }, [activeModelId]);
 
   useEffect(() => {
     if (!workingModel) {
@@ -242,128 +255,6 @@ export default function ModelEditorScreen() {
     });
   };
 
-  const setFolderField = (
-    index: number,
-    key: "id" | "description" | "enabled" | "materialization" | "pattern",
-    value: string | boolean,
-  ) => {
-    if (!workingModel) return;
-    const nextFolders = [...(workingModel.workflow.folders ?? [])] as ModelFolderItem[];
-    const current = { ...(nextFolders[index] ?? {}) } as ModelFolderItem;
-    current[key] = value as never;
-    nextFolders[index] = current;
-    setDraft({
-      ...workingModel,
-      workflow: {
-        ...workingModel.workflow,
-        folders: nextFolders,
-      },
-    });
-  };
-
-  const addFolder = () => {
-    if (!workingModel) return;
-    const folderName = newFolderName.trim();
-    if (!folderName) {
-      addToast("Folder name is required", "error");
-      return;
-    }
-    const exists = (workingModel.workflow.folders ?? []).some((item) => item.id === folderName);
-    if (exists) {
-      addToast("Folder already exists", "error");
-      return;
-    }
-    const nextFolders = [...(workingModel.workflow.folders ?? [])];
-    nextFolders.push({
-      id: folderName,
-      description: "",
-      enabled: true,
-      materialization: "insert_fc",
-      pattern: newFolderPattern,
-    });
-    setDraft({
-      ...workingModel,
-      workflow: {
-        ...workingModel.workflow,
-        folders: nextFolders,
-      },
-    });
-    setNewFolderName("");
-    setNewFolderPattern("load");
-  };
-
-  const reorderFolders = (fromIndex: number, toIndex: number) => {
-    if (!workingModel) return;
-    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
-    const nextFolders = [...(workingModel.workflow.folders ?? [])];
-    const [moved] = nextFolders.splice(fromIndex, 1);
-    nextFolders.splice(toIndex, 0, moved);
-    setDraft({
-      ...workingModel,
-      workflow: {
-        ...workingModel.workflow,
-        folders: nextFolders,
-      },
-    });
-  };
-
-  const setCteDefault = (value: string) => {
-    if (!workingModel) return;
-    setDraft({
-      ...workingModel,
-      cte_settings: {
-        ...(workingModel.cte_settings ?? { by_context: {} }),
-        default: value,
-      },
-    });
-  };
-
-  const setCteContextValue = (key: string, value: string) => {
-    if (!workingModel) return;
-    const byContext = { ...((workingModel.cte_settings?.by_context ?? {}) as Record<string, string>) };
-    byContext[key] = value;
-    setDraft({
-      ...workingModel,
-      cte_settings: {
-        ...(workingModel.cte_settings ?? {}),
-        by_context: byContext,
-      },
-    });
-  };
-
-  const removeCteContext = (key: string) => {
-    if (!workingModel) return;
-    const byContext = { ...((workingModel.cte_settings?.by_context ?? {}) as Record<string, string>) };
-    delete byContext[key];
-    setDraft({
-      ...workingModel,
-      cte_settings: {
-        ...(workingModel.cte_settings ?? {}),
-        by_context: byContext,
-      },
-    });
-  };
-
-  const addCteContext = () => {
-    if (!workingModel) return;
-    const key = newCteContext.trim();
-    if (!key) return;
-    const byContext = { ...((workingModel.cte_settings?.by_context ?? {}) as Record<string, string>) };
-    if (byContext[key]) {
-      addToast("Context already exists", "error");
-      return;
-    }
-    byContext[key] = "insert_fc";
-    setDraft({
-      ...workingModel,
-      cte_settings: {
-        ...(workingModel.cte_settings ?? {}),
-        by_context: byContext,
-      },
-    });
-    setNewCteContext("");
-  };
-
   if (!currentProjectId) {
     return (
       <section className="workbench">
@@ -435,10 +326,9 @@ export default function ModelEditorScreen() {
         </div>
       </div>
 
-      <p className="model-editor-meta">
-        Schema: {schemaQuery.isSuccess ? "loaded" : "loading..."} | Dirty: {isDirty ? "yes" : "no"}
-        {" | "}
-        Sync:
+      <div className="model-editor-meta">
+        <span>schema: {schemaQuery.isSuccess ? "loaded" : "loading..."}</span>
+        <span>dirty: {isDirty ? "yes" : "no"}</span>
         <span
           className={
             syncStatus === "synced"
@@ -448,14 +338,10 @@ export default function ModelEditorScreen() {
                 : "model-sync-badge model-sync-badge-conflict"
           }
         >
-          {syncStatus === "synced" ? "synced" : syncStatus === "syncing" ? "syncing" : "conflict"}
+          {syncStatus}
         </span>
-        {yamlError ? ` | YAML error: ${yamlError}` : ""}
-      </p>
-      <p className="model-editor-meta">
-        Workflow source: {modelQuery.data?.data_source ?? "fallback"} | Workflow status: {modelQuery.data?.workflow_status ?? "missing"} | Updated:{" "}
-        {modelQuery.data?.workflow_updated_at ? new Date(modelQuery.data.workflow_updated_at).toLocaleString() : "—"}
-      </p>
+        {yamlError && <span className="model-sync-badge model-sync-badge-conflict">{yamlError}</span>}
+      </div>
 
       {!workingModel ? (
         <p>No model selected.</p>
@@ -465,12 +351,14 @@ export default function ModelEditorScreen() {
           <Editor
             height="460px"
             language="yaml"
+            theme={getDqcrTheme(theme)}
             value={yamlText}
             options={{
               minimap: { enabled: false },
               fontSize: 11.5,
               lineHeight: 19,
               fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", "Courier New", monospace',
+              wordWrap: "on",
               scrollBeyondLastLine: false,
               automaticLayout: true,
             }}
@@ -548,7 +436,7 @@ export default function ModelEditorScreen() {
             <div className="model-editor-section-head">
               <h2>Attributes</h2>
               <button type="button" className="action-btn" onClick={addAttribute}>
-                Add row
+                Add attribute
               </button>
             </div>
             <div className="model-attr-table-wrap">
@@ -632,194 +520,6 @@ export default function ModelEditorScreen() {
                 </tbody>
               </table>
             </div>
-          </section>
-
-          <section className="model-editor-section">
-            <div className="model-editor-section-head">
-              <h2>Workflow Folders</h2>
-            </div>
-
-            <div className="model-folder-add">
-              <input
-                className="ui-input"
-                placeholder="Folder name"
-                value={newFolderName}
-                onChange={(event) => setNewFolderName(event.target.value)}
-              />
-              <select className="ui-select" value={newFolderPattern} onChange={(event) => setNewFolderPattern(event.target.value)}>
-                {FOLDER_PATTERNS.map((pattern) => (
-                  <option key={pattern} value={pattern}>
-                    Pattern: {pattern}
-                  </option>
-                ))}
-              </select>
-              <button type="button" className="action-btn" onClick={addFolder}>
-                Add folder
-              </button>
-            </div>
-
-            <div className="model-attr-table-wrap">
-              <table className="model-attr-table">
-                <thead>
-                  <tr>
-                    <th>
-                      <HelpLabel text="Folder" help="Идентификатор SQL-папки в workflow модели." />
-                    </th>
-                    <th>
-                      <HelpLabel text="Materialization" help="Стратегия материализации для этой папки." />
-                    </th>
-                    <th>
-                      <HelpLabel text="Enabled" help="Включение или отключение папки для сборки." />
-                    </th>
-                    <th>
-                      <HelpLabel text="Description" help="Описание шага workflow для команды и документации." />
-                    </th>
-                    <th>
-                      <HelpLabel text="Pattern" help="Шаблон поведения папки: load, transform, aggregate или custom." />
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(workingModel.workflow.folders ?? []).map((folder, index) => (
-                    <tr
-                      key={`${folder.id}-${index}`}
-                      draggable
-                      onDragStart={() => setDraggedFolderIndex(index)}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        if (draggedFolderIndex === null) return;
-                        reorderFolders(draggedFolderIndex, index);
-                        setDraggedFolderIndex(null);
-                      }}
-                    >
-                      <td>
-                        <input
-                          className="ui-input"
-                          value={folder.id}
-                          onChange={(event) => setFolderField(index, "id", event.target.value)}
-                        />
-                      </td>
-                      <td>
-                        <select
-                          className="ui-select"
-                          value={folder.materialization ?? "insert_fc"}
-                          onChange={(event) => setFolderField(index, "materialization", event.target.value)}
-                        >
-                          {MATERIALIZATION_OPTIONS.map((item) => (
-                            <option key={item} value={item}>
-                              {item}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(folder.enabled)}
-                          onChange={(event) => setFolderField(index, "enabled", event.target.checked)}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="ui-input"
-                          value={folder.description ?? ""}
-                          onChange={(event) => setFolderField(index, "description", event.target.value)}
-                        />
-                      </td>
-                      <td>
-                        <select
-                          className="ui-select"
-                          value={folder.pattern ?? "custom"}
-                          onChange={(event) => setFolderField(index, "pattern", event.target.value)}
-                        >
-                          {FOLDER_PATTERNS.map((pattern) => (
-                            <option key={pattern} value={pattern}>
-                              {pattern}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="model-editor-section">
-            <div className="model-editor-section-head">
-              <h2>CTE Settings</h2>
-            </div>
-            <div className="model-form-grid">
-              <label>
-                <HelpLabel text="Default" help="Материализация CTE по умолчанию, если нет переопределения по контексту." />
-                <input
-                  className="ui-input"
-                  value={workingModel.cte_settings?.default ?? ""}
-                  onChange={(event) => setCteDefault(event.target.value)}
-                />
-              </label>
-            </div>
-            <div className="model-folder-add">
-              <input
-                className="ui-input"
-                placeholder="Context name"
-                value={newCteContext}
-                onChange={(event) => setNewCteContext(event.target.value)}
-              />
-              <button type="button" className="action-btn" onClick={addCteContext}>
-                Add context
-              </button>
-            </div>
-            <div className="model-attr-table-wrap">
-              <table className="model-attr-table">
-                <thead>
-                  <tr>
-                    <th>
-                      <HelpLabel text="Context" help="Имя контекста из папки contexts/ проекта." />
-                    </th>
-                    <th>
-                      <HelpLabel text="Materialization" help="Переопределение CTE materialization для выбранного контекста." />
-                    </th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(workingModel.cte_settings?.by_context ?? {}).map(([key, value]) => (
-                    <tr key={key}>
-                      <td>{key}</td>
-                      <td>
-                        <input className="ui-input" value={value} onChange={(event) => setCteContextValue(key, event.target.value)} />
-                      </td>
-                      <td>
-                        <button type="button" className="action-btn" onClick={() => removeCteContext(key)}>
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="model-editor-section">
-            <h2>YAML Preview</h2>
-            <Editor
-              height="260px"
-              language="yaml"
-              value={formToYaml(workingModel)}
-              options={{
-                readOnly: true,
-                minimap: { enabled: false },
-                fontSize: 11.5,
-                lineHeight: 19,
-                fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", "Courier New", monospace',
-                scrollBeyondLastLine: false,
-                automaticLayout: true,
-              }}
-            />
           </section>
         </div>
       )}

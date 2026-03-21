@@ -610,7 +610,6 @@
 .lg-node:hover {
   border-color: var(--color-border-secondary);
   box-shadow: 0 6px 18px rgba(8, 80, 65, 0.12);
-  transform: translateY(-1px);
 }
 
 [data-theme="dark"] .lg-node:hover {

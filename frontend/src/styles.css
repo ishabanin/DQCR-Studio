@@ -952,6 +952,7 @@ body {
   display: grid;
   grid-template-rows: var(--height-tabbar) 1fr var(--height-bottom-panel);
   min-width: 0;
+  min-height: 0;
 }
 
 .tabbar {
@@ -995,6 +996,9 @@ body {
   background: var(--surface-primary);
   border: 0.5px solid var(--gray-200);
   border-radius: var(--radius-lg);
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .workbench h1 {
@@ -1002,6 +1006,17 @@ body {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-primary);
+}
+
+.workbench-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workbench-editor-expanded {
+  overflow: visible;
 }
 
 .projects-hub {
@@ -1227,6 +1242,51 @@ body {
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 12px;
   align-items: start;
+}
+
+.sql-layout-expanded {
+  grid-template-columns: 1fr;
+}
+
+.sql-editor-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sql-editor-panel-expanded {
+  padding: 14px;
+  border: 1px solid rgba(15, 110, 86, 0.18);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(29, 158, 117, 0.1), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0)),
+    var(--surface-secondary);
+  box-shadow: 0 22px 46px rgba(4, 52, 44, 0.08);
+}
+
+.sql-editor-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sql-editor-panel-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.sql-editor-panel-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sql-editor-panel-title {
+  font-size: 13px;
+  color: var(--accent-700);
 }
 
 .config-chain-panel {
@@ -2487,6 +2547,40 @@ body {
   gap: 8px;
 }
 
+.parameter-value-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.parameter-value-inline .ui-input {
+  flex: 1;
+}
+
+.parameter-value-cell {
+  position: relative;
+}
+
+.parameter-value-cell-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.parameter-value-cell .monaco-editor,
+.parameter-value-cell .monaco-editor-background {
+  border-radius: 10px;
+}
+
+.parameters-values-table td {
+  vertical-align: top;
+}
+
+.parameter-value-expand-btn {
+  margin-top: 2px;
+}
+
 .parameters-preview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -2530,6 +2624,10 @@ body {
 
 .model-editor-meta {
   margin: 8px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   color: var(--text-muted);
   font-size: 12px;
 }
@@ -2537,7 +2635,7 @@ body {
 .model-sync-badge {
   display: inline-flex;
   align-items: center;
-  margin-left: 6px;
+  margin-left: 0;
   border-radius: 999px;
   padding: 2px 8px;
   border: 0.5px solid var(--gray-200);
@@ -2624,14 +2722,6 @@ body {
   overflow: auto;
 }
 
-.model-folder-add {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-
 .model-attr-table {
   width: 100%;
   border-collapse: collapse;
@@ -2672,6 +2762,11 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .expanded-editor-modal {
+    width: min(100vw - 20px, 1120px);
+    height: min(84vh, 860px);
+  }
+
   .build-config-grid {
     grid-template-columns: 1fr;
   }
@@ -2694,6 +2789,53 @@ body {
 
   .admin-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .workbench-head,
+  .sql-editor-panel-head,
+  .expanded-editor-modal-actions,
+  .parameters-test-row,
+  .model-editor-section-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .parameters-head,
+  .parameters-head-actions,
+  .parameters-add-context,
+  .expanded-editor-modal-actions-group {
+    width: 100%;
+  }
+
+  .parameters-head-actions,
+  .parameters-add-context {
+    flex-wrap: wrap;
+  }
+
+  .parameter-value-inline {
+    align-items: stretch;
+  }
+
+  .expanded-editor-modal-overlay {
+    padding: 10px;
+  }
+
+  .expanded-editor-modal {
+    width: 100%;
+    height: 88vh;
+  }
+
+  .expanded-editor-modal-body,
+  .expanded-editor-modal-head,
+  .expanded-editor-modal-actions {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .expanded-editor-modal-actions-group {
+    justify-content: flex-end;
   }
 }
 
@@ -2805,6 +2947,41 @@ select:focus {
   background: var(--gray-100);
   border-color: var(--gray-400);
   color: var(--text-primary);
+}
+
+.editor-expand-btn {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid var(--gray-300);
+  border-radius: 10px;
+  background: var(--surface-primary);
+  color: var(--text-secondary);
+  font-size: 15px;
+  transition: transform var(--transition-fast), background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.editor-expand-btn:hover {
+  transform: translateY(-1px);
+  background: var(--gray-100);
+  border-color: var(--accent-200);
+  color: var(--accent-700);
+}
+
+.editor-expand-btn-floating {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(8px);
+}
+
+[data-theme="dark"] .editor-expand-btn-floating {
+  background: rgba(43, 43, 41, 0.94);
 }
 
 .action-btn:disabled {
@@ -2960,6 +3137,89 @@ select:focus {
   gap: 8px;
 }
 
+.expanded-editor-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 48;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(9, 14, 20, 0.34);
+  backdrop-filter: blur(6px);
+}
+
+.expanded-editor-modal {
+  width: min(1120px, 94vw);
+  height: min(80vh, 860px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border: 1px solid rgba(15, 110, 86, 0.16);
+  border-radius: 18px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top right, rgba(29, 158, 117, 0.08), transparent 30%),
+    var(--surface-primary);
+  box-shadow: 0 26px 70px rgba(4, 52, 44, 0.2);
+}
+
+.expanded-editor-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 14px;
+  border-bottom: 0.5px solid var(--gray-200);
+}
+
+.expanded-editor-modal-head h3 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.expanded-editor-modal-eyebrow {
+  margin: 0 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.expanded-editor-modal-body {
+  min-height: 0;
+  padding: 14px 18px;
+}
+
+.expanded-editor-modal-body .monaco-editor,
+.expanded-editor-modal-body .monaco-editor-background {
+  border-radius: 12px;
+}
+
+.expanded-editor-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px 18px;
+  border-top: 0.5px solid var(--gray-200);
+  background: rgba(247, 247, 245, 0.75);
+}
+
+.expanded-editor-modal-actions-group {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.expanded-editor-modal-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+[data-theme="dark"] .expanded-editor-modal-actions {
+  background: rgba(35, 35, 33, 0.88);
+}
+
 .session-history-banner {
   background: var(--color-background-secondary);
   border: 0.5px solid var(--color-border-tertiary);
@@ -3044,6 +3304,8 @@ select:focus {
   background: var(--surface-secondary);
   display: grid;
   grid-template-rows: 24px 1fr;
+  position: relative;
+  overflow: hidden;
 }
 
 .bottom-panel-collapsed {
@@ -3057,6 +3319,31 @@ select:focus {
   padding: 0 10px;
   border-bottom: 0.5px solid var(--gray-200);
   background: var(--surface-primary);
+}
+
+.bottom-panel-resize-handle {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 7px;
+  cursor: row-resize;
+  z-index: 4;
+}
+
+.bottom-panel-resize-handle::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 3px;
+  height: 1px;
+  background: transparent;
+  transition: background-color var(--transition-fast);
+}
+
+.bottom-panel-resize-handle:hover::after {
+  background: var(--accent-200);
 }
 
 .bottom-tabs {
@@ -3113,6 +3400,15 @@ select:focus {
 
 [data-theme="dark"] .bottom-panel {
   background: var(--surface-secondary);
+}
+
+[data-theme="dark"] .bottom-panel-resize-handle:hover::after {
+  background: var(--accent-400);
+}
+
+body.app-resizing-bottom-panel {
+  cursor: row-resize;
+  user-select: none;
 }
 
 .topbar .ui-select,

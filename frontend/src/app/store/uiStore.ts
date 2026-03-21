@@ -22,6 +22,7 @@ interface UiStore {
   sidebarCollapsed: boolean;
   sidebarWidth: number;
   bottomPanelExpanded: boolean;
+  bottomPanelHeight: number;
   bottomPanelTab: "terminal" | "logs" | "output";
   toasts: ToastItem[];
   apiLogs: string[];
@@ -33,18 +34,21 @@ interface UiStore {
   cacheStatus: WorkflowCacheStatus | null;
   lastSavedAt: Date | null;
   initialParam: { id: string; scope: string } | null;
+  initialParamScopeFilter: string | null;
   initialModelId: string | null;
   dismissedHistoryWarning: boolean;
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
   toggleBottomPanel: () => void;
   setBottomPanelTab: (tab: "terminal" | "logs" | "output") => void;
+  setBottomPanelHeight: (height: number) => void;
   setProjectWizardOpen: (open: boolean) => void;
   setUserRole: (role: UserRole) => void;
   setValidationAutoRun: (enabled: boolean) => void;
   setCacheStatus: (status: WorkflowCacheStatus | null) => void;
   setLastSavedAt: (d: Date | null) => void;
   setInitialParam: (p: { id: string; scope: string } | null) => void;
+  setInitialParamScopeFilter: (scope: string | null) => void;
   setInitialModelId: (modelId: string | null) => void;
   setDismissedHistoryWarning: (v: boolean) => void;
   addApiLog: (line: string) => void;
@@ -65,6 +69,7 @@ export const useUiStore = create<UiStore>((set) => ({
   sidebarCollapsed: false,
   sidebarWidth: Number(window.localStorage.getItem("dqcr_sidebar_width") ?? 288),
   bottomPanelExpanded: false,
+  bottomPanelHeight: Number(window.localStorage.getItem("dqcr_bottom_panel_height") ?? 104),
   bottomPanelTab: "terminal",
   toasts: [],
   apiLogs: [],
@@ -76,6 +81,7 @@ export const useUiStore = create<UiStore>((set) => ({
   cacheStatus: null,
   lastSavedAt: null,
   initialParam: null,
+  initialParamScopeFilter: null,
   initialModelId: null,
   dismissedHistoryWarning: window.localStorage.getItem("dqcr_dismissed_history_warning") === "true",
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
@@ -86,6 +92,11 @@ export const useUiStore = create<UiStore>((set) => ({
   },
   toggleBottomPanel: () => set((state) => ({ bottomPanelExpanded: !state.bottomPanelExpanded })),
   setBottomPanelTab: (tab) => set({ bottomPanelTab: tab }),
+  setBottomPanelHeight: (height) => {
+    const nextHeight = Math.min(520, Math.max(80, Math.round(height)));
+    window.localStorage.setItem("dqcr_bottom_panel_height", String(nextHeight));
+    set({ bottomPanelHeight: nextHeight });
+  },
   setProjectWizardOpen: (open) => set({ projectWizardOpen: open }),
   setUserRole: (role) => {
     window.localStorage.setItem("dqcr_role", role);
@@ -95,6 +106,7 @@ export const useUiStore = create<UiStore>((set) => ({
   setCacheStatus: (status) => set({ cacheStatus: status }),
   setLastSavedAt: (d) => set({ lastSavedAt: d }),
   setInitialParam: (p) => set({ initialParam: p }),
+  setInitialParamScopeFilter: (scope) => set({ initialParamScopeFilter: scope }),
   setInitialModelId: (modelId) => set({ initialModelId: modelId }),
   setDismissedHistoryWarning: (v) => {
     window.localStorage.setItem("dqcr_dismissed_history_warning", v ? "true" : "false");

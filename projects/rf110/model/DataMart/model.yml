@@ -1,0 +1,21 @@
+target_table:
+  name: RF110RestTurnReg
+  schema: RF110
+  description: Реестр остатков и оборотов для формы 110
+  attributes:
+    - name: dealid
+      domain_type: number
+      is_key: true
+      constraints: [PRIMARY_KEY]
+    - name: accountid
+      domain_type: number
+      is_key: true
+      constraints: [PRIMARY_KEY]      
+    - name: objectid
+      domain_type: number
+      is_key: true
+      constraints: [PRIMARY_KEY]            
+    - name: calcid
+      domain_type: number
+      is_key: true
+      constraints: [PRIMARY_KEY]     

@@ -15,8 +15,10 @@ import {
   type ProjectParameterTestResponse,
   type ProjectParameterValueItem,
 } from "../../api/projects";
+import { useTheme } from "../../app/providers/ThemeProvider";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
+import ExpandedFieldEditorModal from "../../shared/components/ExpandedFieldEditorModal";
 
 const DOMAIN_TYPES = ["string", "number", "date", "datetime", "bool", "sql.condition", "sql.expression", "sql.identifier"];
 const CONTEXT_NAME_PATTERN = /^[A-Za-z0-9_.-]+$/;
@@ -61,15 +63,24 @@ function cloneParameter(param: ProjectParameterItem): ProjectParameterItem {
 export default function ParametersScreen() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const addToast = useUiStore((state) => state.addToast);
+  const { theme } = useTheme();
   const initialParam = useUiStore((state) => state.initialParam);
   const setInitialParam = useUiStore((state) => state.setInitialParam);
+  const initialParamScopeFilter = useUiStore((state) => state.initialParamScopeFilter);
+  const setInitialParamScopeFilter = useUiStore((state) => state.setInitialParamScopeFilter);
   const queryClient = useQueryClient();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState<ProjectParameterItem | null>(null);
   const [isNewDraft, setIsNewDraft] = useState(false);
+  const [scopeFilter, setScopeFilter] = useState<string | null>(null);
   const [testContext, setTestContext] = useState("all");
   const [testResult, setTestResult] = useState<ProjectParameterTestResponse | null>(null);
   const [newContextName, setNewContextName] = useState("");
+  const [expandedValueEditor, setExpandedValueEditor] = useState<{
+    context: string;
+    type: "static" | "dynamic";
+    value: string;
+  } | null>(null);
 
   const paramsQuery = useQuery({
     queryKey: ["projectParameters", currentProjectId],
@@ -104,19 +115,15 @@ export default function ParametersScreen() {
   );
 
   useEffect(() => {
-    if (parameterItems.length === 0) {
-      setSelectedKey(null);
-      if (!isNewDraft) setDraft(null);
-      return;
-    }
-    if (!selectedKey) {
-      setSelectedKey(parameterKey(parameterItems[0]));
-    }
-  }, [parameterItems, selectedKey, isNewDraft]);
+    if (parameterItems.length > 0 || isNewDraft) return;
+    setSelectedKey(null);
+    setDraft(null);
+  }, [isNewDraft, parameterItems.length]);
 
   useEffect(() => {
     if (!initialParam || parameterItems.length === 0) return;
     const match =
+      parameterItems.find((item) => item.name === initialParam.id && item.scope === initialParam.scope) ??
       parameterItems.find((item) => item.name === initialParam.id && (initialParam.scope === "model" ? item.scope.startsWith("model:") : item.scope === "global")) ??
       parameterItems.find((item) => item.name === initialParam.id) ??
       null;
@@ -133,8 +140,42 @@ export default function ParametersScreen() {
     setTestResult(null);
   }, [selectedItem, isNewDraft]);
 
+  useEffect(() => {
+    if (!expandedValueEditor) return;
+    if (!draft) {
+      setExpandedValueEditor(null);
+      return;
+    }
+    const current = draft.values[expandedValueEditor.context];
+    if (!current || current.type !== expandedValueEditor.type) {
+      setExpandedValueEditor(null);
+    }
+  }, [draft, expandedValueEditor]);
+
   const globalItems = useMemo(() => parameterItems.filter((item) => item.scope === "global"), [parameterItems]);
   const localItems = useMemo(() => parameterItems.filter((item) => item.scope.startsWith("model:")), [parameterItems]);
+  const filteredLocalItems = useMemo(
+    () => (scopeFilter ? localItems.filter((item) => item.scope === scopeFilter) : localItems),
+    [localItems, scopeFilter],
+  );
+  const visibleItems = useMemo(() => [...globalItems, ...filteredLocalItems], [globalItems, filteredLocalItems]);
+
+  useEffect(() => {
+    if (initialParamScopeFilter === null) return;
+    setScopeFilter(initialParamScopeFilter);
+    setInitialParamScopeFilter(null);
+  }, [initialParamScopeFilter, setInitialParamScopeFilter]);
+
+  useEffect(() => {
+    if (isNewDraft) return;
+    if (visibleItems.length === 0) {
+      setSelectedKey(null);
+      setDraft(null);
+      return;
+    }
+    if (selectedKey && visibleItems.some((item) => parameterKey(item) === selectedKey)) return;
+    setSelectedKey(parameterKey(visibleItems[0]));
+  }, [isNewDraft, selectedKey, visibleItems]);
 
   const isDirty = useMemo(() => {
     if (!draft) return false;
@@ -355,8 +396,30 @@ export default function ParametersScreen() {
     setNewContextName("");
   };
 
+  const openExpandedValueEditor = (context: string) => {
+    if (!draft) return;
+    const current = draft.values[context];
+    if (!current) return;
+    setExpandedValueEditor({
+      context,
+      type: current.type,
+      value: current.value,
+    });
+  };
+
+  const applyExpandedValueEditor = () => {
+    if (!expandedValueEditor) return;
+    updateValue(expandedValueEditor.context, { value: expandedValueEditor.value });
+    setExpandedValueEditor(null);
+  };
+
   const createNew = () => {
-    const defaultScope = modelScopeOptions.length > 0 ? `model:${modelScopeOptions[0]}` : "global";
+    const defaultScope =
+      scopeFilter && (scopeFilter === "global" || scopeFilter.startsWith("model:"))
+        ? scopeFilter
+        : modelScopeOptions.length > 0
+          ? `model:${modelScopeOptions[0]}`
+          : "global";
     const next: ProjectParameterItem = {
       name: "new_parameter",
       scope: defaultScope,
@@ -437,12 +500,12 @@ export default function ParametersScreen() {
               ))
             )}
           </div>
-          <h2>Local</h2>
+          <h2>{scopeFilter && scopeFilter.startsWith("model:") ? `Local (${scopeFilter.replace("model:", "")})` : "Local"}</h2>
           <div className="parameters-list-block">
-            {localItems.length === 0 ? (
+            {filteredLocalItems.length === 0 ? (
               <p className="parameters-empty">No model parameters</p>
             ) : (
-              localItems.map((item) => (
+              filteredLocalItems.map((item) => (
                 <button
                   key={parameterKey(item)}
                   type="button"
@@ -516,7 +579,7 @@ export default function ParametersScreen() {
                   </div>
                 </div>
                 <div className="model-attr-table-wrap">
-                  <table className="model-attr-table">
+                  <table className="model-attr-table parameters-values-table">
                     <thead>
                       <tr>
                         <th>Context</th>
@@ -543,19 +606,41 @@ export default function ParametersScreen() {
                           </td>
                           <td>
                             {row.type === "dynamic" ? (
-                              <Editor
-                                height="120px"
-                                language="sql"
-                                value={row.value}
-                                options={{ minimap: { enabled: false }, fontSize: 12, automaticLayout: true }}
-                                onChange={(value) => updateValue(context, { value: value ?? "" })}
-                              />
+                              <div className="parameter-value-cell parameter-value-cell-split">
+                                <button
+                                  type="button"
+                                  className="editor-expand-btn parameter-value-expand-btn"
+                                  onClick={() => openExpandedValueEditor(context)}
+                                  aria-label={`Expand value editor for ${context}`}
+                                  title="Expand editor"
+                                >
+                                  ⤢
+                                </button>
+                                <Editor
+                                  height="120px"
+                                  language="sql"
+                                  value={row.value}
+                                  options={{ minimap: { enabled: false }, fontSize: 12, automaticLayout: true }}
+                                  onChange={(value) => updateValue(context, { value: value ?? "" })}
+                                />
+                              </div>
                             ) : (
-                              <input
-                                className="ui-input"
-                                value={row.value}
-                                onChange={(event) => updateValue(context, { value: event.target.value })}
-                              />
+                              <div className="parameter-value-inline">
+                                <input
+                                  className="ui-input"
+                                  value={row.value}
+                                  onChange={(event) => updateValue(context, { value: event.target.value })}
+                                />
+                                <button
+                                  type="button"
+                                  className="editor-expand-btn"
+                                  onClick={() => openExpandedValueEditor(context)}
+                                  aria-label={`Expand value editor for ${context}`}
+                                  title="Expand editor"
+                                >
+                                  ⤢
+                                </button>
+                              </div>
                             )}
                           </td>
                           <td>
@@ -636,6 +721,26 @@ export default function ParametersScreen() {
           )}
         </div>
       </div>
+      <ExpandedFieldEditorModal
+        isOpen={Boolean(expandedValueEditor)}
+        title={expandedValueEditor ? `Value: ${expandedValueEditor.context}` : "Value"}
+        language={expandedValueEditor?.type === "dynamic" ? "sql" : "plaintext"}
+        value={expandedValueEditor?.value ?? ""}
+        theme={theme === "dark" ? "vs-dark" : "light"}
+        confirmLabel="Apply"
+        onChange={(value) =>
+          setExpandedValueEditor((current) =>
+            current
+              ? {
+                  ...current,
+                  value,
+                }
+              : current,
+          )
+        }
+        onClose={() => setExpandedValueEditor(null)}
+        onApply={applyExpandedValueEditor}
+      />
     </section>
   );
 }

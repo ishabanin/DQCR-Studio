@@ -49,6 +49,12 @@ function findFirstFilePath(node: BuildFilesTreeNode | null): string | null {
   return null;
 }
 
+function hasFilePath(node: BuildFilesTreeNode | null, targetPath: string): boolean {
+  if (!node) return false;
+  if (node.type === "file") return node.path === targetPath;
+  return (node.children ?? []).some((child) => hasFilePath(child, targetPath));
+}
+
 function OutputTreeNode({
   node,
   selectedPath,
@@ -91,8 +97,6 @@ function OutputTreeNode({
 export default function BuildScreen() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const addToast = useUiStore((state) => state.addToast);
-  const dismissedHistoryWarning = useUiStore((state) => state.dismissedHistoryWarning);
-  const setDismissedHistoryWarning = useUiStore((state) => state.setDismissedHistoryWarning);
   const queryClient = useQueryClient();
   const { theme } = useTheme();
   const [engine, setEngine] = useState<BuildEngine>("dqcr");
@@ -211,7 +215,7 @@ export default function BuildScreen() {
       setSelectedOutputFilePath(firstFilePath);
       return;
     }
-    const existsInCurrentBuild = (buildFilesQuery.data?.files ?? []).some((file) => file.path === selectedOutputFilePath);
+    const existsInCurrentBuild = hasFilePath(buildFilesQuery.data?.tree ?? null, selectedOutputFilePath);
     if (!existsInCurrentBuild) {
       setSelectedOutputFilePath(firstFilePath);
     }
@@ -262,7 +266,7 @@ export default function BuildScreen() {
       await queryClient.invalidateQueries({ queryKey: ["buildHistory", currentProjectId] });
       setSelectedBuildId(data.result.build_id);
       addToast(`✓ Build завершён — ${data.result.files_count} файлов сгенерировано`, "success", {
-        description: "История сборок хранится до перезапуска сервера",
+        description: "Сборка добавлена в историю",
         autoCloseMs: 8000,
         action: {
           label: "Скачать ZIP",
@@ -413,37 +417,36 @@ export default function BuildScreen() {
       <div className="build-layout">
         <section className="build-card">
           <h2>Build History</h2>
-          {!dismissedHistoryWarning ? (
-            <div className="session-history-banner">
-              <span>История сессии - сбрасывается при перезапуске сервера</span>
-              <button type="button" onClick={() => setDismissedHistoryWarning(true)}>
-                Понятно ✕
-              </button>
-            </div>
+          {buildHistoryQuery.isLoading ? <p className="build-empty">Loading build history...</p> : null}
+          {!buildHistoryQuery.isLoading && (buildHistoryQuery.data ?? []).length === 0 ? (
+            <p className="build-empty">No build history yet.</p>
           ) : null}
-          <ul className="build-history-list">
-            {(buildHistoryQuery.data ?? []).map((item) => (
-              <li key={item.build_id}>
-                <button
-                  type="button"
-                  className={selectedBuildId === item.build_id ? "build-history-item build-history-item-active" : "build-history-item"}
-                  onClick={() => setSelectedBuildId(item.build_id)}
-                >
-                  <strong>{item.build_id}</strong>
-                  <span>{item.engine}</span>
-                  <span>{new Date(item.timestamp).toLocaleString()}</span>
-                </button>
-                <button type="button" className="action-btn build-restore-btn" onClick={() => restoreBuildConfig(item)}>
-                  Restore
-                </button>
-              </li>
-            ))}
-          </ul>
+          {!buildHistoryQuery.isLoading && (buildHistoryQuery.data ?? []).length > 0 ? (
+            <ul className="build-history-list">
+              {(buildHistoryQuery.data ?? []).map((item) => (
+                <li key={item.build_id}>
+                  <button
+                    type="button"
+                    className={selectedBuildId === item.build_id ? "build-history-item build-history-item-active" : "build-history-item"}
+                    onClick={() => setSelectedBuildId(item.build_id)}
+                  >
+                    <strong>{item.build_id}</strong>
+                    <span>{item.engine}</span>
+                    <span>{new Date(item.timestamp).toLocaleString()}</span>
+                  </button>
+                  <button type="button" className="action-btn build-restore-btn" onClick={() => restoreBuildConfig(item)}>
+                    Restore
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </section>
 
         <section className="build-card">
           <h2>Output Files</h2>
-          {buildFilesQuery.data?.tree ? (
+          {buildFilesQuery.isLoading ? <p className="build-empty">Loading output files...</p> : null}
+          {!buildFilesQuery.isLoading && buildFilesQuery.data?.tree && findFirstFilePath(buildFilesQuery.data.tree) ? (
             <div className="build-output-layout">
               <div>
                 <ul className="build-tree-list">
@@ -486,9 +489,10 @@ export default function BuildScreen() {
                 />
               </div>
             </div>
-          ) : (
+          ) : null}
+          {!buildFilesQuery.isLoading && (!buildFilesQuery.data?.tree || !findFirstFilePath(buildFilesQuery.data.tree)) ? (
             <p className="build-empty">No output files yet.</p>
-          )}
+          ) : null}
         </section>
       </div>
 

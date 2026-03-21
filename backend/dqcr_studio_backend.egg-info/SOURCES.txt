@@ -5,6 +5,7 @@ app/core/__init__.py
 app/core/config.py
 app/core/fs.py
 app/core/logging.py
+app/core/project_registry.py
 app/routers/__init__.py
 app/routers/admin.py
 app/routers/files.py
@@ -19,6 +20,7 @@ app/schemas/validation.py
 app/services/__init__.py
 app/services/fw_service.py
 app/services/terminal_service.py
+app/services/workflow_cache_service.py
 dqcr_studio_backend.egg-info/PKG-INFO
 dqcr_studio_backend.egg-info/SOURCES.txt
 dqcr_studio_backend.egg-info/dependency_links.txt

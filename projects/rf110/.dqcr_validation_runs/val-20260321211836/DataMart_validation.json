@@ -1,0 +1,46 @@
+{
+  "project_name": "RF110",
+  "model_name": "DataMart",
+  "template_name": "flx",
+  "validation_categories": [
+    "general",
+    "sql",
+    "descriptions",
+    "adb",
+    "oracle",
+    "postgresql"
+  ],
+  "timestamp": "2026-03-21T21:18:36.981174",
+  "summary": {
+    "total": 2,
+    "errors": 1,
+    "warnings": 1,
+    "info": 0
+  },
+  "issues": [
+    {
+      "level": "warning",
+      "rule": "not_all_ephemeral",
+      "category": "general",
+      "message": "All steps are ephemeral - workflow produces no output",
+      "location": "workflow",
+      "details": {
+        "model_name": "DataMart",
+        "total_steps": 2
+      }
+    }
+  ],
+  "template_issues": [
+    {
+      "level": "error",
+      "rule": "required_folder",
+      "category": "template",
+      "message": "Required folder pattern '*_iter*' not found in workflow",
+      "location": "folder:*_iter*",
+      "details": {
+        "pattern": "*_iter*",
+        "existing_folders": []
+      }
+    }
+  ]
+}

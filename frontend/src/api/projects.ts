@@ -148,7 +148,7 @@ export interface BuildPreviewResponse {
 
 export interface BuildGeneratedFileItem {
   path: string;
-  source_path: string;
+  source_path: string | null;
   size_bytes: number;
 }
 
@@ -380,6 +380,26 @@ function normalizeFileNode(value: unknown, fallbackName = "project", fallbackPat
   };
 }
 
+function normalizeBuildFileNode(value: unknown, fallbackName = "output", fallbackPath = ""): BuildFilesTreeNode {
+  if (!isRecord(value)) {
+    return { name: fallbackName, path: fallbackPath, type: "directory", children: [] };
+  }
+  const type = value.type === "file" ? "file" : "directory";
+  const name = typeof value.name === "string" && value.name.trim() ? value.name : fallbackName;
+  const path = typeof value.path === "string" ? value.path : fallbackPath;
+  const sourcePath = typeof value.source_path === "string" ? value.source_path : undefined;
+  const sizeBytes = typeof value.size_bytes === "number" ? value.size_bytes : undefined;
+  const childrenRaw = Array.isArray(value.children) ? value.children : [];
+  return {
+    name,
+    path,
+    type,
+    size_bytes: sizeBytes,
+    source_path: sourcePath,
+    children: type === "directory" ? childrenRaw.map((child) => normalizeBuildFileNode(child, "item", "")) : undefined,
+  };
+}
+
 export async function fetchProjects(): Promise<ProjectItem[]> {
   const { data } = await apiClient.get<ProjectItem[]>("/projects");
   if (!Array.isArray(data)) return [];
@@ -567,8 +587,16 @@ export async function fetchBuildFiles(projectId: string, buildId: string): Promi
     build_id: typeof data.build_id === "string" ? data.build_id : buildId,
     engine: typeof data.engine === "string" ? data.engine : "dqcr",
     output_path: typeof data.output_path === "string" ? data.output_path : "",
-    files: Array.isArray(data.files) ? data.files.filter((item) => isRecord(item) && typeof item.path === "string" && typeof item.source_path === "string") as BuildGeneratedFileItem[] : [],
-    tree: normalizeFileNode(data.tree, "output", "") as BuildFilesTreeNode,
+    files: Array.isArray(data.files)
+      ? data.files
+          .filter((item) => isRecord(item) && typeof item.path === "string")
+          .map((item) => ({
+            path: String(item.path),
+            source_path: typeof item.source_path === "string" ? item.source_path : null,
+            size_bytes: typeof item.size_bytes === "number" ? item.size_bytes : 0,
+          }))
+      : [],
+    tree: normalizeBuildFileNode(data.tree, "output", ""),
   };
 }
 

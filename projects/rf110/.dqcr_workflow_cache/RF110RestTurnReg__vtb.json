@@ -1581,7 +1581,7 @@
           "adb": "    \n\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 FROM tmp_sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb_{{calc_id}})"
         },
         "rendered_sql": {
-          "adb": "\nUPDATE RF110RestTurnReg trg\nSET datefrom = src.datefrom, fininstrcategory = src.fininstrcategory \nFROM (\n        \n\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 FROM tmp_sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb_{{calc_id}})\n) src\nWHERE trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid"
+          "adb": "\nUPDATE RF110RestTurnReg trg\nSET fininstrcategory = src.fininstrcategory, datefrom = src.datefrom \nFROM (\n        \n\nselect r.DealID,\n       r.FinInstrCategory,\n       r.DateFrom\nfrom {{ table_psreg_psregister }} r\nwhere r.CalcID = {{calc_psregister_id}}\nand r.RowStatus = 'A'\nand r.tt in (select 1 FROM tmp_sql_002_Update_001_RF110RestTurnReg_QUALITY_b_vtb_{{calc_id}})\n) src\nWHERE trg.calcid = {{CALC_ID}} AND trg.dealid = src.dealid"
         },
         "attributes": [
           {
