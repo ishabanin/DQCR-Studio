@@ -1,47 +1,114 @@
-import Button from "../../../shared/components/ui/Button";
-import Input from "../../../shared/components/ui/Input";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-export interface PropertyRow {
-  id: string;
-  key: string;
-  value: string;
+import type { PropertyEntry } from "../types";
+
+function createEntry(): PropertyEntry {
+  return {
+    id: `prop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    key: "",
+    value: "",
+  };
+}
+
+function normalizeKey(value: string): string {
+  return value.trim();
 }
 
 export function PropertiesEditor({
-  items,
+  entries,
   onChange,
 }: {
-  items: PropertyRow[];
-  onChange: (items: PropertyRow[]) => void;
+  entries: PropertyEntry[];
+  onChange: (entries: PropertyEntry[]) => void;
 }) {
-  const updateItem = (id: string, patch: Partial<PropertyRow>) => {
-    onChange(items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  const keyRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [touchedKeys, setTouchedKeys] = useState<Record<string, boolean>>({});
+
+  const duplicates = useMemo(() => {
+    const freq = new Map<string, number>();
+    for (const entry of entries) {
+      const key = normalizeKey(entry.key);
+      if (!key) continue;
+      freq.set(key, (freq.get(key) ?? 0) + 1);
+    }
+
+    return new Set(
+      entries
+        .filter((entry) => {
+          const key = normalizeKey(entry.key);
+          return Boolean(key) && (freq.get(key) ?? 0) > 1;
+        })
+        .map((entry) => entry.id),
+    );
+  }, [entries]);
+
+  useEffect(() => {
+    if (!focusedId) return;
+    keyRefs.current[focusedId]?.focus();
+    setFocusedId(null);
+  }, [focusedId, entries]);
+
+  const updateEntry = (id: string, patch: Partial<PropertyEntry>) => {
+    onChange(entries.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
   };
 
-  const removeItem = (id: string) => {
-    onChange(items.filter((item) => item.id !== id));
+  const addEntry = () => {
+    const next = createEntry();
+    onChange([...entries, next]);
+    setFocusedId(next.id);
+  };
+
+  const deleteEntry = (id: string) => {
+    onChange(entries.filter((entry) => entry.id !== id));
   };
 
   return (
-    <div className="project-properties">
-      {items.length === 0 ? <p className="project-muted-copy">No custom properties yet.</p> : null}
-      {items.map((item) => (
-        <div key={item.id} className="project-property-row">
-          <Input
-            placeholder="property key"
-            value={item.key}
-            onChange={(event) => updateItem(item.id, { key: event.target.value })}
-          />
-          <Input
-            placeholder="value"
-            value={item.value}
-            onChange={(event) => updateItem(item.id, { value: event.target.value })}
-          />
-          <Button type="button" onClick={() => removeItem(item.id)}>
-            Remove
-          </Button>
-        </div>
-      ))}
+    <div className="pi-card">
+      <div className="pi-card-header">
+        <span className="pi-card-title">Custom properties</span>
+        <button className="pi-card-action" onClick={addEntry}>
+          ＋ Add
+        </button>
+      </div>
+
+      {entries.map((entry) => {
+        const isEmptyTouched = touchedKeys[entry.id] && normalizeKey(entry.key) === "";
+        const isInvalid = isEmptyTouched || duplicates.has(entry.id);
+
+        return (
+          <div key={entry.id} className="pi-prop-row">
+            <input
+              ref={(element) => {
+                keyRefs.current[entry.id] = element;
+              }}
+              className="pi-prop-key-input"
+              value={entry.key}
+              placeholder="key"
+              onChange={(event) => updateEntry(entry.id, { key: event.target.value })}
+              onBlur={(event) => {
+                const normalized = event.target.value.replace(/\s+/g, "_");
+                updateEntry(entry.id, { key: normalized });
+                setTouchedKeys((prev) => ({ ...prev, [entry.id]: true }));
+              }}
+              style={isInvalid ? { borderColor: "var(--pi-danger-text)" } : undefined}
+            />
+            <input
+              className="pi-prop-val-input"
+              value={entry.value}
+              placeholder="value"
+              onChange={(event) => updateEntry(entry.id, { value: event.target.value })}
+            />
+            <button className="pi-prop-del" onClick={() => deleteEntry(entry.id)} title="Remove">
+              ✕
+            </button>
+          </div>
+        );
+      })}
+
+      <button className="pi-add-row" onClick={addEntry}>
+        ＋ Add property
+      </button>
     </div>
   );
 }

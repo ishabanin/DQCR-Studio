@@ -3,14 +3,32 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { toPng } from "html-to-image";
 import "reactflow/dist/style.css";
 
-import { fetchModelLineage, fetchProjectTree, fetchProjectWorkflowStatus, rebuildModelWorkflow, FileNode } from "../../api/projects";
+import {
+  fetchModelLineage,
+  fetchProjectTree,
+  fetchProjectWorkflowStatus,
+  rebuildModelWorkflow,
+  FileNode,
+  LineageNode,
+} from "../../api/projects";
 import { useContextStore } from "../../app/store/contextStore";
 import { useEditorStore } from "../../app/store/editorStore";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
-import DagGraph from "./DagGraph";
+import DagGraph, { DagGraphHandle } from "./DagGraph";
+import "./lineage.css";
+import { DetailPanel } from "./components/DetailPanel";
+import { FallbackBanner } from "./components/FallbackBanner";
+import { FilterNote } from "./components/FilterNote";
+import { GraphArea } from "./components/GraphArea";
+import { LineageHeader } from "./components/LineageHeader";
+import { LineageSummary } from "./components/LineageSummary";
+import { LineageToolbar } from "./components/LineageToolbar";
+import { computeVisibleNodes, countNodeCtes, formatNodePath, getConnectionCounts, nodeMatchesSearch } from "./lineageUtils";
 
 type LineageViewMode = "horizontal" | "vertical" | "compact";
+
+const VIEW_MODE_KEY = "dqcr_lineage_viewmode";
 
 function findModelIds(tree: FileNode): string[] {
   const rootChildren = tree.children ?? [];
@@ -21,6 +39,88 @@ function findModelIds(tree: FileNode): string[] {
   return modelRoot.children.filter((child) => child.type === "directory").map((child) => child.name);
 }
 
+function LineageSkeleton() {
+  const rows = [3, 4, 2];
+
+  return (
+    <div className="lg-loading-graph">
+      <div className="lg-loading-skeleton-row">
+        {rows.map((rowCount, index) => (
+          <div key={rowCount + index} className="lg-loading-skeleton-row">
+            <div className="lg-loading-node">
+              <div className="lg-loading-node-head">
+                <div className="lg-skeleton" style={{ height: 12, width: 80, marginBottom: 5 }} />
+                <div className="lg-skeleton" style={{ height: 16, width: 64, borderRadius: 20 }} />
+              </div>
+              <div className="lg-loading-node-body">
+                {Array.from({ length: rowCount }).map((_, rowIndex) => (
+                  <div
+                    key={rowIndex}
+                    className="lg-skeleton"
+                    style={{ height: 20, borderRadius: 4, marginBottom: rowIndex < rowCount - 1 ? 4 : 0 }}
+                  />
+                ))}
+              </div>
+            </div>
+            {index < rows.length - 1 ? (
+              <div className="lg-loading-edge">
+                <div className="lg-loading-edge-line" />
+                <span className="lg-loading-edge-arrow">▶</span>
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ShellState({
+  icon,
+  title,
+  description,
+  actions,
+  danger = false,
+}: {
+  icon: string;
+  title: string;
+  description: React.ReactNode;
+  actions?: React.ReactNode;
+  danger?: boolean;
+}) {
+  return (
+    <div className="lg-state-block">
+      <div className={danger ? "lg-state-icon lg-state-icon-danger" : "lg-state-icon"}>{icon}</div>
+      <div className="lg-state-title">{title}</div>
+      <div className="lg-state-desc">{description}</div>
+      {actions}
+    </div>
+  );
+}
+
+function LoadingShell() {
+  return (
+    <div className="lg-loading-shell">
+      <div className="lg-header">
+        <div className="lg-header-top">
+          <div className="lg-skeleton" style={{ height: 16, width: 220 }} />
+        </div>
+        <div className="lg-pills">
+          <div className="lg-skeleton" style={{ height: 20, width: 80, borderRadius: 20 }} />
+          <div className="lg-skeleton" style={{ height: 20, width: 100, borderRadius: 20 }} />
+        </div>
+      </div>
+      <div className="lg-loading-toolbar">
+        <div className="lg-skeleton" style={{ height: 26, width: 160, borderRadius: 5 }} />
+        <div className="lg-skeleton" style={{ height: 26, width: 240, borderRadius: 5 }} />
+        <div className="lg-skeleton" style={{ height: 26, width: 200, borderRadius: 5 }} />
+        <div className="lg-skeleton" style={{ height: 26, width: 100, borderRadius: 5, marginLeft: "auto" }} />
+      </div>
+      <LineageSkeleton />
+    </div>
+  );
+}
+
 export default function LineageScreen() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const activeContext = useContextStore((state) => state.activeContext);
@@ -28,17 +128,33 @@ export default function LineageScreen() {
   const multiMode = useContextStore((state) => state.multiMode);
   const openFile = useEditorStore((state) => state.openFile);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
+  const lineageModelId = useEditorStore((state) => state.lineageModelId);
+  const lineageNodePath = useEditorStore((state) => state.lineageNodePath);
+  const clearLineageNodePath = useEditorStore((state) => state.clearLineageNodePath);
   const addToast = useUiStore((state) => state.addToast);
+
   const [modelId, setModelId] = useState<string>("");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<LineageViewMode>("horizontal");
+  const [viewMode, setViewMode] = useState<LineageViewMode>(() => {
+    const stored = window.localStorage.getItem(VIEW_MODE_KEY);
+    return stored === "vertical" || stored === "compact" || stored === "horizontal" ? stored : "horizontal";
+  });
   const [searchValue, setSearchValue] = useState("");
+
   const graphExportRef = useRef<HTMLDivElement | null>(null);
+  const dagGraphRef = useRef<DagGraphHandle | null>(null);
 
   const treeQuery = useQuery({
     queryKey: ["projectTree", currentProjectId],
     queryFn: () => fetchProjectTree(currentProjectId as string),
     enabled: Boolean(currentProjectId),
+  });
+
+  const workflowStatusQuery = useQuery({
+    queryKey: ["workflowStatus", currentProjectId],
+    queryFn: () => fetchProjectWorkflowStatus(currentProjectId as string),
+    enabled: Boolean(currentProjectId),
+    refetchInterval: currentProjectId ? 10000 : false,
   });
 
   const modelIds = useMemo(() => {
@@ -51,22 +167,21 @@ export default function LineageScreen() {
       setModelId("");
       return;
     }
+    if (lineageModelId && modelIds.includes(lineageModelId) && lineageModelId !== modelId) {
+      setModelId(lineageModelId);
+      return;
+    }
     if (!modelIds.includes(modelId)) {
       setModelId(modelIds[0]);
     }
-  }, [modelIds, modelId]);
+  }, [modelIds, modelId, lineageModelId]);
 
   const lineageQuery = useQuery({
     queryKey: ["lineage", currentProjectId, modelId, multiMode ? "all" : activeContext],
     queryFn: () => fetchModelLineage(currentProjectId as string, modelId, multiMode ? undefined : activeContext),
     enabled: Boolean(currentProjectId && modelId),
   });
-  const workflowStatusQuery = useQuery({
-    queryKey: ["workflowStatus", currentProjectId],
-    queryFn: () => fetchProjectWorkflowStatus(currentProjectId as string),
-    enabled: Boolean(currentProjectId),
-    refetchInterval: currentProjectId ? 10000 : false,
-  });
+
   const rebuildMutation = useMutation({
     mutationFn: async () => {
       if (!currentProjectId) return;
@@ -78,30 +193,86 @@ export default function LineageScreen() {
     },
     onSuccess: () => {
       addToast("Workflow rebuild started", "info");
+      workflowStatusQuery.refetch();
     },
     onError: () => {
       addToast("Workflow rebuild failed", "error");
     },
   });
 
-  const visibleNodes = useMemo(() => {
-    if (!lineageQuery.data?.nodes) return [];
-    const query = searchValue.trim().toLowerCase();
-    const contexts = multiMode ? activeContexts : [activeContext];
-    return lineageQuery.data.nodes.filter((node) => {
-      const byContext =
-        node.enabled_contexts === null || node.enabled_contexts.some((ctx) => contexts.includes(ctx));
-      if (!byContext) return false;
-      if (!query) return true;
-      return node.name.toLowerCase().includes(query);
-    });
-  }, [lineageQuery.data?.nodes, searchValue, multiMode, activeContexts, activeContext]);
+  const allNodes = lineageQuery.data?.nodes ?? [];
+  const allEdges = lineageQuery.data?.edges ?? [];
+  const selectedContexts = multiMode ? activeContexts : activeContext ? [activeContext] : [];
 
-  const visibleEdges = useMemo(() => {
-    if (!lineageQuery.data?.edges) return [];
-    const nodeIds = new Set(visibleNodes.map((node) => node.id));
-    return lineageQuery.data.edges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
-  }, [lineageQuery.data?.edges, visibleNodes]);
+  const enabledContextsMap = useMemo(
+    () =>
+      Object.fromEntries(allNodes.map((node) => [node.id, node.enabled_contexts] as const)) as Record<string, string[] | null>,
+    [allNodes],
+  );
+
+  const visibleIds = useMemo(
+    () => computeVisibleNodes(allNodes, searchValue, selectedContexts, enabledContextsMap),
+    [allNodes, searchValue, selectedContexts, enabledContextsMap],
+  );
+
+  const visibleNodes = useMemo(() => allNodes.filter((node) => visibleIds.has(node.id)), [allNodes, visibleIds]);
+  const visibleEdges = useMemo(
+    () => allEdges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target)),
+    [allEdges, visibleIds],
+  );
+
+  const searchHidden = useMemo(
+    () =>
+      allNodes.filter((node) => {
+        const matchesSearch = nodeMatchesSearch(node, searchValue);
+        const visible = visibleIds.has(node.id);
+        return !visible && !matchesSearch;
+      }).length,
+    [allNodes, searchValue, visibleIds],
+  );
+
+  const contextHidden = useMemo(
+    () =>
+      allNodes.filter((node) => {
+        const enabled = enabledContextsMap[node.id];
+        if (enabled === null || enabled === undefined || selectedContexts.length === 0) return false;
+        return !selectedContexts.some((contextId) => enabled.includes(contextId));
+      }).length,
+    [allNodes, enabledContextsMap, selectedContexts],
+  );
+
+  const isFiltered = searchValue.trim().length > 0 || contextHidden > 0;
+
+  useEffect(() => {
+    if (lineageNodePath && visibleNodes.length > 0) {
+      const normalizedTarget = lineageNodePath.toLowerCase();
+      const matchedNode = visibleNodes.find((node) => node.path.toLowerCase() === normalizedTarget);
+      if (matchedNode) {
+        setSelectedNodeId(matchedNode.id);
+        clearLineageNodePath();
+        return;
+      }
+    }
+
+    if (!visibleNodes.length) {
+      setSelectedNodeId(null);
+      return;
+    }
+
+    if (selectedNodeId && visibleNodes.some((node) => node.id === selectedNodeId)) {
+      return;
+    }
+
+    setSelectedNodeId(visibleNodes[0].id);
+  }, [visibleNodes, selectedNodeId, lineageNodePath, clearLineageNodePath]);
+
+  const selectedNode = useMemo(
+    () => visibleNodes.find((node) => node.id === selectedNodeId) ?? null,
+    [visibleNodes, selectedNodeId],
+  );
+
+  const connectionCounts = useMemo(() => getConnectionCounts(selectedNodeId, allEdges), [selectedNodeId, allEdges]);
+
   const activeWorkflowModelState = useMemo(() => {
     const models = workflowStatusQuery.data?.models ?? [];
     if (modelId) {
@@ -111,55 +282,29 @@ export default function LineageScreen() {
     return models[0] ?? null;
   }, [modelId, workflowStatusQuery.data?.models]);
 
-  useEffect(() => {
-    if (!visibleNodes.length) {
-      setSelectedNodeId(null);
-      return;
-    }
-    const exists = visibleNodes.some((node) => node.id === selectedNodeId);
-    if (!exists) {
-      setSelectedNodeId(visibleNodes[0].id);
-    }
-  }, [visibleNodes, selectedNodeId]);
+  const source = activeWorkflowModelState?.source ?? null;
 
-  if (!currentProjectId) {
-    return (
-      <section className="workbench">
-        <h1>Lineage</h1>
-        <p>Select a project to load lineage.</p>
-      </section>
-    );
-  }
+  const handleViewMode = (mode: LineageViewMode) => {
+    setViewMode(mode);
+    window.localStorage.setItem(VIEW_MODE_KEY, mode);
+  };
 
-  if (treeQuery.isLoading) {
-    return (
-      <section className="workbench">
-        <h1>Lineage</h1>
-        <p>Loading project structure...</p>
-      </section>
-    );
-  }
+  const handleModelChange = (nextModelId: string) => {
+    setModelId(nextModelId);
+    setSelectedNodeId(null);
+  };
 
-  if (treeQuery.isError) {
-    return (
-      <section className="workbench">
-        <h1>Lineage</h1>
-        <p>Failed to load project files.</p>
-      </section>
-    );
-  }
+  const handleNodeClick = (nodeId: string) => {
+    setSelectedNodeId((current) => (current === nodeId ? null : nodeId));
+  };
 
-  if (!modelIds.length) {
-    return (
-      <section className="workbench">
-        <h1>Lineage</h1>
-        <p>No models found in project.</p>
-      </section>
-    );
-  }
+  const handleOpenQuery = (filePath: string) => {
+    openFile(filePath);
+    setActiveTab("sql");
+  };
 
   const handleExportPng = async () => {
-    if (!graphExportRef.current) return;
+    if (!graphExportRef.current || !currentProjectId || !modelId) return;
     try {
       const dataUrl = await toPng(graphExportRef.current, {
         cacheBust: true,
@@ -177,156 +322,191 @@ export default function LineageScreen() {
     }
   };
 
-  return (
-    <section className="workbench">
-      <h1>Lineage</h1>
-      <div className="lineage-toolbar">
-        <label htmlFor="lineage-model-select">Model</label>
-        <select id="lineage-model-select" value={modelId} onChange={(event) => setModelId(event.target.value)}>
-          {modelIds.map((item) => (
-            <option key={item} value={item}>
-              {item}
-            </option>
-          ))}
-        </select>
-        <div className="lineage-mode-switch">
-          <button
-            className={viewMode === "horizontal" ? "lineage-mode-btn lineage-mode-btn-active" : "lineage-mode-btn"}
-            onClick={() => setViewMode("horizontal")}
-            type="button"
-          >
-            Horizontal
-          </button>
-          <button
-            className={viewMode === "vertical" ? "lineage-mode-btn lineage-mode-btn-active" : "lineage-mode-btn"}
-            onClick={() => setViewMode("vertical")}
-            type="button"
-          >
-            Vertical
-          </button>
-          <button
-            className={viewMode === "compact" ? "lineage-mode-btn lineage-mode-btn-active" : "lineage-mode-btn"}
-            onClick={() => setViewMode("compact")}
-            type="button"
-          >
-            Compact
-          </button>
-        </div>
-        <input
-          className="lineage-search-input"
-          placeholder="Search folders..."
-          value={searchValue}
-          onChange={(event) => setSearchValue(event.target.value)}
+  const clearFilters = () => {
+    setSearchValue("");
+  };
+
+  const renderGraphContent = () => {
+    if (lineageQuery.isLoading) {
+      return <LineageSkeleton />;
+    }
+
+    if (lineageQuery.isError) {
+      return (
+        <ShellState
+          icon="⚠"
+          title="Failed to load lineage"
+          description={lineageQuery.error instanceof Error ? lineageQuery.error.message : "Unknown error"}
+          actions={
+            <button className="lg-state-btn" onClick={() => lineageQuery.refetch()} type="button">
+              ↻ Retry
+            </button>
+          }
+          danger
         />
-        <button className="lineage-export-btn" onClick={handleExportPng} type="button">
-          Export PNG
-        </button>
-      </div>
-      {activeWorkflowModelState?.source === "fallback" ? (
-        <div className="lineage-fallback-banner">
-          <span>Данные из файловой структуры (fallback) — workflow cache устарел</span>
-          <button
-            type="button"
-            className="action-btn"
-            disabled={rebuildMutation.isPending}
-            onClick={() => rebuildMutation.mutate()}
-          >
-            {rebuildMutation.isPending ? "⟳ building…" : "↻ Rebuild"}
-          </button>
-        </div>
-      ) : null}
+      );
+    }
 
-      {lineageQuery.isLoading ? <p>Loading lineage graph...</p> : null}
-      {lineageQuery.isError ? <p>Failed to load lineage data.</p> : null}
-
-      {lineageQuery.data ? (
-        <>
-          <div className="lineage-summary">
-            <span className="lineage-badge">{lineageQuery.data.summary.folders} folders</span>
-            <span className="lineage-badge">{lineageQuery.data.summary.queries} queries</span>
-            <span className="lineage-badge">{lineageQuery.data.summary.params} params</span>
-          </div>
-          <div className="lineage-main">
-            <div ref={graphExportRef}>
-              <DagGraph
-                nodes={visibleNodes}
-                edges={visibleEdges}
-                selectedNodeId={selectedNodeId}
-                onNodeSelect={setSelectedNodeId}
-                layoutDirection={viewMode === "vertical" ? "TB" : "LR"}
-                compact={viewMode === "compact"}
-              />
+    if (visibleNodes.length === 0) {
+      return (
+        <ShellState
+          icon="⊘"
+          title="No folders match"
+          description={
+            <>
+              {searchValue ? `Search "${searchValue}" returned no results.` : null}
+              {searchValue && contextHidden > 0 ? " " : null}
+              {contextHidden > 0 ? `Context filter hides ${contextHidden} folder${contextHidden !== 1 ? "s" : ""}.` : null}
+            </>
+          }
+          actions={
+            <div className="lg-state-btns">
+              {searchValue ? (
+                <button className="lg-state-btn" onClick={() => setSearchValue("")} type="button">
+                  Clear search
+                </button>
+              ) : null}
+              {contextHidden > 0 ? (
+                <button className="lg-state-btn" onClick={() => setActiveTab("project")} type="button">
+                  Change context
+                </button>
+              ) : null}
             </div>
-            {selectedNodeId ? (
-              <aside className="lineage-detail-panel">
-                {(() => {
-                  const selectedNode = visibleNodes.find((node) => node.id === selectedNodeId);
-                  if (!selectedNode) return null;
-                  return (
-                    <>
-                      <h2>{selectedNode.name}</h2>
-                      <div className="lineage-detail-section">
-                        <span className="lineage-detail-label">Materialization</span>
-                        <span className="lineage-materialized">{selectedNode.materialized}</span>
-                      </div>
-                      <div className="lineage-detail-section">
-                        <span className="lineage-detail-label">Parameters</span>
-                        {selectedNode.parameters.length > 0 ? (
-                          <div className="lineage-chip-list">
-                            {selectedNode.parameters.map((param) => (
-                              <span key={param} className="lineage-sql-chip">
-                                {param}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <p>None</p>
-                        )}
-                      </div>
-                      <div className="lineage-detail-section">
-                        <span className="lineage-detail-label">CTE</span>
-                        {selectedNode.ctes.length > 0 ? (
-                          <div className="lineage-chip-list">
-                            {selectedNode.ctes.map((cte) => (
-                              <span key={cte} className="lineage-sql-chip">
-                                {cte}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <p>None</p>
-                        )}
-                      </div>
-                      <div className="lineage-detail-section">
-                        <span className="lineage-detail-label">Queries</span>
-                        <div className="lineage-query-actions">
-                          {selectedNode.queries.map((queryName) => {
-                            const filePath = `${selectedNode.path}/${queryName}`;
-                            return (
-                              <button
-                                key={queryName}
-                                className="lineage-open-query-btn"
-                                onClick={() => {
-                                  openFile(filePath);
-                                  setActiveTab("sql");
-                                }}
-                                type="button"
-                              >
-                                Open {queryName}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
-              </aside>
-            ) : null}
+          }
+        />
+      );
+    }
+
+    return (
+      <div ref={graphExportRef} className="lg-graph-surface">
+        <DagGraph
+          ref={dagGraphRef}
+          nodes={visibleNodes}
+          edges={visibleEdges}
+          selectedNodeId={selectedNodeId}
+          onNodeSelect={handleNodeClick}
+          layoutDirection={viewMode === "vertical" ? "TB" : "LR"}
+          compact={viewMode === "compact"}
+          source={source}
+        />
+      </div>
+    );
+  };
+
+  return (
+    <section className="workbench lg-root">
+      {!currentProjectId ? (
+        <ShellState
+          icon="⊡"
+          title="No project selected"
+          description="Select a project to explore its model lineage graph."
+          actions={
+            <button className="lg-state-btn" onClick={() => setActiveTab("project")} type="button">
+              Go to Projects
+            </button>
+          }
+        />
+      ) : treeQuery.isLoading ? (
+        <LoadingShell />
+      ) : treeQuery.isError ? (
+        <ShellState
+          icon="⚠"
+          title="Failed to load project"
+          description={treeQuery.error instanceof Error ? treeQuery.error.message : "Unknown error"}
+          actions={
+            <button className="lg-state-btn" onClick={() => treeQuery.refetch()} type="button">
+              ↻ Retry
+            </button>
+          }
+          danger
+        />
+      ) : modelIds.length === 0 ? (
+        <ShellState
+          icon="◼"
+          title="No models found"
+          description={
+            <>
+              No model directories were found in <span className="lg-code-pill">model/</span>. Add a model to see its
+              lineage.
+            </>
+          }
+          actions={
+            <button className="lg-state-btn" onClick={() => setActiveTab("project")} type="button">
+              Open Project Info
+            </button>
+          }
+        />
+      ) : (
+        <>
+          <LineageHeader
+            modelName={modelId || null}
+            contextMode={multiMode ? "multi" : "single"}
+            activeContext={activeContext}
+            activeContexts={activeContexts}
+            workflowSource={source}
+            visibleCount={visibleIds.size}
+            totalCount={allNodes.length}
+            isFiltered={isFiltered}
+          />
+
+          <LineageToolbar
+            models={modelIds}
+            selectedModel={modelId}
+            onModelChange={handleModelChange}
+            viewMode={viewMode}
+            onViewMode={handleViewMode}
+            search={searchValue}
+            onSearch={setSearchValue}
+            onExport={handleExportPng}
+          />
+
+          <FallbackBanner
+            source={source}
+            isRebuilding={rebuildMutation.isPending}
+            onRebuild={() => rebuildMutation.mutate()}
+          />
+
+          <FilterNote
+            searchTerm={searchValue}
+            searchHidden={searchHidden}
+            contextHidden={contextHidden}
+            visibleCount={visibleIds.size}
+            onClearSearch={() => setSearchValue("")}
+            onClearAll={clearFilters}
+          />
+
+          <LineageSummary
+            folders={allNodes.length}
+            queries={lineageQuery.data?.summary.queries ?? 0}
+            params={lineageQuery.data?.summary.params ?? 0}
+            ctes={countNodeCtes(allNodes)}
+            isFiltered={isFiltered}
+            source={source}
+            visibleFolders={visibleIds.size}
+          />
+
+          <div className="lg-body">
+            <GraphArea
+              showLegend
+              onFitView={() => dagGraphRef.current?.fitView()}
+              onReset={() => dagGraphRef.current?.resetView()}
+              onZoomIn={() => dagGraphRef.current?.zoomIn()}
+              onZoomOut={() => dagGraphRef.current?.zoomOut()}
+            >
+              {renderGraphContent()}
+            </GraphArea>
+
+            <DetailPanel
+              selectedNode={selectedNode as LineageNode | null}
+              onOpenQuery={handleOpenQuery}
+              inboundCount={connectionCounts.inbound}
+              outboundCount={connectionCounts.outbound}
+              modelId={modelId}
+              formatPath={formatNodePath}
+            />
           </div>
-          {visibleNodes.length === 0 ? <p>No folders match current context/filter.</p> : null}
         </>
-      ) : null}
+      )}
     </section>
   );
 }

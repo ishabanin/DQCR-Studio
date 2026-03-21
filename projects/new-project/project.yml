@@ -1,6 +1,0 @@
-name: New Project
-description: Project New Project
-template: dq_control
-
-properties:
-  owner: dq_team

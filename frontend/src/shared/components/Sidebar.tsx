@@ -83,6 +83,33 @@ function inferNodeKind(node: FileNode, parentPath: string | null): NodeVisualKin
   return "file";
 }
 
+function getLineageTargetFromPath(path: string): { modelId: string; nodePath: string | null } | null {
+  const normalized = normalizeRootPath(path);
+  if (!normalized) return null;
+
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length < 2) return null;
+  if (!["model", "models"].includes(parts[0].toLowerCase())) return null;
+
+  const modelId = parts[1];
+  if (!modelId) return null;
+
+  if (parts.length === 2) {
+    return { modelId, nodePath: null };
+  }
+
+  const workflowLikeRoot = parts[2]?.toLowerCase();
+  if (workflowLikeRoot === "workflow" || workflowLikeRoot === "sql") {
+    const folderName = parts[3];
+    return {
+      modelId,
+      nodePath: folderName ? normalized : null,
+    };
+  }
+
+  return { modelId, nodePath: normalized };
+}
+
 function NodeIcon({ kind }: { kind: NodeVisualKind }) {
   switch (kind) {
     case "project":
@@ -338,6 +365,7 @@ function SidebarTreeNode({
   const isActive = node.path === activeFilePath;
   const hasChildren = Boolean(node.children && node.children.length > 0);
   const expanded = isDirectory ? expandedPaths[node.path] ?? shouldAutoExpand(node) : false;
+  const lineageTarget = getLineageTargetFromPath(node.path);
   const style = { paddingLeft: `${12 + depth * 14}px` };
   const rowClassName = [
     "tree-row",
@@ -372,6 +400,9 @@ function SidebarTreeNode({
                 return;
               }
               onToggle(node.path);
+              if (lineageTarget) {
+                onOpen(node.path);
+              }
               return;
             }
             onOpen(node.path);
@@ -519,6 +550,7 @@ export default function Sidebar() {
   const openFile = useEditorStore((state) => state.openFile);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
   const activeFilePath = useEditorStore((state) => state.activeFilePath);
+  const setLineageTarget = useEditorStore((state) => state.setLineageTarget);
   const [actionState, setActionState] = useState<SidebarActionState | null>(null);
   const [actionValue, setActionValue] = useState("");
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({ ".": true });
@@ -757,6 +789,12 @@ export default function Sidebar() {
                 onOpen={(path) => {
                   if (path === ".") {
                     setActiveTab("project");
+                    return;
+                  }
+                  const lineageTarget = getLineageTargetFromPath(path);
+                  if (lineageTarget) {
+                    setLineageTarget(lineageTarget);
+                    setActiveTab("lineage");
                     return;
                   }
                   openFile(path);

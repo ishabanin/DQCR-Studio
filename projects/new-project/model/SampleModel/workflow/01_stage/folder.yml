@@ -1,4 +1,0 @@
-01_stage:
-  enabled:
-    contexts: [default]
-  materialized: insert_fc

@@ -3,13 +3,13 @@ import { useEffect } from "react";
 import { TabId, useEditorStore } from "../../app/store/editorStore";
 
 const tabs: Array<{ id: TabId; label: string }> = [
-  { id: "project", label: "Project Info" },
-  { id: "lineage", label: "Lineage" },
-  { id: "model", label: "Model Editor" },
-  { id: "sql", label: "SQL Editor" },
-  { id: "validate", label: "Validate" },
-  { id: "parameters", label: "Parameters" },
-  { id: "build", label: "Build" },
+  { id: "project", label: "◈ Project info" },
+  { id: "lineage", label: "⬡ Lineage" },
+  { id: "model", label: "⊞ Model editor" },
+  { id: "sql", label: "{} SQL editor" },
+  { id: "validate", label: "✓ Validate" },
+  { id: "parameters", label: "⊕ Parameters" },
+  { id: "build", label: "⚙ Build" },
   { id: "admin", label: "Admin" },
 ];
 

@@ -1,118 +1,125 @@
 # DQCR Studio: системная документация
 
-## 1. Назначение решения
+## 1. Назначение
 
-DQCR Studio - это локальная IDE/студия для работы с файловыми DQCR-проектами. Решение объединяет:
+DQCR Studio - это файловая студия для разработки и сопровождения DQCR-проектов. Система объединяет:
 
-- визуальную рабочую область для аналитика/разработчика;
-- backend API для работы с проектами, файлами, параметрами, validation и build;
-- встроенную интеграцию с `FTRepCBR.Workflow.FW`, который строит workflow-модель, валидирует проект и генерирует артефакты;
-- файловое хранилище проектов, которое является основным источником истины.
+- project hub для управления набором проектов;
+- рабочую IDE-область для просмотра и редактирования проекта;
+- backend API для работы с файлами, метаданными, workflow cache, validation и build;
+- framework `FTRepCBR.Workflow.FW`, который выполняет build/validate и строит workflow-модель.
 
-Ключевой архитектурный принцип: UI и API работают поверх структуры каталогов проекта, а framework CLI используется как движок вычисления workflow, генерации и валидации.
+Главный архитектурный принцип: источником истины остается файловая структура проекта, а backend и frontend строят поверх нее вычисляемые представления и UI.
 
 ---
 
-## 2. Состав решения
-
-### 2.1 Верхнеуровневая схема
+## 2. Верхнеуровневая архитектура
 
 ```text
-Frontend (React/Vite)
-        |
-        | HTTP / WebSocket
-        v
-Backend (FastAPI)
-        |
-        | file system + fw2 CLI
-        v
-Projects directory + FTRepCBR.Workflow.FW
+Projects Hub / Workbench UI (React + Vite)
+                  |
+                  | HTTP + WebSocket
+                  v
+             Backend API (FastAPI)
+                  |
+                  | filesystem + fw2 CLI
+                  v
+     projects/*  +  FTRepCBR.Workflow.FW
 ```
 
-### 2.2 Подсистемы
+### 2.1 Подсистемы
 
-1. `frontend/`
-   SPA-интерфейс студии: редактор SQL, модель, lineage, параметры, validate, build, admin.
+`frontend/`
 
-2. `backend/`
-   HTTP/WebSocket API. Управляет проектами, файлами, workflow cache, build/validate, quick-fix и terminal session.
+- SPA-интерфейс;
+- работает в двух режимах:
+  - `hub mode`, когда проект не выбран;
+  - `workbench mode`, когда открыт конкретный проект.
 
-3. `FTRepCBR.Workflow.FW/`
-   Framework-пакет с CLI `fw2`, парсингом проекта, генерацией workflow, materialization, rules validation и шаблонами workflow engine.
+`backend/`
 
-4. `projects/`
-   Рабочие проекты студии. Каждый проект хранится как набор YAML/SQL-файлов.
+- файловый API;
+- project metadata API;
+- build/validate API;
+- workflow cache orchestration;
+- websocket endpoints.
 
-5. `infra/docker/`
-   Docker Compose и Nginx для локального запуска всей системы.
+`FTRepCBR.Workflow.FW/`
 
-6. `Docs/`
-   Продуктовая и инженерная документация. Этот документ является опорным системным reference.
+- framework CLI `fw2`;
+- parsing, generation, validation, macros, materialization, workflow engines.
+
+`projects/`
+
+- рабочее хранилище проектов;
+- здесь лежат исходники проектов, workflow cache и build/validation artifacts.
+
+`infra/docker/`
+
+- локальная инфраструктура запуска;
+- backend, frontend, nginx.
+
+`Docs/`
+
+- инженерная документация;
+- этот файл является текущим системным reference по решению.
 
 ---
 
-## 3. Архитектурные принципы
+## 3. Ключевые архитектурные идеи
 
-### 3.1 Файловая модель как source of truth
+### 3.1 Filesystem-first
 
-Основное состояние проекта хранится в каталоге проекта:
+Проект хранится как набор YAML и SQL файлов. Backend не использует БД для модели проекта.
+
+Основные файлы проекта:
 
 - `project.yml`
 - `contexts/*.yml`
 - `parameters/*.yml`
 - `model/<ModelId>/model.yml`
-- `model/<ModelId>/workflow/**`
+- `model/<ModelId>/workflow/**` или `model/<ModelId>/SQL/**`
 - `model/<ModelId>/parameters/*.yml`
 
-Backend не использует базу данных. Все операции изменяют файлы напрямую.
+### 3.2 Производные слои
 
-### 3.2 Workflow cache как ускоряющий слой
+Поверх файловой структуры backend поддерживает производные слои:
 
-Для вычисляемых представлений модели backend использует кэш workflow:
-
-- `.dqcr_workflow_cache/<model_id>.json`
-- `.dqcr_workflow_cache/<model_id>.meta.json`
-
-Кэш нужен для:
-
-- lineage;
-- autocomplete;
+- workflow cache;
+- lineage graph;
 - config-chain;
-- model object;
-- статуса workflow.
+- autocomplete metadata;
+- model object representation;
+- build/validation history в памяти процесса.
 
-Если workflow cache отсутствует или невалиден, backend может перейти на fallback-логику, построенную на прямом чтении файлов.
+### 3.3 Framework-driven computation
 
-### 3.3 Framework как вычислительный движок
+Framework CLI `fw2` является вычислительным движком для:
 
-Backend вызывает framework CLI `fw2` для:
+- validation;
+- generation/build;
+- workflow model build.
 
-- `validate`;
-- `generate`;
-- build workflow модели.
+Если framework payload недоступен, часть read-операций backend может обслужить через fallback parsing напрямую из файлов.
 
-Если CLI недоступен для некоторых сценариев, `FWService` использует локальные fallback builders там, где они предусмотрены.
+### 3.4 Hub-first UX
 
-### 3.4 Stateless API + in-memory runtime state
+Текущее приложение больше не начинается сразу с открытого проекта. Если активный проект не выбран, пользователь работает через Project Hub:
 
-Backend в целом stateless относительно HTTP-запросов, но есть несколько in-memory структур runtime-состояния:
+- просмотр всех проектов;
+- фильтрация и сортировка;
+- создание;
+- импорт;
+- редактирование metadata;
+- удаление.
 
-- `_VALIDATION_HISTORY`
-- `_BUILD_HISTORY`
-- terminal sessions в `TerminalService`
-- admin templates/rules/macros в памяти процесса
-
-Это значит:
-
-- история build/validate не переживает рестарт backend;
-- admin-изменения сейчас не персистятся в отдельное хранилище;
-- terminal sessions живут только в памяти backend-процесса.
+После выбора проекта приложение переключается в workbench mode.
 
 ---
 
-## 4. Runtime-архитектура
+## 4. Runtime-модель
 
-### 4.1 Frontend
+### 4.1 Frontend runtime
 
 Технологии:
 
@@ -125,9 +132,13 @@ Backend в целом stateless относительно HTTP-запросов, 
 - React Flow
 - xterm
 
-Frontend общается только с backend API, прямого доступа к framework или файловой системе у него нет.
+Frontend использует:
 
-### 4.2 Backend
+- `localStorage` для части UI-состояния;
+- `zustand/persist` для хранения `currentProjectId`;
+- React Query для загрузки и инвалидации backend данных.
+
+### 4.2 Backend runtime
 
 Технологии:
 
@@ -136,92 +147,122 @@ Frontend общается только с backend API, прямого досту
 - ptyprocess
 - Uvicorn
 
-Ключевые маршрутизаторы:
+Backend отвечает за:
 
-- `projects.py` - основной домен системы;
-- `files.py` - файловый CRUD внутри проекта;
-- `admin.py` - шаблоны, rules, macros;
-- `ws.py` - terminal/build/validation streaming.
+- маршрутизацию;
+- защиту файловых операций;
+- project registry;
+- запуск framework CLI;
+- выдачу read-model данных;
+- хранение runtime history в памяти процесса.
 
-### 4.3 Framework
+### 4.3 Инфраструктура
 
-`FTRepCBR.Workflow.FW` содержит:
-
-- CLI `fw2`;
-- парсеры project/model/sql/parameter/context;
-- генераторы workflow;
-- materialization templates;
-- validation rules;
-- registries для workflow engines, tools и macros.
-
-### 4.4 Инфраструктура запуска
-
-`infra/docker/docker-compose.yml` поднимает:
+Локальный compose поднимает:
 
 - `backend` на `8000`
 - `frontend` на `5173`
 - `nginx` на `80`
 
-Nginx выступает как единая точка входа.
+Nginx используется как единая точка входа.
 
 ---
 
-## 5. Логическая модель данных
+## 5. Доменная модель
 
 ### 5.1 Проект
 
-Проект идентифицируется `project_id` и физически находится в `PROJECTS_PATH`.
+В текущей версии проект описывается не только `id` и `name`, но и расширенными метаданными.
 
-Поддерживаются типы источника проекта:
+Поля project-level API:
 
-- `internal` - создан внутри workspace;
-- `imported` - скопирован из внешней папки;
-- `linked` - подключен как внешняя директория без копирования.
+- `id`
+- `name`
+- `description`
+- `project_type`
+- `source_type`
+- `source_path`
+- `availability_status`
+- `visibility`
+- `tags`
+- `model_count`
+- `folder_count`
+- `sql_count`
+- `modified_at`
+- `cache_status`
 
-Метаданные linked/imported проектов частично хранятся в реестре:
+### 5.2 Типы проектов
 
-- `.dqcr_projects_registry.json`
+Поддерживаются 3 типа:
 
-### 5.2 Контексты
+- `internal` - создан в workspace;
+- `imported` - скопирован из внешнего каталога;
+- `linked` - внешний каталог подключен без копирования.
 
-Контексты лежат в `contexts/*.yml`. Если каталог отсутствует, backend считает, что доступен `default`.
+### 5.3 Метаданные проекта
 
-### 5.3 Модели
+Для `internal` проекта metadata берется в первую очередь из `project.yml`.
 
-Модель живет в `model/<model_id>/` и обычно содержит:
+Сейчас важные системные project properties хранятся в блоке `properties`:
 
-- `model.yml`
-- `workflow/<folder>/folder.yml`
-- SQL-файлы внутри `workflow`
-- model-scoped parameters
+- `dqcr_visibility`
+- `dqcr_tags`
+- также используются обычные `version` и `owner`
 
-### 5.4 Параметры
+Для `imported` и `linked` проектов metadata хранится в registry.
 
-Параметры бывают:
+### 5.4 Контексты
 
-- global: `parameters/*.yml`
-- model-scoped: `model/<model_id>/parameters/*.yml`
+Контексты лежат в `contexts/*.yml`.
 
-Поддерживаемые scope:
+В UI для каждого контекста дополнительно читаются:
+
+- `tools`
+- `constants`
+- `flags`
+
+Если каталог контекстов отсутствует, backend возвращает `default`.
+
+### 5.5 Модели
+
+Модели лежат в `model/<ModelId>/`.
+
+Backend и frontend поддерживают оба варианта размещения SQL:
+
+- `workflow/`
+- `SQL/`
+
+Это важно для чтения проектов, подсчета объектов и fallback-логики.
+
+### 5.6 Параметры
+
+Поддерживаются:
+
+- global parameters: `parameters/*.yml`
+- model-scoped parameters: `model/<ModelId>/parameters/*.yml`
+
+Scope значения:
 
 - `global`
 - `model:<model_id>`
 
-Backend хранит значение параметра по контекстам, где `type` может быть:
+### 5.7 Workflow cache
 
-- `static`
-- `dynamic`
+Workflow cache находится внутри проекта:
 
-### 5.5 Build artifacts
+- `.dqcr_workflow_cache/<model_id>.json`
+- `.dqcr_workflow_cache/<model_id>.meta.json`
 
-Результаты build пишутся в:
+Этот слой производный и может быть rebuilt.
+
+### 5.8 Build и validation artifacts
+
+Build artifacts:
 
 - `<project>/.dqcr_builds/<build_id>/...`
-- либо в указанный `output_path/<build_id>/...`
+- либо пользовательский `output_path/<build_id>/...`
 
-### 5.6 Validation artifacts
-
-Результаты validation CLI пишутся в:
+Validation artifacts:
 
 - `<project>/.dqcr_validation_runs/<run_id>/...`
 
@@ -229,345 +270,325 @@ Backend хранит значение параметра по контекста
 
 ## 6. Основные пользовательские сценарии
 
-### 6.1 Создание проекта
+### 6.1 Вход в систему
 
-Frontend wizard отправляет `POST /api/v1/projects`.
-Backend:
+Если `currentProjectId` отсутствует, frontend показывает Hub.
 
-1. создает структуру каталогов;
-2. пишет `project.yml`, contexts, model, workflow;
-3. добавляет запись в registry;
-4. инициирует rebuild workflow cache.
+Если в `localStorage` есть `dqcr_last_project_id`, приложение пытается восстановить последний проект через `GET /projects/{project_id}`.
 
-### 6.2 Импорт проекта
+### 6.2 Работа с проектами через Hub
 
-Варианты:
+Hub поддерживает:
 
-- `mode=import` с `source_path`
-- `POST /api/v1/projects/import-upload` с загрузкой файлов
+- просмотр grid/list;
+- full-text search;
+- фильтры по visibility/type/tag;
+- сортировку;
+- создание;
+- импорт;
+- редактирование metadata;
+- удаление.
 
-Импорт создает локальную копию проекта в workspace.
+### 6.3 Открытие проекта
 
-### 6.3 Подключение внешней папки
+При выборе проекта:
 
-`mode=connect` регистрирует внешний каталог как `linked` проект. Backend хранит `source_path` и проверяет `availability_status`.
+- `projectStore` сохраняет `currentProjectId`;
+- в `localStorage` пишется `dqcr_last_project_id`;
+- активная вкладка переключается на `project`.
 
-### 6.4 Редактирование файлов
+### 6.4 Работа в workbench
 
-Файловые операции идут через `/files/*`. После любого изменения backend вызывает `trigger_workflow_rebuild(...)`, чтобы пометить workflow как требующий пересборки.
+Workbench содержит вкладки:
 
-### 6.5 Получение lineage/config/autocomplete/model object
+- `project`
+- `lineage`
+- `model`
+- `sql`
+- `validate`
+- `parameters`
+- `build`
+- `admin`
 
-Backend сначала пытается использовать workflow cache. Если данных нет, используется fallback по файловой структуре.
+### 6.5 Редактирование project.yml
 
-### 6.6 Validation
+Экран Project Info редактирует:
 
-`POST /validate` запускает framework validation и сохраняет результат в in-memory history.
+- `name`
+- `description`
+- `template`
+- `version`
+- `owner`
+- custom properties
 
-### 6.7 Build
+Сохранение выполняется как запись файла `project.yml` через Files API.
 
-`POST /build` запускает framework generation и сохраняет:
+### 6.6 Редактирование metadata проекта
 
-- метаданные build в памяти;
-- физические файлы в output directory.
+Hub-редактирование работает через отдельный metadata API:
 
-### 6.8 Quick fix
+- `PATCH /projects/{project_id}/metadata`
 
-`POST /validate/quickfix` выполняет исправления в файлах проекта, затем по умолчанию повторно запускает validation.
+Для internal проекта backend синхронизирует metadata в `project.yml` и, при наличии записи registry, в registry entry.
+
+### 6.7 Build / Validate
+
+Build и validation по-прежнему запускаются из backend поверх framework CLI и попадают в in-memory history.
 
 ---
 
-## 7. Backend: модульная структура
+## 7. Backend: актуальная структура
 
 ### 7.1 `backend/app/main.py`
 
-Точка входа FastAPI.
+Назначение:
 
-Отвечает за:
-
-- создание приложения;
+- создание FastAPI app;
+- lifespan hook;
 - CORS;
-- middleware request logging;
+- request logging;
 - health/readiness endpoints;
-- подключение router-ов;
-- global exception handlers.
+- global exception handlers;
+- router registration.
 
 ### 7.2 `backend/app/core/`
 
 `config.py`
 
-- настройки приложения через env vars;
-- `PROJECTS_PATH`, `FW_USE_CLI`, `FW_CLI_COMMAND`, `SECRET_KEY`.
+- env configuration;
+- важные переменные:
+  - `API_PREFIX`
+  - `PROJECTS_PATH`
+  - `SECRET_KEY`
+  - `FW_USE_CLI`
+  - `FW_CLI_COMMAND`
 
 `fs.py`
 
-- защита от path traversal;
-- разрешение project path, включая linked projects.
+- `ensure_within_base`
+- `resolve_project_path`
 
 `project_registry.py`
 
-- чтение/запись `.dqcr_projects_registry.json`;
-- учет типа проекта и доступности linked path.
+- чтение и запись `.dqcr_projects_registry.json`;
+- поддержка metadata:
+  - `description`
+  - `visibility`
+  - `tags`
 
 `logging.py`
 
-- структурированная настройка логирования backend.
+- backend logging setup.
 
 ### 7.3 `backend/app/services/`
 
 `fw_service.py`
 
-- адаптер между FastAPI и framework;
+- адаптер между backend и framework;
 - load project/model;
-- build lineage;
-- run validation;
-- run generation;
-- run workflow build;
-- normalize errors CLI/fallback.
+- lineage;
+- validation;
+- generation;
+- workflow build;
+- error normalization.
 
 `workflow_cache_service.py`
 
-- чтение/запись `.dqcr_workflow_cache`;
-- управление статусами:
-  - `ready`
-  - `stale`
-  - `building`
-  - `error`
-  - `missing`
+- read/write workflow cache;
+- read/write meta;
+- project/model workflow status aggregation.
 
 `terminal_service.py`
 
-- управление pseudo-terminal session;
-- shell-сессии на базе `ptyprocess`.
+- PTY sessions;
+- `/bin/bash` shell for websocket terminal.
 
 ### 7.4 `backend/app/routers/`
 
 `projects.py`
 
-- главный доменный router;
-- создание/import/connect projects;
-- contexts;
-- workflow status;
-- autocomplete;
-- parameters CRUD;
-- lineage;
-- config-chain;
-- model object;
-- build;
-- validate;
-- quickfix;
-- истории build/validate.
+- основной доменный router;
+- включает project CRUD, metadata update, contexts, workflow, parameters, lineage, config-chain, model object, build, validate, quickfix.
 
 `files.py`
 
-- дерево файлов;
-- чтение/запись файлов;
-- create folder;
-- rename;
-- delete.
+- файловый CRUD внутри проекта.
 
 `admin.py`
 
-- шаблоны;
-- набор правил;
-- macro registry для UI.
+- templates, rules, macros.
 
 `ws.py`
 
-- terminal websocket;
-- validation websocket;
-- build websocket.
+- terminal/build/validation websocket endpoints.
 
 ---
 
-## 8. Frontend: модульная структура
+## 8. Frontend: актуальная структура
 
-### 8.1 Shell и layout
+### 8.1 Shell
 
 `frontend/src/App.tsx`
 
-- каркас приложения:
-  - `TopBar`
-  - `Sidebar`
-  - `TabBar`
-  - `Workbench`
-  - `BottomPanel`
-  - `StatusBar`
-  - `ToastViewport`
-  - `ProjectWizardModal`
+- выбирает между двумя режимами:
+  - hub mode;
+  - workbench mode.
 
-`frontend/src/features/layout/Workbench.tsx`
+### 8.2 Project Hub
 
-- переключает рабочие экраны:
-  - lineage
-  - model
-  - sql
-  - validate
-  - parameters
-  - build
-  - admin
+Новая отдельная feature-группа:
 
-### 8.2 API слой
+`frontend/src/features/hub/`
 
-`frontend/src/api/client.ts`
+Содержит:
 
-- общий `axios` client;
-- проставляет `Authorization` из localStorage;
-- пишет API log в UI store.
+- `ProjectsHub.tsx`
+- модальные окна:
+  - `CreateProjectModal`
+  - `EditProjectModal`
+  - `DeleteProjectModal`
+- таблицу/карточки;
+- sidebar и toolbar фильтров;
+- hooks:
+  - `useProjects`
+  - `useProjectFilters`
 
-`frontend/src/api/projects.ts`
+### 8.3 Project Info
 
-- типы запросов/ответов;
-- все вызовы backend API.
+Новая отдельная feature-группа:
 
-### 8.3 State management
+`frontend/src/features/project/`
 
-`frontend/src/app/store/projectStore.ts`
+Содержит:
 
-- текущий активный проект.
+- `ProjectInfoScreen.tsx`
+- cards и summary-компоненты;
+- `useProjectInfo`
+- проектные стили `project-info.css`
 
-`frontend/src/app/store/contextStore.ts`
+Этот экран агрегирует:
 
-- активный контекст;
-- multi-context режим.
+- `project.yml`
+- tree проекта;
+- contexts;
+- parameters;
+- workflow status
 
-`frontend/src/app/store/editorStore.ts`
+и строит обзорную страницу проекта.
 
-- активная вкладка;
-- список открытых файлов;
-- dirty state;
-- навигация к строке.
+### 8.4 Workbench features
 
-`frontend/src/app/store/uiStore.ts`
+`features/lineage/`
 
-- состояние shell/UI;
-- bottom panel;
-- toasts;
-- api logs;
-- project wizard;
-- role;
-- validation autorun.
-
-`frontend/src/app/store/validationStore.ts`
-
-- последний validation result.
-
-### 8.4 Feature-модули
-
-`features/sql/`
-
-- SQL editor;
-- Monaco integration;
-- autocomplete;
-- preview build output;
-- запуск validation;
-- конфигурационный inspector.
+- lineage screen;
+- dag layout;
+- отдельные styles и helpers.
 
 `features/model/`
 
 - model editor;
-- синхронизация YAML <-> object representation.
+- sync engine;
+- YAML sync.
 
-`features/lineage/`
+`features/sql/`
 
-- граф lineage;
-- layout через `dagre`;
-- визуализация через `reactflow`.
+- SQL editor;
+- autocomplete;
+- preview build output;
+- validation integration.
 
 `features/parameters/`
 
-- CRUD параметров;
-- тестирование параметра;
-- интеграция с workflow/autocomplete/config-chain.
+- parameter management.
 
 `features/build/`
 
-- запуск build;
-- просмотр истории;
-- дерево build artifacts;
-- просмотр generated files;
-- скачивание результата.
+- build execution and artifacts browsing.
 
 `features/validate/`
 
-- запуск validation;
-- история validation;
-- фильтры по severity/category;
-- quick-fix интеграция.
+- validation UI;
+- quick fix;
+- quick fix preview modal.
 
 `features/admin/`
 
-- templates;
-- rules;
-- macros.
+- admin UI.
 
-`features/wizard/`
+### 8.5 Shared stores
 
-- мастер создания/импорта проекта.
+`projectStore`
+
+- хранит `currentProjectId`;
+- persist middleware;
+- при открытии проекта переключает активную вкладку на `project`.
+
+`editorStore`
+
+- активная вкладка;
+- открытые файлы;
+- dirty state;
+- cursor state;
+- navigation targets.
+
+`uiStore`
+
+- sidebar and bottom panel state;
+- toast system;
+- user role;
+- user email;
+- workflow cache status;
+- last saved timestamp;
+- initial model/parameter hints;
+- dismissed warning flags.
+
+`contextStore`
+
+- active context;
+- multi-context mode.
+
+`validationStore`
+
+- latest validation result.
 
 ---
 
-## 9. Framework: внутреннее устройство
+## 9. Framework: роль в системе
 
-### 9.1 Основные зоны
+### 9.1 Framework зоны
 
 `FTRepCBR.Workflow.FW/src/parsing/`
 
-- загрузка `project.yml`, `model.yml`, parameters, contexts, templates;
-- SQL metadata parsing.
+- project/model/sql/parameter/context loading.
 
 `FTRepCBR.Workflow.FW/src/models/`
 
-- модели домена framework:
-  - project
-  - workflow
-  - step
-  - parameter
-  - context
-  - target table
-  - sql query
+- framework domain models.
 
 `FTRepCBR.Workflow.FW/src/generation/`
 
-- builders и resolvers workflow;
-- построение workflow model и generation result.
+- workflow build and generation logic.
 
 `FTRepCBR.Workflow.FW/src/validation/`
 
-- rule runner;
-- template validation;
-- HTML/JSON reports.
+- validation subsystem and report generation.
 
 `FTRepCBR.Workflow.FW/src/macros/`
 
-- builtin macros;
-- materialization;
-- workflow-engine specific macros/functions.
+- macros, functions, materialization, engine-specific templates.
 
 `FTRepCBR.Workflow.FW/src/config/`
 
-- registry workflow engines;
-- tools;
-- templates.
+- templates, tools, workflow engines registries.
 
-### 9.2 CLI-команды
+### 9.2 CLI, которые важны для Studio
 
-По `src/cli.py` framework поддерживает как минимум:
-
-- SQL parsing;
-- parameter parsing;
-- workflow build;
-- `generate`;
-- `validate`.
-
-Для студии критичны команды:
+Ключевые вызовы:
 
 - `fw2 validate <project_path> <model_id> -o <output_dir>`
 - `fw2 generate <project_path> <model_id> -c <context> -w <engine> -o <output_dir>`
 
-### 9.3 Поддерживаемые workflow engines
-
-В backend явно поддерживаются:
+Поддерживаемые engine в backend:
 
 - `dqcr`
 - `airflow`
@@ -576,7 +597,7 @@ Backend сначала пытается использовать workflow cache.
 
 ---
 
-## 10. Проектная структура на файловой системе
+## 10. Проектная файловая структура
 
 Типовая структура проекта:
 
@@ -597,9 +618,10 @@ Backend сначала пытается использовать workflow cache.
         01_stage/
           folder.yml
           001_main.sql
-        02_transform/
+      SQL/
+        01_stage/
           folder.yml
-          001_step.sql
+          001_main.sql
   .dqcr_workflow_cache/
     <ModelId>.json
     <ModelId>.meta.json
@@ -609,38 +631,45 @@ Backend сначала пытается использовать workflow cache.
     <run_id>/
 ```
 
-### 10.1 Служебные файлы/каталоги проекта
+### 10.1 Служебные каталоги
 
 `.dqcr_workflow_cache/`
 
-- внутренний кэш backend;
-- можно пересоздать;
-- не должен быть основным источником истины.
+- кеш workflow payload и meta.
 
 `.dqcr_builds/`
 
-- generated output;
-- может очищаться отдельно от исходников проекта.
+- generated output.
 
 `.dqcr_validation_runs/`
 
-- validation artifacts от framework CLI.
+- validation reports and artifacts.
 
 ### 10.2 Реестр проектов
 
-В корне `PROJECTS_PATH` backend может хранить:
+В корне `PROJECTS_PATH` backend хранит:
 
 ```text
 .dqcr_projects_registry.json
 ```
 
-Он нужен для imported/linked metadata и availability linked проектов.
+Он нужен для imported/linked metadata и availability.
+
+### 10.3 Актуальные рабочие проекты в репозитории
+
+На текущем состоянии репозитория присутствуют:
+
+- `projects/rf110`
+- `projects/rf110new_manual`
+- `projects/sample`
+
+Это важно, потому что ранее временные demo/new-project каталоги уже не являются актуальной базой документации.
 
 ---
 
 ## 11. REST API
 
-Все HTTP endpoints публикуются под префиксом:
+Все backend HTTP routes публикуются под:
 
 ```text
 /api/v1
@@ -650,19 +679,43 @@ Backend сначала пытается использовать workflow cache.
 
 `GET /health`
 
-- liveness probe;
-- ответ: `{"status":"ok"}`.
+- liveness.
 
 `GET /ready`
 
-- readiness probe;
-- ответ зависит от `app.state.fw_ready`.
+- readiness.
 
 ### 11.2 Projects API
 
 `GET /api/v1/projects`
 
-- список всех проектов из filesystem + registry.
+- список проектов;
+- возвращает расширенную summary-модель проекта.
+
+`GET /api/v1/projects/{project_id}`
+
+- получить один проект по id.
+
+`PATCH /api/v1/projects/{project_id}/metadata`
+
+- обновление metadata проекта.
+
+Payload:
+
+```json
+{
+  "name": "RF110",
+  "description": "Main regulatory project",
+  "visibility": "private",
+  "tags": ["regulatory", "bank"]
+}
+```
+
+`DELETE /api/v1/projects/{project_id}`
+
+- удаляет проект;
+- для `internal` и `imported` удаляет локальный каталог;
+- для `linked` убирает запись из registry, не трогая внешний каталог.
 
 `POST /api/v1/projects`
 
@@ -672,121 +725,56 @@ Backend сначала пытается использовать workflow cache.
   - `import`
   - `connect`
 
-Примеры payload:
-
-```json
-{
-  "mode": "create",
-  "project_id": "newproj",
-  "name": "New Project",
-  "description": "from wizard",
-  "template": "flx",
-  "contexts": ["default", "dev"],
-  "properties": {"owner": "qa"},
-  "model": {
-    "name": "SampleModel",
-    "first_folder": "01_stage",
-    "attributes": [{"name": "id", "domain_type": "number", "is_key": true}]
-  }
-}
-```
-
-```json
-{
-  "mode": "import",
-  "source_path": "/path/to/project",
-  "project_id": "imported_proj",
-  "name": "Imported Project"
-}
-```
-
-```json
-{
-  "mode": "connect",
-  "source_path": "/path/to/project",
-  "project_id": "linked_proj",
-  "name": "Linked Project"
-}
-```
-
 `POST /api/v1/projects/import-upload`
 
-- multipart upload проекта папкой;
-- поля:
-  - `files[]`
-  - `relative_paths[]`
-  - `project_id?`
-  - `name?`
-  - `description?`
+- multipart upload проекта.
 
 `GET /api/v1/projects/{project_id}/contexts`
 
-- список contexts.
+- список контекстов.
 
 ### 11.3 Workflow API
 
 `GET /api/v1/projects/{project_id}/workflow/status`
 
-- агрегированный статус workflow cache по всем моделям проекта.
+- агрегированный статус workflow проекта.
 
 `GET /api/v1/projects/{project_id}/models/{model_id}/workflow`
 
-- workflow payload модели + meta status.
+- workflow payload модели и статус.
 
 `POST /api/v1/projects/{project_id}/models/{model_id}/workflow/rebuild`
 
-- принудительный rebuild workflow cache для модели.
-
-Ответы используют статусы:
-
-- `ready`
-- `stale`
-- `building`
-- `error`
-- `missing`
+- принудительный rebuild workflow cache модели.
 
 ### 11.4 Files API
 
 `GET /api/v1/projects/{project_id}/files/tree`
 
-- дерево файлов проекта.
+- дерево проекта.
 
 `GET /api/v1/projects/{project_id}/files/content?path=...`
 
 - содержимое файла;
-- если файл отсутствует, backend возвращает пустой `content`, а не 404.
+- если файла нет, backend возвращает пустой `content`.
 
 `PUT /api/v1/projects/{project_id}/files/content`
 
-```json
-{
-  "path": "model/SampleModel/workflow/01_stage/001_main.sql",
-  "content": "SELECT 1"
-}
-```
+- сохранить файл.
 
 `POST /api/v1/projects/{project_id}/files/folder`
 
-```json
-{
-  "path": "model/SampleModel/workflow/02_new"
-}
-```
+- создать папку.
 
 `POST /api/v1/projects/{project_id}/files/rename`
 
-```json
-{
-  "path": "old/name.sql",
-  "new_name": "new_name.sql"
-}
-```
+- rename файла или папки.
 
 `DELETE /api/v1/projects/{project_id}/files?path=...`
 
-- удаление файла или каталога.
+- удалить файл или папку.
 
-### 11.5 Autocomplete и параметры
+### 11.5 Metadata/read-model API
 
 `GET /api/v1/projects/{project_id}/autocomplete`
 
@@ -794,38 +782,37 @@ Backend сначала пытается использовать workflow cache.
 - builtin macros;
 - config keys;
 - all contexts;
-- признак `fallback`.
+- workflow/fallback source flag.
 
 `GET /api/v1/projects/{project_id}/parameters`
 
-- список всех параметров проекта.
+- список параметров.
 
 `POST /api/v1/projects/{project_id}/parameters`
 
-- создание параметра.
+- создать параметр.
 
-`PUT /api/v1/projects/{project_id}/parameters/{parameter_id}?scope=...`
+`PUT /api/v1/projects/{project_id}/parameters/{parameter_id}`
 
-- обновление параметра.
+- обновить параметр.
 
-`DELETE /api/v1/projects/{project_id}/parameters/{parameter_id}?scope=...`
+`DELETE /api/v1/projects/{project_id}/parameters/{parameter_id}`
 
-- удаление параметра.
+- удалить параметр.
 
-`POST /api/v1/projects/{project_id}/parameters/{parameter_id}/test?scope=...`
+`POST /api/v1/projects/{project_id}/parameters/{parameter_id}/test`
 
-- тест разрешения значения параметра;
-- для `dynamic` backend сейчас возвращает simulated result.
+- тест разрешения значения параметра.
 
 ### 11.6 Model API
 
 `GET /api/v1/projects/{project_id}/models/{model_id}/lineage`
 
-- lineage graph и summary.
+- lineage graph.
 
-`GET /api/v1/projects/{project_id}/models/{model_id}/config-chain?sql_path=...`
+`GET /api/v1/projects/{project_id}/models/{model_id}/config-chain`
 
-- цепочка приоритетов `@config`;
+- config priority chain;
 - resolved values;
 - cte settings;
 - generated outputs;
@@ -833,240 +820,163 @@ Backend сначала пытается использовать workflow cache.
 
 `GET /api/v1/projects/schema/model-yml`
 
-- схема `model.yml` для UI.
+- схема `model.yml`.
 
 `GET /api/v1/projects/{project_id}/models/{model_id}`
 
-- модель как object representation;
-- источник:
-  - `workflow`
-  - `fallback`
+- object representation модели.
 
 `PUT /api/v1/projects/{project_id}/models/{model_id}`
 
-- сохранение model object обратно в `model.yml`;
-- синхронизация workflow folders на файловую систему.
+- сохранить object representation обратно в YAML и файловую структуру.
 
 ### 11.7 Build API
 
 `POST /api/v1/projects/{project_id}/build`
 
-Payload:
-
-```json
-{
-  "model_id": "SampleModel",
-  "engine": "dqcr",
-  "context": "default",
-  "dry_run": false,
-  "output_path": ".custom_output"
-}
-```
+- выполнить build.
 
 `GET /api/v1/projects/{project_id}/build/history`
 
-- до 10 последних build из памяти процесса.
+- build history из памяти процесса.
 
 `GET /api/v1/projects/{project_id}/build/{build_id}/files`
 
-- список и дерево generated files.
+- дерево и список generated files.
 
 `GET /api/v1/projects/{project_id}/build/{build_id}/download`
 
-- скачать весь build zip-архивом.
+- скачать весь build.
 
 `GET /api/v1/projects/{project_id}/build/{build_id}/download?path=...`
 
-- скачать конкретный файл.
+- скачать один файл.
 
-`GET /api/v1/projects/{project_id}/build/{build_id}/files/content?path=...`
+`GET /api/v1/projects/{project_id}/build/{build_id}/files/content`
 
-- текстовое содержимое build-артефакта.
+- получить текст артефакта.
 
 `POST /api/v1/projects/{project_id}/build/{engine}/preview`
 
-- preview рендера SQL под engine;
-- параметр пути реализован через `build_id` segment, но фактически туда передается id engine.
+- preview SQL под конкретный engine.
+
+Примечание:
+
+- path-segment называется `build_id`, но фактически используется как engine id.
 
 ### 11.8 Validation API
 
 `POST /api/v1/projects/{project_id}/validate`
 
-Payload:
-
-```json
-{
-  "model_id": "SampleModel",
-  "categories": ["general", "sql", "descriptions"]
-}
-```
+- выполнить validation.
 
 `GET /api/v1/projects/{project_id}/validate/history`
 
-- до 5 последних validation runs из памяти процесса.
+- validation history из памяти процесса.
 
 `POST /api/v1/projects/{project_id}/validate/quickfix`
+
+- quick fix.
 
 Поддерживаемые типы:
 
 - `add_field`
 - `rename_folder`
 
-Пример:
-
-```json
-{
-  "type": "add_field",
-  "model_id": "SampleModel",
-  "field_name": "description",
-  "rerun": true
-}
-```
-
 ---
 
 ## 12. WebSocket API
 
-### 12.1 Terminal
+### 12.1 `WS /ws/terminal/{session_id}`
 
-`WS /ws/terminal/{session_id}`
-
-Назначение:
-
-- двусторонняя shell session;
-- backend поднимает `/bin/bash` в `PROJECTS_PATH`.
-
-Особенности:
-
-- один `session_id` соответствует одному PTY;
-- вывод читается polling-циклом каждые ~50 мс;
+- backend поднимает PTY shell;
+- cwd = `PROJECTS_PATH`;
 - при disconnect session закрывается.
 
-### 12.2 Validation progress
+### 12.2 `WS /ws/validation/{project_id}`
 
-`WS /ws/validation/{project_id}`
+- клиент отправляет входной payload;
+- сервер стримит:
+  - `progress`
+  - `done`
+  - `error`
 
-Первое сообщение от клиента:
+### 12.3 `WS /ws/build/{project_id}`
 
-```json
-{
-  "model_id": "SampleModel",
-  "categories": ["general", "sql"]
-}
-```
-
-Сервер отправляет:
-
-- `progress`
-- `done`
-- `error`
-
-### 12.3 Build progress
-
-`WS /ws/build/{project_id}`
-
-Первое сообщение от клиента:
-
-```json
-{
-  "model_id": "SampleModel",
-  "engine": "dqcr",
-  "context": "default",
-  "dry_run": false,
-  "output_path": ".dqcr_builds"
-}
-```
-
-Сервер отправляет:
-
-- `progress`
-- `done`
-- `error`
+- клиент отправляет build request;
+- сервер стримит progress и final result.
 
 ---
 
-## 13. Workflow cache и статусы
+## 13. Workflow cache
 
-### 13.1 Файлы cache
+### 13.1 Статусы
 
-Для каждой модели:
+Используются значения:
 
-- payload: `.dqcr_workflow_cache/<model_id>.json`
-- meta: `.dqcr_workflow_cache/<model_id>.meta.json`
+- `ready`
+- `stale`
+- `building`
+- `error`
+- `missing`
 
-### 13.2 Значения статуса
+### 13.2 Источники workflow данных
 
-`ready`
+- `framework_cli`
+- `fallback`
 
-- cache существует и считается актуальным.
+### 13.3 Важный нюанс API
 
-`stale`
+Project summary (`GET /projects`) возвращает `cache_status`.
 
-- исходные файлы изменились, cache нуждается в rebuild.
-
-`building`
-
-- идет rebuild workflow.
-
-`error`
-
-- rebuild завершился ошибкой.
-
-`missing`
-
-- cache еще не был построен.
-
-### 13.3 Source workflow данных
-
-`framework_cli`
-
-- данные пришли из framework CLI.
-
-`fallback`
-
-- backend восстановил ответ напрямую из файловой структуры.
+Model/workflow endpoints возвращают более детализированное состояние через model-level payload.
 
 ---
 
 ## 14. Безопасность и ограничения
 
-### 14.1 Path traversal protection
+### 14.1 Path traversal
 
-Все файловые операции проходят через `ensure_within_base(...)`. Это обязательный guardrail против выхода за пределы project root.
+Все файловые операции должны проходить через `ensure_within_base(...)`.
 
 ### 14.2 Linked projects
 
-Linked проект может указывать на внешний каталог. Backend проверяет его доступность и отражает состояние в `availability_status`.
+Backend не владеет содержимым linked каталога. Для linked проекта:
 
-### 14.3 Authentication/authorization
+- проверяется `availability_status`;
+- удаление проекта удаляет только registry entry.
 
-В текущей реализации полноценной auth-схемы нет. Frontend добавляет `Authorization` header из localStorage, но backend его не валидирует.
+### 14.3 Auth
 
-### 14.4 Runtime persistence limits
+Полноценная серверная auth/authorization схема не реализована.
+
+Frontend хранит role в localStorage и отправляет `Authorization` header, но backend его не валидирует.
+
+### 14.4 Runtime persistence
 
 Не персистятся между рестартами:
 
 - build history;
 - validation history;
-- admin runtime changes;
+- admin runtime state;
 - terminal sessions.
 
 ---
 
-## 15. Конфигурация и переменные окружения
+## 15. Конфигурация
 
-Backend (`backend/app/core/config.py`):
+Backend settings:
 
 - `APP_NAME`
 - `API_PREFIX`
 - `PROJECTS_PATH`
 - `CORS_ORIGINS`
-- `SECRET_KEY` - обязательный
+- `SECRET_KEY`
 - `LOG_LEVEL`
 - `FW_USE_CLI`
 - `FW_CLI_COMMAND`
 
-Стандартные значения для локального docker запуска:
+Стандартный docker runtime:
 
 - `PROJECTS_PATH=/app/projects`
 - `FW_USE_CLI=true`
@@ -1074,43 +984,34 @@ Backend (`backend/app/core/config.py`):
 
 ---
 
-## 16. Тестовая стратегия и текущие тесты
+## 16. Тесты
 
 ### 16.1 Backend
 
 `backend/tests/test_projects_api.py`
 
-Покрывает:
-
-- list/create projects;
+- projects API;
 - import/connect/upload;
-- contexts;
-- validate/history;
-- build/history/files/download;
-- workflow status/rebuild;
 - files API;
-- часть lineage/model behavior.
+- workflow API;
+- validate/build history;
+- часть model/lineage поведения.
 
 `backend/tests/test_fw_service.py`
 
-Покрывает:
-
 - error mapping;
-- fallback/CLI branch behavior;
+- CLI/fallback behavior;
 - workflow build behavior.
 
 ### 16.2 Frontend
 
 `frontend/tests/e2e/critical-path.spec.ts`
 
-Покрывает основные UI-сценарии:
+- критические UI-сценарии.
 
-- открыть проект и lineage;
-- редактировать SQL, сохранить и валидировать;
-- создать проект wizard-ом и перейти к build;
-- открыть model editor и переключить режимы.
+Следует учитывать, что часть UI уже существенно изменилась, поэтому системная документация должна считаться более актуальным описанием архитектуры, чем старые e2e допущения.
 
-### 16.3 Команды запуска тестов
+### 16.3 Запуск
 
 ```bash
 make test
@@ -1123,93 +1024,117 @@ pnpm --dir frontend test:e2e
 
 ## 17. Карта каталогов репозитория
 
-### 17.1 Корень репозитория
+### 17.1 Корень
 
 `README.md`
 
-- краткий вход в проект.
-
-`Makefile`
-
-- `dev`, `build`, `test`, `deploy`, `down`.
+- краткая входная точка.
 
 `Docs/`
 
-- инженерные и продуктовые документы.
+- проектная документация.
 
 `backend/`
 
-- backend API.
+- FastAPI backend.
 
 `frontend/`
 
-- frontend SPA.
+- React frontend.
 
 `infra/docker/`
 
-- docker-compose + nginx.
+- compose и nginx.
 
 `projects/`
 
-- локальные проекты студии.
+- текущие workspace projects.
 
 `FTRepCBR.Workflow.FW/`
 
-- framework-движок.
+- framework package.
 
-### 17.2 `backend/`
+### 17.2 `frontend/src/`
 
-`app/main.py`
+`api/`
 
-- FastAPI app.
+- HTTP client и DTO.
 
-`app/core/`
+`app/providers/`
 
-- config, fs, registry, logging.
+- providers приложения.
 
-`app/routers/`
+`app/store/`
+
+- zustand stores.
+
+`features/hub/`
+
+- project hub.
+
+`features/project/`
+
+- project overview page.
+
+`features/layout/`
+
+- workbench layout selection.
+
+`features/lineage/`
+
+- lineage feature.
+
+`features/model/`
+
+- model editing feature.
+
+`features/sql/`
+
+- SQL editor feature.
+
+`features/parameters/`
+
+- parameters feature.
+
+`features/build/`
+
+- build feature.
+
+`features/validate/`
+
+- validate feature.
+
+`features/admin/`
+
+- admin feature.
+
+`shared/components/`
+
+- shell and reusable UI components.
+
+### 17.3 `backend/app/`
+
+`core/`
+
+- config, fs, logging, registry.
+
+`routers/`
 
 - HTTP/WS endpoints.
 
-`app/services/`
+`services/`
 
-- FW integration, workflow cache, terminal.
+- framework integration, workflow cache, terminal.
 
-`app/schemas/`
+`schemas/`
 
-- Pydantic response models базового уровня.
-
-`tests/`
-
-- backend tests.
-
-### 17.3 `frontend/`
-
-`src/api/`
-
-- API client и DTO-типы.
-
-`src/app/store/`
-
-- Zustand stores.
-
-`src/features/`
-
-- feature-oriented UI modules.
-
-`src/shared/components/`
-
-- shell и переиспользуемые UI-компоненты.
-
-`tests/e2e/`
-
-- Playwright e2e.
+- Pydantic schemas.
 
 ### 17.4 `FTRepCBR.Workflow.FW/`
 
 `src/cli.py`
 
-- CLI entry.
+- CLI entrypoint.
 
 `src/parsing/`
 
@@ -1217,11 +1142,11 @@ pnpm --dir frontend test:e2e
 
 `src/models/`
 
-- framework domain models.
+- domain models.
 
 `src/generation/`
 
-- workflow/build generation.
+- build/generation logic.
 
 `src/validation/`
 
@@ -1229,67 +1154,64 @@ pnpm --dir frontend test:e2e
 
 `src/macros/`
 
-- macros/functions/materialization/workflow-engine templates.
+- macros/functions/materialization/workflow engine templates.
 
 `src/config/`
 
-- template/tool/workflow registries.
-
-`docs/`
-
-- framework-specific docs.
-
-`sample/`
-
-- sample framework project.
+- registries and templates.
 
 ---
 
-## 18. Ограничения текущей реализации
+## 18. Что изменилось относительно прошлой версии документации
 
-1. Истории build/validation живут только в памяти backend.
-2. Admin templates/rules/macros сейчас runtime-only и не имеют выделенного persistent storage.
-3. Полноценная auth/roles модель не реализована.
-4. `GET /files/content` возвращает пустой контент для отсутствующего файла, что важно учитывать в тестах и UI.
-5. `POST /build/{engine}/preview` маршрутизирован через `build_id` path-параметр, хотя фактически используется как engine id.
-6. Workflow cache является производным слоем и может расходиться с файлами до rebuild.
-7. Часть ответов backend построена на regex/file-based parsing fallback, а не только на framework payload.
+В актуальном проекте нужно учитывать следующие изменения:
 
----
-
-## 19. Что важно для дальнейшей разработки
-
-### 19.1 Точки расширения
-
-- новые workflow engines добавляются через framework + backend supported engines;
-- новые validation rules могут жить во framework и/или admin runtime rules;
-- новые UI-экраны логично добавлять как отдельные feature-модули;
-- новые API-операции почти всегда должны учитывать workflow cache invalidation.
-
-### 19.2 Инварианты, которые нельзя ломать
-
-- файловая структура проекта остается основным источником истины;
-- файловые операции должны быть path-safe;
-- любое изменение project/model/parameter/sql должно корректно помечать workflow cache как устаревший или пересобранный;
-- linked/imported/internal проекты должны корректно различаться на уровне registry и UI.
-
-### 19.3 Рекомендации для QA
-
-- отдельно тестировать `workflow` и `fallback` режимы;
-- после file/model/parameter edits проверять статус workflow;
-- проверять совместимость build и validate для разных engine/context комбинаций;
-- покрывать imported и linked проекты отдельно, так как у них разная файловая семантика;
-- учитывать неперсистентность in-memory histories при рестарте backend.
+1. Появился отдельный Project Hub как основной стартовый экран.
+2. Появился Project Info screen как отдельная вкладка workbench.
+3. Project API расширен:
+   - `GET /projects/{project_id}`
+   - `PATCH /projects/{project_id}/metadata`
+   - `DELETE /projects/{project_id}`
+4. Project summary теперь возвращает analytics и metadata поля:
+   - `visibility`
+   - `tags`
+   - `model_count`
+   - `folder_count`
+   - `sql_count`
+   - `modified_at`
+   - `cache_status`
+5. Internal project metadata теперь частично синхронизируется через `project.yml`.
+6. Текущая структура frontend feature-модулей заметно богаче, чем в исходной scaffold-версии.
+7. Набор реальных проектов в `projects/` изменился; старые временные demo-проекты больше не должны считаться канонической основой документации.
 
 ---
 
-## 20. Рекомендуемые документы следующего уровня
+## 19. Рекомендации для дальнейшей разработки и QA
 
-На базе этого reference имеет смысл дальше поддерживать:
+### 19.1 Для backend
 
-1. API contract document с формальными JSON-примерами для каждого endpoint.
-2. Test design document с матрицей сценариев по проектам, контекстам и engine.
-3. Architecture Decision Records по workflow cache, linked projects и admin persistence.
-4. Developer onboarding guide с типовым жизненным циклом изменения backend/frontend/framework.
+- любое изменение project/model/parameter/files должно учитывать workflow cache invalidation;
+- новые project-level поля нужно синхронизировать одновременно в API schema, registry и internal `project.yml` logic;
+- linked projects нужно тестировать отдельно от internal/imported.
 
-Этот документ должен считаться главным обзорным описанием текущего решения и использоваться как стартовая точка для анализа, разработки и тестирования.
+### 19.2 Для frontend
+
+- новые feature-модули лучше добавлять отдельными domain-папками;
+- при изменении project lifecycle надо проверять оба режима приложения:
+  - hub mode;
+  - workbench mode;
+- persisted stores и localStorage поведение нужно учитывать в e2e.
+
+### 19.3 Для QA
+
+- отдельно тестировать:
+  - project creation
+  - import upload
+  - linked project
+  - metadata patch
+  - delete semantics
+  - workflow cache status transitions
+  - build/validate history after restart
+- проверять read-model ответы как в `workflow`, так и в `fallback` режимах.
+
+Этот документ должен использоваться как актуальная базовая карта системы для разработки, тестирования и дальнейшего уточнения API-контрактов.

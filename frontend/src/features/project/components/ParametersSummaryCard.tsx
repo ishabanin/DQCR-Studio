@@ -1,54 +1,77 @@
-import type { ProjectParameterItem } from "../../../api/projects";
-import type { ModelSummary } from "../hooks/useProjectInfo";
+import { useEditorStore } from "../../../app/store/editorStore";
+import type { ParamInfo } from "../types";
 
-function byScope(parameters: ProjectParameterItem[], prefix: string) {
-  return parameters.filter((item) => item.scope.startsWith(prefix));
+function formatContextSummary(param: ParamInfo): string {
+  const values = param.values ?? {};
+  const keys = Object.keys(values);
+
+  if (keys.length === 0) return "—";
+
+  const hasDynamic = Object.values(values).some((item) => item.type === "dynamic");
+  const hasStatic = Object.values(values).some((item) => item.type === "static");
+
+  if (keys.length === 1 && keys[0] === "all") {
+    return "static · all";
+  }
+
+  if (hasDynamic && hasStatic) {
+    const dynamicContexts = keys.filter((key) => values[key]?.type === "dynamic").join(", ");
+    return `static / ${dynamicContexts}: dynamic`;
+  }
+
+  if (hasDynamic) return `dynamic · ${keys.join(", ")}`;
+  return `static · ${keys.join(", ")}`;
 }
 
 export function ParametersSummaryCard({
-  parameters,
-  models,
+  globalParams,
+  modelScopedCount,
 }: {
-  parameters: ProjectParameterItem[];
-  models: ModelSummary[];
+  globalParams: ParamInfo[];
+  modelScopedCount: number;
 }) {
-  const globalParams = parameters.filter((item) => item.scope === "global");
-  const modelParams = byScope(parameters, "model:");
-  const dynamicParams = parameters.filter((item) => Object.values(item.values ?? {}).some((value) => value.type === "dynamic"));
-  const paramFiles = models.reduce((sum, item) => sum + item.paramCount, 0);
+  const setActiveTab = useEditorStore((state) => state.setActiveTab);
 
   return (
-    <section className="project-card">
-      <div className="project-card-head">
-        <div>
-          <p className="project-card-eyebrow">Parameters</p>
-          <h2>Configuration surface</h2>
-        </div>
-        <span className="project-status-pill">{parameters.length} API items</span>
+    <div className="pi-card">
+      <div className="pi-card-header">
+        <span className="pi-card-title">Global parameters</span>
+        <button className="pi-card-action" onClick={() => setActiveTab("parameters")}>
+          View all →
+        </button>
       </div>
 
-      <div className="project-mini-stats">
-        <div className="project-mini-stat">
-          <strong>{globalParams.length}</strong>
-          <span>global</span>
+      {globalParams.map((param) => (
+        <div key={param.id} className="pi-param-item">
+          <span className="pi-param-name">{param.name}</span>
+          <span className="pi-param-type">{param.domain_type || "string"}</span>
+          <span style={{ fontSize: "var(--pi-text-2xs)", color: "var(--color-text-tertiary)" }}>global</span>
+          <span className="pi-param-ctx">{formatContextSummary(param)}</span>
         </div>
-        <div className="project-mini-stat">
-          <strong>{modelParams.length}</strong>
-          <span>model-scoped</span>
-        </div>
-        <div className="project-mini-stat">
-          <strong>{dynamicParams.length}</strong>
-          <span>dynamic</span>
-        </div>
-        <div className="project-mini-stat">
-          <strong>{paramFiles}</strong>
-          <span>param files</span>
-        </div>
-      </div>
+      ))}
 
-      <p className="project-muted-copy">
-        API parameters and model parameter files are shown together so the page reflects both runtime config and on-disk structure.
-      </p>
-    </section>
+      {modelScopedCount > 0 ? (
+        <div
+          style={{
+            padding: "8px var(--pi-card-px)",
+            fontSize: "var(--pi-text-xs)",
+            color: "var(--color-text-tertiary)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderTop: "var(--pi-border-subtle)",
+          }}
+        >
+          <span>+ {modelScopedCount} model-scoped parameters</span>
+          <button
+            className="pi-card-action"
+            style={{ fontSize: "var(--pi-text-xs)" }}
+            onClick={() => setActiveTab("parameters")}
+          >
+            View →
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }

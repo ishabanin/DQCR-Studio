@@ -17,6 +17,8 @@ interface EditorStore {
   activeTab: TabId;
   openFiles: string[];
   activeFilePath: string | null;
+  lineageModelId: string | null;
+  lineageNodePath: string | null;
   dirtyFiles: Record<string, boolean>;
   cursorStateByFile: Record<string, EditorCursorState>;
   navigateTo: EditorNavigationTarget | null;
@@ -30,12 +32,16 @@ interface EditorStore {
   setCursorState: (filePath: string, state: EditorCursorState) => void;
   setNavigateTo: (target: EditorNavigationTarget | null) => void;
   setPendingNavigationTarget: (target: EditorNavigationTarget | null) => void;
+  setLineageTarget: (target: { modelId?: string | null; nodePath?: string | null }) => void;
+  clearLineageNodePath: () => void;
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
   activeTab: "project",
   openFiles: [],
   activeFilePath: null,
+  lineageModelId: null,
+  lineageNodePath: null,
   dirtyFiles: {},
   cursorStateByFile: {},
   navigateTo: null,
@@ -83,4 +89,10 @@ export const useEditorStore = create<EditorStore>((set) => ({
     })),
   setNavigateTo: (target) => set({ navigateTo: target, pendingNavigationTarget: target }),
   setPendingNavigationTarget: (target) => set({ pendingNavigationTarget: target, navigateTo: target }),
+  setLineageTarget: ({ modelId, nodePath }) =>
+    set((state) => ({
+      lineageModelId: modelId ?? state.lineageModelId,
+      lineageNodePath: nodePath ?? null,
+    })),
+  clearLineageNodePath: () => set({ lineageNodePath: null }),
 }));
