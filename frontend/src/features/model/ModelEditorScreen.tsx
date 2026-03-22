@@ -9,13 +9,17 @@ import {
   fetchProjectTree,
   saveModelObject,
   type ModelAttributeItem,
+  type ModelFieldItem,
   type ModelObjectResponse,
 } from "../../api/projects";
+import { getCatalogStatus, type CatalogEntity } from "../../api/catalog";
 import { useTheme } from "../../app/providers/ThemeProvider";
+import { useEditorStore } from "../../app/store/editorStore";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
 import ProjectStructureDialog, { type ProjectStructureActionState } from "../../shared/components/ProjectStructureDialog";
 import Tooltip from "../../shared/components/ui/Tooltip";
+import EntityPickerDialog, { type ImportStrategy } from "./EntityPickerDialog";
 import { getDqcrTheme } from "../sql/dqcrLanguage";
 import { formToYaml, yamlToForm } from "./syncEngine";
 import { areModelsEqual, normalizeYamlText, resolveYamlSyncStatus, type SyncStatus } from "./yamlSync";
@@ -59,7 +63,80 @@ function normalizeAttrName(value: string, index: number): string {
   return `field_${index + 1}`;
 }
 
+function areModelFieldsEqual(left: ModelFieldItem | undefined, right: ModelFieldItem | undefined): boolean {
+  if (!left || !right) return false;
+  return (
+    (left.display_name ?? "") === (right.display_name ?? "") &&
+    (left.type ?? "") === (right.type ?? "") &&
+    Boolean(left.is_key) === Boolean(right.is_key) &&
+    Boolean(left.nullable) === Boolean(right.nullable)
+  );
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (!error || typeof error !== "object") return fallback;
+  const withResponse = error as { response?: { data?: { detail?: unknown } }; message?: string };
+  const detail = withResponse.response?.data?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (typeof withResponse.message === "string" && withResponse.message.trim()) return withResponse.message;
+  return fallback;
+}
+
+function toCatalogFields(entity: CatalogEntity): ModelFieldItem[] {
+  return entity.attributes.map((attribute) => ({
+    name: attribute.name,
+    display_name: attribute.display_name,
+    type: attribute.domain_type,
+    is_key: attribute.is_key,
+    nullable: attribute.is_nullable,
+  }));
+}
+
+function mergeModelFields(existing: ModelFieldItem[], incoming: ModelFieldItem[]): ModelFieldItem[] {
+  const incomingByName = new Map(incoming.map((item) => [item.name, item]));
+  const merged: ModelFieldItem[] = [...incoming];
+  for (const item of existing) {
+    if (!incomingByName.has(item.name)) {
+      merged.push(item);
+    }
+  }
+  return merged;
+}
+
+function buildFieldImportDiff(previous: ModelFieldItem[], next: ModelFieldItem[]) {
+  const previousByName = new Map(previous.map((item) => [item.name, item]));
+  const nextByName = new Map(next.map((item) => [item.name, item]));
+  const highlights: Record<string, "added" | "updated"> = {};
+
+  let added = 0;
+  let updated = 0;
+  let unchanged = 0;
+
+  for (const item of next) {
+    const before = previousByName.get(item.name);
+    if (!before) {
+      added += 1;
+      highlights[item.name] = "added";
+    } else if (areModelFieldsEqual(before, item)) {
+      unchanged += 1;
+    } else {
+      updated += 1;
+      highlights[item.name] = "updated";
+    }
+  }
+
+  let removed = 0;
+  for (const prev of previous) {
+    if (!nextByName.has(prev.name)) {
+      removed += 1;
+    }
+  }
+
+  return { added, updated, removed, unchanged, highlights };
+}
+
 export default function ModelEditorScreen() {
+  const setActiveTab = useEditorStore((state) => state.setActiveTab);
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const addToast = useUiStore((state) => state.addToast);
   const initialModelId = useUiStore((state) => state.initialModelId);
@@ -75,8 +152,20 @@ export default function ModelEditorScreen() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("synced");
   const [createModelState, setCreateModelState] = useState<ProjectStructureActionState | null>(null);
   const [createModelValue, setCreateModelValue] = useState("NewModel");
+  const [entityPickerOpen, setEntityPickerOpen] = useState(false);
+  const [showAllFields, setShowAllFields] = useState(false);
+  const [fieldHighlights, setFieldHighlights] = useState<Record<string, "added" | "updated">>({});
+  const [fieldImportSummary, setFieldImportSummary] = useState<{
+    entityName: string;
+    strategy: ImportStrategy;
+    added: number;
+    updated: number;
+    removed: number;
+    unchanged: number;
+  } | null>(null);
   const formToYamlTimerRef = useRef<number | null>(null);
   const yamlToFormTimerRef = useRef<number | null>(null);
+  const fieldHighlightTimerRef = useRef<number | null>(null);
 
   const treeQuery = useQuery({
     queryKey: ["projectTree", currentProjectId],
@@ -97,8 +186,14 @@ export default function ModelEditorScreen() {
     enabled: Boolean(currentProjectId && activeModelId),
   });
 
+  const catalogStatusQuery = useQuery({
+    queryKey: ["catalogStatus"],
+    queryFn: getCatalogStatus,
+  });
+
   const saveMutation = useMutation({
-    mutationFn: () => saveModelObject(currentProjectId as string, activeModelId as string, { model: workingModel as ModelObjectResponse["model"] }),
+    mutationFn: (modelPayload: ModelObjectResponse["model"]) =>
+      saveModelObject(currentProjectId as string, activeModelId as string, { model: modelPayload }),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["modelObject", currentProjectId, activeModelId] }),
@@ -112,10 +207,9 @@ export default function ModelEditorScreen() {
       setDraft(null);
       setYamlError(null);
       setSyncStatus("synced");
-      addToast("Model saved", "success");
     },
-    onError: () => {
-      addToast("Failed to save model", "error");
+    onError: (error) => {
+      addToast(extractErrorMessage(error, "Failed to save model"), "error");
     },
   });
 
@@ -157,6 +251,9 @@ export default function ModelEditorScreen() {
       if (yamlToFormTimerRef.current !== null) {
         window.clearTimeout(yamlToFormTimerRef.current);
       }
+      if (fieldHighlightTimerRef.current !== null) {
+        window.clearTimeout(fieldHighlightTimerRef.current);
+      }
     };
   }, []);
 
@@ -175,6 +272,9 @@ export default function ModelEditorScreen() {
     setYamlText("");
     setYamlError(null);
     setSyncStatus("synced");
+    setShowAllFields(false);
+    setFieldHighlights({});
+    setFieldImportSummary(null);
 
     if (formToYamlTimerRef.current !== null) {
       window.clearTimeout(formToYamlTimerRef.current);
@@ -204,7 +304,7 @@ export default function ModelEditorScreen() {
     }, 150);
   }, [mode, workingModel]);
 
-  const setTargetTableField = (key: "name" | "schema" | "description" | "template" | "engine", value: string) => {
+  const setTargetTableField = (key: "name" | "table" | "schema" | "description" | "template" | "engine", value: string) => {
     if (!workingModel) return;
     const next: ModelObjectResponse["model"] = {
       ...workingModel,
@@ -278,6 +378,50 @@ export default function ModelEditorScreen() {
       target_table: {
         ...workingModel.target_table,
         attributes: nextAttrs,
+      },
+    });
+  };
+
+  const handleImportEntity = (entity: CatalogEntity, strategy: ImportStrategy) => {
+    if (!workingModel) return;
+    const previousFields = [...(workingModel.fields ?? [])];
+    const importedFields = toCatalogFields(entity);
+    const nextFields = strategy === "merge" ? mergeModelFields(previousFields, importedFields) : importedFields;
+    const diff = buildFieldImportDiff(previousFields, nextFields);
+
+    const nextModel: ModelObjectResponse["model"] = {
+      ...workingModel,
+      target_table: {
+        ...workingModel.target_table,
+        name: entity.name,
+        table: entity.name,
+      },
+      fields: nextFields,
+    };
+
+    setShowAllFields(false);
+    setFieldHighlights(diff.highlights);
+    setFieldImportSummary({
+      entityName: entity.name,
+      strategy,
+      added: diff.added,
+      updated: diff.updated,
+      removed: diff.removed,
+      unchanged: diff.unchanged,
+    });
+    if (fieldHighlightTimerRef.current !== null) {
+      window.clearTimeout(fieldHighlightTimerRef.current);
+    }
+    fieldHighlightTimerRef.current = window.setTimeout(() => {
+      setFieldHighlights({});
+      fieldHighlightTimerRef.current = null;
+    }, 12000);
+
+    setDraft(nextModel);
+    saveMutation.mutate(nextModel, {
+      onSuccess: () => {
+        addToast(`${nextFields.length} fields imported from ${entity.name} (${strategy})`, "success");
+        setEntityPickerOpen(false);
       },
     });
   };
@@ -358,7 +502,14 @@ export default function ModelEditorScreen() {
             type="button"
             className="action-btn action-btn-primary"
             disabled={!activeModelId || !workingModel || !isDirty || saveMutation.isPending || syncStatus === "conflict"}
-            onClick={() => saveMutation.mutate()}
+            onClick={() => {
+              if (!workingModel) return;
+              saveMutation.mutate(workingModel, {
+                onSuccess: () => {
+                  addToast("Model saved", "success");
+                },
+              });
+            }}
           >
             {saveMutation.isPending ? "Saving..." : "Save"}
           </button>
@@ -453,6 +604,14 @@ export default function ModelEditorScreen() {
                 />
               </label>
               <label>
+                <HelpLabel text="Table" help="Явное имя физической таблицы назначения (если отличается от Name)." />
+                <input
+                  className="ui-input"
+                  value={workingModel.target_table.table ?? ""}
+                  onChange={(event) => setTargetTableField("table", event.target.value)}
+                />
+              </label>
+              <label>
                 <HelpLabel text="Schema" help="Схема БД для целевой таблицы, например dm или stg." />
                 <input
                   className="ui-input"
@@ -485,6 +644,95 @@ export default function ModelEditorScreen() {
                 />
               </label>
             </div>
+          </section>
+
+          <section className="model-editor-section">
+            <div className="model-editor-section-head">
+              <h2>Fields</h2>
+              <div className="entity-picker-actions">
+                {catalogStatusQuery.data?.available ? null : (
+                  <button
+                    type="button"
+                    className="action-btn"
+                    onClick={() => {
+                      setActiveTab("admin");
+                    }}
+                  >
+                    Open Admin Catalog
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="action-btn"
+                  disabled={catalogStatusQuery.data?.available !== true || saveMutation.isPending}
+                  title={catalogStatusQuery.data?.available ? undefined : "Upload a catalog in Admin or Hub first"}
+                  onClick={() => setEntityPickerOpen(true)}
+                >
+                  {(workingModel.fields ?? []).length > 0 ? "Re-import from catalog..." : "Import from catalog..."}
+                </button>
+              </div>
+            </div>
+
+            {catalogStatusQuery.data?.meta ? (
+              <div className="catalog-muted">
+                Catalog: {catalogStatusQuery.data.meta.source_filename} · {catalogStatusQuery.data.meta.entity_count} entities ·{" "}
+                {catalogStatusQuery.data.meta.attribute_count} attrs
+              </div>
+            ) : null}
+
+            {fieldImportSummary ? (
+              <div className="model-import-summary">
+                Last import from <strong>{fieldImportSummary.entityName}</strong> ({fieldImportSummary.strategy}): +{fieldImportSummary.added} / ~
+                {fieldImportSummary.updated} / -{fieldImportSummary.removed} / ={fieldImportSummary.unchanged}
+              </div>
+            ) : null}
+
+            {(workingModel.fields ?? []).length === 0 ? (
+              <div className="catalog-muted">
+                No fields defined. Import field definitions from the data catalog, or add fields manually in YAML.
+              </div>
+            ) : (
+              <div className="model-attr-table-wrap">
+                <table className="model-attr-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>System name</th>
+                      <th>Display name</th>
+                      <th>Type</th>
+                      <th>Badges</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(showAllFields ? workingModel.fields ?? [] : (workingModel.fields ?? []).slice(0, 10)).map((field, index) => (
+                      <tr
+                        key={`${field.name}-${index}`}
+                        className={
+                          fieldHighlights[field.name] === "added"
+                            ? "model-field-row-added"
+                            : fieldHighlights[field.name] === "updated"
+                              ? "model-field-row-updated"
+                              : undefined
+                        }
+                      >
+                        <td>{index}</td>
+                        <td>{field.name}</td>
+                        <td>{field.display_name ?? ""}</td>
+                        <td>{field.type ?? ""}</td>
+                        <td>
+                          {field.is_key ? "🔑" : ""} {field.nullable ? "∅" : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {(workingModel.fields ?? []).length > 10 ? (
+                  <button type="button" className="action-btn" onClick={() => setShowAllFields((prev) => !prev)}>
+                    {showAllFields ? "Show less" : `Show all ${(workingModel.fields ?? []).length}`}
+                  </button>
+                ) : null}
+              </div>
+            )}
           </section>
 
           <section className="model-editor-section">
@@ -578,6 +826,13 @@ export default function ModelEditorScreen() {
           </section>
         </div>
       )}
+
+      <EntityPickerDialog
+        open={entityPickerOpen}
+        existingFields={workingModel?.fields ?? []}
+        onClose={() => setEntityPickerOpen(false)}
+        onImport={handleImportEntity}
+      />
 
       <ProjectStructureDialog
         state={createModelState}

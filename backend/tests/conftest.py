@@ -57,10 +57,13 @@ def _create_demo_project(projects_root: Path, project_id: str = "demo") -> Path:
 @pytest.fixture()
 def api_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     projects_root = tmp_path / "projects"
+    catalog_root = tmp_path / "catalog"
     projects_root.mkdir(parents=True, exist_ok=True)
+    catalog_root.mkdir(parents=True, exist_ok=True)
     _create_demo_project(projects_root)
 
     monkeypatch.setattr(settings, "projects_path", str(projects_root))
+    monkeypatch.setattr(settings, "catalog_path", str(catalog_root))
     monkeypatch.setattr(projects_router.settings, "projects_path", str(projects_root))
     monkeypatch.setattr(projects_router.FW_SERVICE, "_projects_base_path", projects_root)
     projects_router._BUILD_HISTORY.clear()

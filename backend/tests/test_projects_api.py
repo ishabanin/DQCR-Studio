@@ -1,10 +1,40 @@
 from fastapi.testclient import TestClient
+import pytest
 
 from app.routers import projects as projects_router
 from pathlib import Path
 import json
+import io
 
-from app.routers import projects as projects_router
+from app.core.config import settings
+from openpyxl import Workbook
+
+
+def _build_catalog_xlsx_bytes() -> bytes:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Атрибуты"
+    sheet.append(
+        [
+            "Наименование сущности",
+            "Наименование сущности (сист.)",
+            "Информационный объект",
+            "Модуль",
+            "Наименование атрибута (сист.)",
+            "Наименование атрибута",
+            "Тип",
+            "Допустимость пустого значения",
+            "П. Н.",
+        ]
+    )
+    sheet.append(["Аналитический счет", "Account", "ГК", "DWH", "ID", "ИД", "Длинное целое число", "нет", 0])
+    sheet.append(["Аналитический счет", "Account", "ГК", "DWH", "BranchID", "ИДСтруктураКомпании", "Число [19, 0]", "нет", 1])
+    sheet.append(["Аналитический счет", "Account", "ГК", "DWH", "Title", "Наименование", "Строка [30]", "да", 1])
+    sheet.append(["Клиент", "Client", "ГК", "DWH", "CreatedAt", "ДатаСоздания", "Дата и время", "нет", 1])
+    payload = io.BytesIO()
+    workbook.save(payload)
+    workbook.close()
+    return payload.getvalue()
 
 
 def _create_external_project(root: Path, name: str) -> Path:
@@ -42,6 +72,220 @@ def _create_model(project_root: Path, model_id: str) -> None:
     )
     (workflow_root / "folder.yml").write_text("materialized: insert_fc\n", encoding="utf-8")
     (workflow_root / "001_main.sql").write_text("-- comment\nSELECT 1 AS id\n", encoding="utf-8")
+
+
+def test_catalog_upload_and_status(api_client: TestClient) -> None:
+    payload = _build_catalog_xlsx_bytes()
+    upload_response = api_client.post(
+        "/api/v1/catalog/upload",
+        files={"file": ("CBR_DWH71_DataModel_templete.xlsx", payload, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        data={"version_label": "DWH 7.1"},
+    )
+    assert upload_response.status_code == 200, upload_response.text
+    body = upload_response.json()
+    assert body["available"] is True
+    assert body["meta"]["entity_count"] == 2
+    assert body["meta"]["attribute_count"] == 4
+    assert body["meta"]["version_label"] == "DWH 7.1"
+
+    status_response = api_client.get("/api/v1/catalog")
+    assert status_response.status_code == 200
+    status_payload = status_response.json()
+    assert status_payload["available"] is True
+    assert status_payload["meta"]["source_filename"] == "CBR_DWH71_DataModel_templete.xlsx"
+
+    catalog_root = Path(settings.catalog_path)
+    assert (catalog_root / "catalog.json").exists()
+    assert (catalog_root / "catalog.meta.json").exists()
+
+
+def test_catalog_upload_replaces_previous_catalog(api_client: TestClient) -> None:
+    first_payload = _build_catalog_xlsx_bytes()
+    first = api_client.post(
+        "/api/v1/catalog/upload",
+        files={"file": ("first.xlsx", first_payload, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert first.status_code == 200, first.text
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Атрибуты"
+    sheet.append(
+        [
+            "Наименование сущности",
+            "Наименование сущности (сист.)",
+            "Информационный объект",
+            "Модуль",
+            "Наименование атрибута (сист.)",
+            "Наименование атрибута",
+            "Тип",
+            "Допустимость пустого значения",
+            "П. Н.",
+        ]
+    )
+    sheet.append(["Контрагент", "Counterparty", "ГК", "DWH", "CounterpartyID", "ИД", "Целое число", "нет", 0])
+    replacement_payload = io.BytesIO()
+    workbook.save(replacement_payload)
+    workbook.close()
+
+    second = api_client.post(
+        "/api/v1/catalog/upload",
+        files={"file": ("second.xlsx", replacement_payload.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert second.status_code == 200, second.text
+    assert second.json()["meta"]["entity_count"] == 1
+
+    entities_response = api_client.get("/api/v1/catalog/entities")
+    assert entities_response.status_code == 200
+    entities = entities_response.json()["entities"]
+    assert len(entities) == 1
+    assert entities[0]["name"] == "Counterparty"
+
+
+def test_catalog_upload_validation_errors(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    bad_ext = api_client.post(
+        "/api/v1/catalog/upload",
+        files={"file": ("catalog.txt", b"not an xlsx", "text/plain")},
+    )
+    assert bad_ext.status_code == 422
+
+    from app.routers import catalog as catalog_router
+
+    monkeypatch.setattr(catalog_router, "_MAX_UPLOAD_BYTES", 8)
+    too_large = api_client.post(
+        "/api/v1/catalog/upload",
+        files={"file": ("catalog.xlsx", b"0123456789", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert too_large.status_code == 413
+
+
+def test_catalog_entities_search_and_get(api_client: TestClient) -> None:
+    upload_response = api_client.post(
+        "/api/v1/catalog/upload",
+        files={"file": ("catalog.xlsx", _build_catalog_xlsx_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        data={"version_label": "DWH 7.1"},
+    )
+    assert upload_response.status_code == 200
+
+    search_acc = api_client.get("/api/v1/catalog/entities", params={"search": "acc"})
+    assert search_acc.status_code == 200
+    assert any(item["name"] == "Account" for item in search_acc.json()["entities"])
+
+    search_ru = api_client.get("/api/v1/catalog/entities", params={"search": "счет"})
+    assert search_ru.status_code == 200
+    assert any(item["name"] == "Account" for item in search_ru.json()["entities"])
+
+    entity_response = api_client.get("/api/v1/catalog/entities/Account")
+    assert entity_response.status_code == 200
+    entity_payload = entity_response.json()
+    assert len(entity_payload["attributes"]) == 3
+    by_name = {item["name"]: item for item in entity_payload["attributes"]}
+    assert by_name["ID"]["domain_type"] == "bigint"
+    assert by_name["BranchID"]["domain_type"] == "decimal(19,0)"
+    assert by_name["Title"]["domain_type"] == "varchar(30)"
+
+    not_found = api_client.get("/api/v1/catalog/entities/NonExistent")
+    assert not_found.status_code == 404
+
+
+def test_catalog_entities_requires_loaded_catalog(api_client: TestClient) -> None:
+    response = api_client.get("/api/v1/catalog/entities")
+    assert response.status_code == 404
+
+
+def test_save_model_persists_fields_and_target_table_table(api_client: TestClient) -> None:
+    payload = {
+        "model": {
+            "target_table": {
+                "name": "Account",
+                "table": "Account",
+                "schema": "dbo",
+                "attributes": [],
+            },
+            "fields": [
+                {"name": "ID", "display_name": "ИД", "type": "bigint", "is_key": True, "nullable": False},
+                {"name": "BranchID", "display_name": "ИДСтруктураКомпании", "type": "decimal", "is_key": False, "nullable": False},
+            ],
+            "workflow": {"description": "wf", "folders": [{"id": "01_stage", "enabled": True}]},
+            "cte_settings": {"default": "insert_fc", "by_context": {}},
+        }
+    }
+    response = api_client.put("/api/v1/projects/demo/models/SampleModel", json=payload)
+    assert response.status_code == 200, response.text
+
+    model_path = Path(settings.projects_path) / "demo" / "model" / "SampleModel" / "model.yml"
+    raw = model_path.read_text(encoding="utf-8")
+    assert "table: Account" in raw
+    assert "fields:" in raw
+    assert "display_name: ИД" in raw
+    assert "type: bigint" in raw
+    assert "entity_ref" not in raw
+
+
+def test_save_model_creates_workflow_root_when_missing(api_client: TestClient) -> None:
+    project_root = Path(settings.projects_path) / "demo"
+    model_root = project_root / "model" / "SampleModel"
+    workflow_root = model_root / "workflow"
+    if workflow_root.exists():
+        for child in sorted(workflow_root.rglob("*"), reverse=True):
+            if child.is_file():
+                child.unlink()
+            elif child.is_dir():
+                child.rmdir()
+        workflow_root.rmdir()
+
+    payload = {
+        "model": {
+            "target_table": {
+                "name": "Account",
+                "table": "Account",
+                "schema": "dbo",
+                "attributes": [],
+            },
+            "fields": [{"name": "ID", "display_name": "ИД", "type": "bigint", "is_key": True, "nullable": False}],
+            "workflow": {"description": "wf", "folders": [{"id": "01_stage", "enabled": True}]},
+        }
+    }
+    response = api_client.put("/api/v1/projects/demo/models/SampleModel", json=payload)
+    assert response.status_code == 200, response.text
+    assert (model_root / "workflow" / "01_stage").exists()
+    assert (model_root / "workflow" / "01_stage" / "folder.yml").exists()
+
+
+def test_autocomplete_includes_columns_from_fields_in_model_yml(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    model_path = Path(settings.projects_path) / "demo" / "model" / "SampleModel" / "model.yml"
+    model_path.write_text(
+        "\n".join(
+            [
+                "target_table:",
+                "  name: Account",
+                "  schema: dbo",
+                "  attributes:",
+                "fields:",
+                "  - name: ID",
+                "    display_name: ИД",
+                "    type: bigint",
+                "    is_key: true",
+                "    nullable: false",
+                "workflow:",
+                "  folders:",
+                "    01_stage:",
+                "      enabled: true",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(projects_router, "_ensure_workflow_payload", lambda _p, _m, force_rebuild=False: None)
+    response = api_client.get("/api/v1/projects/demo/autocomplete", params={"model_id": "SampleModel"})
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    objects = payload.get("objects", [])
+    target_obj = next((item for item in objects if item.get("kind") == "target_table" and item.get("model_id") == "SampleModel"), None)
+    assert target_obj is not None
+    columns = target_obj.get("columns", [])
+    assert any(str(column.get("name", "")).lower() == "id" for column in columns)
 
 
 def test_projects_list_and_create(api_client: TestClient) -> None:

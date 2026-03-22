@@ -15,10 +15,12 @@ services:
     volumes:
       - ../../backend:/app
       - ../../projects:/app/projects
+      - ../../catalog:/app/catalog
     environment:
       SECRET_KEY: dev-secret-key
       LOG_LEVEL: info
       PROJECTS_PATH: /app/projects
+      CATALOG_PATH: /app/catalog
       FW_USE_CLI: ${FW_USE_CLI:-true}
       FW_CLI_COMMAND: ${FW_CLI_COMMAND:-fw2}
     ports:

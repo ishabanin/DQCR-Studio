@@ -8,18 +8,29 @@ const ajv = new Ajv({ allErrors: true, strict: false });
 function normalizeModel(input: unknown): ModelObjectResponse["model"] {
   const source = (input ?? {}) as Partial<ModelObjectResponse["model"]>;
   const target = (source.target_table ?? {}) as NonNullable<ModelObjectResponse["model"]["target_table"]>;
+  const fields = Array.isArray(source.fields) ? source.fields : undefined;
   const workflow = (source.workflow ?? {}) as NonNullable<ModelObjectResponse["model"]["workflow"]>;
   const cte = (source.cte_settings ?? {}) as NonNullable<ModelObjectResponse["model"]["cte_settings"]>;
 
   return {
     target_table: {
       name: target.name ?? "",
+      table: target.table ?? undefined,
       schema: target.schema ?? "",
       description: target.description ?? "",
       template: target.template ?? "",
       engine: target.engine ?? "",
       attributes: Array.isArray(target.attributes) ? target.attributes : [],
     },
+    fields: fields
+      ? fields.map((item) => ({
+          name: item.name ?? "",
+          display_name: item.display_name ?? "",
+          type: item.type ?? "",
+          is_key: item.is_key ?? false,
+          nullable: item.nullable ?? false,
+        }))
+      : undefined,
     workflow: {
       description: workflow.description ?? "",
       folders: Array.isArray(workflow.folders) ? workflow.folders : [],

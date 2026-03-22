@@ -95,6 +95,8 @@ DQCR Framework (Data Quality & Conversion Framework) — Python-инструме
 - FR-04.5 Inline-валидация полей в реальном времени
 - FR-04.6 Контекстная помощь (?) для каждого поля
 - FR-04.7 Monaco Editor в YAML-режиме с JSON Schema валидацией
+- FR-04.8 Импорт атрибутов из каталога напрямую в `target_table.attributes`
+- FR-04.9 Отдельный блок `Fields` отсутствует в UI и в `model.yml`
 
 #### FR-05: SQL Editor
 - FR-05.1 Monaco Editor с подсветкой синтаксиса SQL + DQCR (@config, макросы, параметры)
@@ -585,6 +587,58 @@ class RuleResult(BaseModel):
 **Bidirectional sync:**
 1. Visual → YAML: `formValues → generateYaml(formValues)` → обновление Monaco
 2. YAML → Visual: `parseYaml(yamlText)` → `validateSchema(parsed)` → `updateFormValues(parsed)`
+
+### 6.3.1 Model Editor Simplification
+
+Подробная спецификация вынесена в отдельный документ:
+- [MODEL_EDITOR_ATTRIBUTES_ONLY.md](/Users/IgorShabanin/dev/DQCR%20Studio/Docs/MODEL_EDITOR_ATTRIBUTES_ONLY.md)
+
+**Проблема:**
+- В текущей реализации одновременно существуют `target_table.attributes` и отдельный список `fields`.
+- Оба списка описывают колонки модели, но с разным набором метаданных.
+- Это создаёт дублирование данных, путаницу в UI и неоднозначность в источнике истины.
+
+**Решение:**
+- Единственным списком колонок модели остаётся `target_table.attributes`.
+- Импорт из каталога заполняет и обновляет только `target_table.attributes`.
+- Отдельный блок `Fields` удаляется из экрана `Model Editor`.
+- Верхнеуровневое свойство `fields` удаляется из `model.yml`, API-объекта модели и JSON Schema.
+
+**Новый источник истины:**
+- `target_table.attributes` является единственным каноническим описанием колонок модели для:
+  - visual editor;
+  - YAML editor;
+  - сохранения `model.yml`;
+  - autocomplete target table;
+  - downstream workflow/validation logic.
+
+**Правила импорта из каталога:**
+- Пользователь выбирает сущность каталога через диалог импорта.
+- Атрибуты выбранной сущности маппятся в `target_table.attributes`.
+- Маппинг полей каталога:
+  - `attribute.name` -> `attributes[].name`
+  - `attribute.domain_type` -> `attributes[].domain_type`
+  - `attribute.is_key` -> `attributes[].is_key`
+  - `attribute.is_nullable` не хранится в отдельном поле модели и не создаёт новый список
+  - `attribute.display_name` не сохраняется в `model.yml`
+- Поддерживаются режимы импорта:
+  - `Replace` — полностью заменить `target_table.attributes` атрибутами из каталога
+  - `Merge` — обновить совпавшие по имени атрибуты и сохранить остальные атрибуты модели
+
+**Поведение UI:**
+- Кнопка импорта из каталога располагается в секции `Attributes`.
+- После импорта пользователь видит изменения в одной таблице `Attributes`.
+- Отдельной секции предпросмотра `Fields` больше нет.
+- Если каталог не загружен, импорт недоступен, но ручное редактирование `Attributes` остаётся доступным.
+
+**Требования к обратной совместимости:**
+- При чтении старого `model.yml`, если обнаружено поле `fields`, backend игнорирует его или выполняет одноразовую миграцию в `target_table.attributes` по имени.
+- При сохранении `model.yml` поле `fields` больше не записывается.
+- Autocomplete для target table строится только по `target_table.attributes`.
+
+**Out of scope:**
+- Хранение каталожных display name и nullable в `model.yml`.
+- Поддержка двух параллельных источников описания колонок.
 
 ### 6.4 SQL Editor Screen
 

@@ -12,6 +12,7 @@ import {
   type AdminTemplateFolderRule,
 } from "../../api/projects";
 import { useUiStore } from "../../app/store/uiStore";
+import CatalogPanel from "./CatalogPanel";
 
 type AdminTab = "templates" | "rules" | "macros";
 
@@ -111,6 +112,7 @@ export default function AdminScreen() {
   return (
     <section className="workbench">
       <h1>Admin</h1>
+      <CatalogPanel />
       <div className="admin-tabs">
         <button type="button" className={tab === "templates" ? "action-btn action-btn-primary" : "action-btn"} onClick={() => setTab("templates")}>
           Templates

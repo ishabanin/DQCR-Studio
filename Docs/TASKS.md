@@ -175,6 +175,13 @@
 | ME-020 ✅ | YAML-mode: блокировка переключения при conflict | 🟠 | 1 | ME-018 |
 | ME-021 ✅ | Контекстная помощь (?) тултипы для каждого поля | 🟡 | 2 | ME-004 |
 | ME-022 ✅ | Debouncing: 150ms form→yaml, 300ms yaml→form | 🔴 | 1 | ME-014 |
+| ME-023 | Удалить `fields` из `ModelObjectResponse`, backend payload и JSON Schema model.yml | 🔴 | 3 | ME-001, ME-002, ME-003 |
+| ME-024 | Перенести импорт из каталога в `AttributesTable` вместо отдельного блока `Fields` | 🔴 | 3 | ME-005, ME-023 |
+| ME-025 | Удалить секцию `Fields` и связанный diff/highlight UI из Model Editor | 🟠 | 2 | ME-024 |
+| ME-026 | Обновить сериализацию/парсинг model.yml: писать и читать только `target_table.attributes` | 🔴 | 3 | ME-023, ME-014, ME-015 |
+| ME-027 | Обновить autocomplete target table: использовать только `target_table.attributes` | 🔴 | 2 | ME-023 |
+| ME-028 | Обеспечить backward compatibility для legacy `fields` при чтении старых model.yml | 🟠 | 2 | ME-026 |
+| ME-029 | Переписать backend/unit/e2e тесты под модель без `fields` | 🔴 | 3 | ME-023, ME-024, ME-026, ME-027 |
 
 ---
 

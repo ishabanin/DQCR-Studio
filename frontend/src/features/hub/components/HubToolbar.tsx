@@ -5,6 +5,7 @@ interface HubToolbarProps {
   onFilter: (patch: Partial<FilterState>) => void;
   view: "grid" | "list";
   setView: (value: "grid" | "list") => void;
+  onOpenCatalog: () => void;
 }
 
 function SearchInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -109,7 +110,7 @@ function ViewToggle({ value, onChange }: { value: "grid" | "list"; onChange: (v:
   );
 }
 
-export function HubToolbar({ filters, onFilter, view, setView }: HubToolbarProps) {
+export function HubToolbar({ filters, onFilter, view, setView, onOpenCatalog }: HubToolbarProps) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
       <SearchInput value={filters.search} onChange={(value) => onFilter({ search: value })} />
@@ -123,6 +124,9 @@ export function HubToolbar({ filters, onFilter, view, setView }: HubToolbarProps
         active={filters.visibility === "private"}
         onClick={() => onFilter({ visibility: filters.visibility === "private" ? null : "private" })}
       />
+      <button className="hub-btn-secondary" onClick={onOpenCatalog}>
+        Data Catalog
+      </button>
       <div style={{ flex: 1 }} />
       <ViewToggle value={view} onChange={setView} />
     </div>

@@ -10,6 +10,7 @@ import { MetricCard } from "./components/MetricCard";
 import { ProjectCard } from "./components/ProjectCard";
 import { ProjectsTable } from "./components/ProjectsTable";
 import { ProjectCardSkeleton, StatsRowSkeleton } from "./components/skeletons";
+import CatalogPanel from "./CatalogPanel";
 import { useProjectFilters } from "./hooks/useProjectFilters";
 import { useProjects } from "./hooks/useProjects";
 import type { CreateProjectPayload, MetadataUpdatePayload, ProjectListItem } from "./types";
@@ -41,6 +42,7 @@ export default function ProjectsHub() {
 
   const [view, setViewState] = useState<"grid" | "list">(() => (window.localStorage.getItem("dqcr_hub_view") as "grid" | "list") ?? "grid");
   const [modal, setModal] = useState<ModalState>(null);
+  const [catalogExpandSignal, setCatalogExpandSignal] = useState(0);
 
   const setView = (value: "grid" | "list") => {
     setViewState(value);
@@ -56,6 +58,13 @@ export default function ProjectsHub() {
 
   const openProject = (projectId: string) => {
     setProject(projectId);
+  };
+
+  const openCatalogPanel = () => {
+    setCatalogExpandSignal((prev) => prev + 1);
+    window.setTimeout(() => {
+      document.getElementById("hub-catalog-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
   };
 
   const submitCreate = async (payload: CreateProjectPayload) => {
@@ -119,7 +128,7 @@ export default function ProjectsHub() {
 
         {isLoading && <StatsRowSkeleton />}
 
-        <HubToolbar filters={filters} onFilter={patchFilter} view={view} setView={setView} />
+        <HubToolbar filters={filters} onFilter={patchFilter} view={view} setView={setView} onOpenCatalog={openCatalogPanel} />
 
         {isError && (
           <div style={{ textAlign: "center", padding: "48px 20px" }}>
@@ -209,6 +218,8 @@ export default function ProjectsHub() {
             )}
           </>
         )}
+
+        <CatalogPanel expandSignal={catalogExpandSignal} />
       </main>
 
       {modal?.type === "create" && (

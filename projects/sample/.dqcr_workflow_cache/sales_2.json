@@ -2,7 +2,7 @@
   "model_name": "sales_2",
   "model_path": "/app/projects/sample/model/sales_2",
   "target_table": {
-    "name": "sales_2",
+    "name": "DealAccLink",
     "context": "all",
     "schema": null,
     "attributes": [

@@ -1738,6 +1738,7 @@ def _build_model_object_from_workflow(
 
     target_table = {
         "name": target_table_obj.get("name"),
+        "table": target_table_obj.get("table") if target_table_obj.get("table") is not None else target_table_obj.get("name"),
         "schema": target_table_obj.get("schema"),
         "description": target_table_obj.get("description"),
         "template": target_table_obj.get("template"),
@@ -1802,6 +1803,7 @@ def _build_model_object_from_workflow(
 
     return {
         "target_table": target_table,
+        "fields": [],
         "workflow": {
             "description": config.get("description"),
             "folders": folders,
@@ -2048,7 +2050,7 @@ def _normalize_autocomplete_columns(columns_raw: object) -> list[dict[str, objec
         result.append(
             {
                 "name": name,
-                "domain_type": item.get("domain_type"),
+                "domain_type": item.get("domain_type") if item.get("domain_type") is not None else item.get("type"),
                 "is_key": item.get("is_key"),
             }
         )
@@ -2085,9 +2087,10 @@ def _build_target_table_autocomplete_object(
     target_table_raw: object,
     *,
     source: str,
+    fields_raw: object | None = None,
 ) -> dict[str, object] | None:
     target_table = target_table_raw if isinstance(target_table_raw, dict) else {}
-    table_name = str(target_table.get("name", "")).strip()
+    table_name = str(target_table.get("name") or target_table.get("table") or "").strip()
     if not table_name:
         return None
 
@@ -2095,6 +2098,8 @@ def _build_target_table_autocomplete_object(
     canonical_name = f"{schema_name}.{table_name}" if schema_name else table_name
     lookup_keys = _normalize_autocomplete_lookup_keys([canonical_name, table_name])
     columns = _normalize_autocomplete_columns(target_table.get("attributes"))
+    if not columns:
+        columns = _normalize_autocomplete_columns(fields_raw)
 
     return {
         "name": canonical_name,
@@ -2212,6 +2217,8 @@ def _collect_project_autocomplete_objects(
     fallback_models: list[str] = []
 
     for model_id in _list_model_ids(project_path):
+        model_yml_path = ensure_within_base(project_path, _resolve_model_path(project_path, model_id) / "model.yml")
+        fallback_model = _parse_model_yml_to_object(model_yml_path) if model_yml_path.exists() and model_yml_path.is_file() else {}
         workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
         if isinstance(workflow_payload, dict):
             target_object = _build_target_table_autocomplete_object(
@@ -2219,6 +2226,7 @@ def _collect_project_autocomplete_objects(
                 model_id,
                 workflow_payload.get("target_table"),
                 source="project_workflow",
+                fields_raw=fallback_model.get("fields") if isinstance(fallback_model, dict) else None,
             )
             if target_object is not None:
                 objects.append(target_object)
@@ -2227,15 +2235,14 @@ def _collect_project_autocomplete_objects(
             continue
 
         fallback_models.append(model_id)
-        model_yml_path = ensure_within_base(project_path, _resolve_model_path(project_path, model_id) / "model.yml")
-        if not model_yml_path.exists() or not model_yml_path.is_file():
+        if not isinstance(fallback_model, dict):
             continue
-        fallback_model = _parse_model_yml_to_object(model_yml_path)
         target_object = _build_target_table_autocomplete_object(
             project_id,
             model_id,
             fallback_model.get("target_table"),
             source="project_model_fallback",
+            fields_raw=fallback_model.get("fields"),
         )
         if target_object is not None:
             objects.append(target_object)
@@ -2401,12 +2408,33 @@ FW_SERVICE = FWService(
 )
 
 
+def _strip_yaml_quotes(value: str) -> str:
+    stripped = value.strip()
+    if len(stripped) >= 2 and (
+        (stripped.startswith('"') and stripped.endswith('"'))
+        or (stripped.startswith("'") and stripped.endswith("'"))
+    ):
+        return stripped[1:-1]
+    return stripped
+
+
+def _parse_yaml_scalar(raw_value: str) -> object:
+    candidate = _strip_yaml_quotes(raw_value).strip()
+    lowered = candidate.lower()
+    if lowered in {"true", "false"}:
+        return lowered == "true"
+    if lowered in {"null", "~"}:
+        return None
+    return candidate
+
+
 def _parse_model_yml_to_object(model_yml_path: Path) -> dict[str, object]:
     raw = model_yml_path.read_text(encoding="utf-8")
     lines = raw.splitlines()
 
     target_table: dict[str, object] = {
         "name": None,
+        "table": None,
         "schema": None,
         "description": None,
         "template": None,
@@ -2414,6 +2442,7 @@ def _parse_model_yml_to_object(model_yml_path: Path) -> dict[str, object]:
         "attributes": [],
     }
     attributes: list[dict[str, object]] = []
+    fields: list[dict[str, object]] = []
     workflow: dict[str, object] = {
         "description": None,
         "folders": [],
@@ -2427,6 +2456,8 @@ def _parse_model_yml_to_object(model_yml_path: Path) -> dict[str, object]:
     in_target_table = False
     in_attributes = False
     current_attribute: dict[str, object] | None = None
+    in_fields = False
+    current_field: dict[str, object] | None = None
     in_workflow = False
     in_folders = False
     in_cte_settings = False
@@ -2434,13 +2465,19 @@ def _parse_model_yml_to_object(model_yml_path: Path) -> dict[str, object]:
 
     for line in lines:
         if re.match(r"^\S", line):
+            if current_attribute:
+                attributes.append(current_attribute)
+            if current_field:
+                fields.append(current_field)
             in_target_table = line.strip() == "target_table:"
+            in_fields = line.strip() == "fields:"
             in_workflow = line.strip() == "workflow:"
             in_cte_settings = line.strip() == "cte_settings:"
             in_attributes = False
             in_folders = False
             in_cte_by_context = False
             current_attribute = None
+            current_field = None
             continue
 
         if in_target_table:
@@ -2451,31 +2488,41 @@ def _parse_model_yml_to_object(model_yml_path: Path) -> dict[str, object]:
             if re.match(r"^\s{2}[A-Za-z_][\w]*:\s*", line):
                 in_attributes = False
                 key, value = line.strip().split(":", 1)
-                target_table[key] = value.strip().strip("'\"") if value.strip() else None
+                target_table[key] = _parse_yaml_scalar(value) if value.strip() else None
                 continue
             if in_attributes:
                 attr_name_match = re.match(r"^\s{4}-\s*name:\s*(.+?)\s*$", line)
                 if attr_name_match:
                     if current_attribute:
                         attributes.append(current_attribute)
-                    current_attribute = {"name": attr_name_match.group(1).strip().strip("'\"")}
+                    current_attribute = {"name": _strip_yaml_quotes(attr_name_match.group(1))}
                     continue
                 if current_attribute:
                     kv_match = re.match(r"^\s{6}([A-Za-z_][\w]*):\s*(.+?)\s*$", line)
                     if kv_match:
                         key = kv_match.group(1)
-                        value = kv_match.group(2).strip().strip("'\"")
-                        if value.lower() == "true":
-                            current_attribute[key] = True
-                        elif value.lower() == "false":
-                            current_attribute[key] = False
-                        else:
-                            current_attribute[key] = value
+                        value = kv_match.group(2).strip()
+                        current_attribute[key] = _parse_yaml_scalar(value)
                 continue
+
+        if in_fields:
+            field_name_match = re.match(r"^\s{2}-\s*name:\s*(.+?)\s*$", line)
+            if field_name_match:
+                if current_field:
+                    fields.append(current_field)
+                current_field = {"name": _strip_yaml_quotes(field_name_match.group(1))}
+                continue
+            if current_field:
+                field_kv_match = re.match(r"^\s{4}([A-Za-z_][\w]*):\s*(.+?)\s*$", line)
+                if field_kv_match:
+                    key = field_kv_match.group(1)
+                    value = field_kv_match.group(2).strip()
+                    current_field[key] = _parse_yaml_scalar(value)
+            continue
 
         if in_workflow:
             if re.match(r"^\s{2}description:\s*", line):
-                workflow["description"] = line.split(":", 1)[1].strip().strip("'\"")
+                workflow["description"] = _parse_yaml_scalar(line.split(":", 1)[1].strip())
                 continue
             if re.match(r"^\s{2}folders:\s*$", line):
                 in_folders = True
@@ -2489,14 +2536,14 @@ def _parse_model_yml_to_object(model_yml_path: Path) -> dict[str, object]:
                     folder_desc_match = re.match(r"^\s{6}description:\s*(.+?)\s*$", line)
                     folder_enabled_match = re.match(r"^\s{6}enabled:\s*(true|false)\s*$", line, re.IGNORECASE)
                     if folder_desc_match:
-                        folders[-1]["description"] = folder_desc_match.group(1).strip().strip("'\"")
+                        folders[-1]["description"] = _parse_yaml_scalar(folder_desc_match.group(1).strip())
                     elif folder_enabled_match:
                         folders[-1]["enabled"] = folder_enabled_match.group(1).lower() == "true"
 
         if in_cte_settings:
             cte_default_match = re.match(r"^\s{2}default:\s*(.+?)\s*$", line)
             if cte_default_match:
-                cte_settings["default"] = cte_default_match.group(1).strip().strip("'\"")
+                cte_settings["default"] = _parse_yaml_scalar(cte_default_match.group(1).strip())
                 continue
             if re.match(r"^\s{2}by_context:\s*$", line):
                 in_cte_by_context = True
@@ -2506,10 +2553,12 @@ def _parse_model_yml_to_object(model_yml_path: Path) -> dict[str, object]:
                 if ctx_match:
                     by_context = cte_settings.get("by_context")
                     if isinstance(by_context, dict):
-                        by_context[ctx_match.group(1)] = ctx_match.group(2).strip().strip("'\"")
+                        by_context[ctx_match.group(1)] = str(_parse_yaml_scalar(ctx_match.group(2).strip()))
 
     if current_attribute:
         attributes.append(current_attribute)
+    if current_field:
+        fields.append(current_field)
     target_table["attributes"] = attributes
     workflow["folders"] = folders
     model_path = model_yml_path.parent
@@ -2539,6 +2588,7 @@ def _parse_model_yml_to_object(model_yml_path: Path) -> dict[str, object]:
 
     return {
         "target_table": target_table,
+        "fields": fields,
         "workflow": workflow,
         "cte_settings": cte_settings,
     }
@@ -2556,6 +2606,7 @@ def _build_model_yml_schema() -> dict[str, object]:
                 "required": ["name", "schema", "attributes"],
                 "properties": {
                     "name": {"type": "string"},
+                    "table": {"type": ["string", "null"]},
                     "schema": {"type": "string"},
                     "description": {"type": ["string", "null"]},
                     "template": {"type": ["string", "null"]},
@@ -2573,6 +2624,20 @@ def _build_model_yml_schema() -> dict[str, object]:
                                 "default_value": {"type": ["string", "number", "boolean", "null"]},
                             },
                         },
+                    },
+                },
+            },
+            "fields": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {
+                        "name": {"type": "string"},
+                        "display_name": {"type": ["string", "null"]},
+                        "type": {"type": ["string", "null"]},
+                        "is_key": {"type": ["boolean", "null"]},
+                        "nullable": {"type": ["boolean", "null"]},
                     },
                 },
             },
@@ -2616,7 +2681,13 @@ def _sync_workflow_folders(
     folders: list[dict[str, object]],
 ) -> None:
     model_path = _resolve_model_path(project_path, model_id)
-    workflow_root = _detect_workflow_root(model_path)
+    try:
+        workflow_root = _detect_workflow_root(model_path)
+    except ValueError:
+        # Some legacy/imported models may have model.yml but no workflow/SQL directories yet.
+        # Create a canonical workflow root so model save/import can proceed.
+        workflow_root = ensure_within_base(project_path, model_path / "workflow")
+        workflow_root.mkdir(parents=True, exist_ok=True)
     existing_dirs = {item.name: item for item in workflow_root.iterdir() if item.is_dir()}
 
     for folder in folders:
@@ -2656,10 +2727,13 @@ def _sync_workflow_folders(
 
 def _dump_model_object_to_yaml(model: dict[str, object]) -> str:
     target_table = model.get("target_table")
+    fields_raw = model.get("fields")
     workflow = model.get("workflow")
     cte_settings = model.get("cte_settings")
     if not isinstance(target_table, dict):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="model.target_table is required.")
+    if fields_raw is not None and not isinstance(fields_raw, list):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="model.fields must be array when provided.")
     if not isinstance(workflow, dict):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="model.workflow is required.")
     if cte_settings is not None and not isinstance(cte_settings, dict):
@@ -2667,7 +2741,7 @@ def _dump_model_object_to_yaml(model: dict[str, object]) -> str:
 
     lines: list[str] = []
     lines.append("target_table:")
-    for key in ["name", "schema", "description", "template", "engine"]:
+    for key in ["name", "table", "schema", "description", "template", "engine"]:
         value = target_table.get(key)
         if value is None or value == "":
             continue
@@ -2691,6 +2765,24 @@ def _dump_model_object_to_yaml(model: dict[str, object]) -> str:
                     lines.append(f"      {key}: {'true' if value else 'false'}")
                 else:
                     lines.append(f"      {key}: {value}")
+
+    fields = [item for item in fields_raw if isinstance(item, dict)] if isinstance(fields_raw, list) else []
+    if fields:
+        lines.append("")
+        lines.append("fields:")
+        for item in fields:
+            field_name = str(item.get("name", "")).strip()
+            if not field_name:
+                continue
+            lines.append(f"  - name: {field_name}")
+            for key in ["display_name", "type", "is_key", "nullable"]:
+                if key not in item or item[key] is None or item[key] == "":
+                    continue
+                value = item[key]
+                if isinstance(value, bool):
+                    lines.append(f"    {key}: {'true' if value else 'false'}")
+                else:
+                    lines.append(f"    {key}: {value}")
 
     lines.append("")
     lines.append("workflow:")
@@ -3895,12 +3987,22 @@ def get_model_as_object(project_id: str, model_id: str) -> dict[str, object]:
 
     workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
     workflow_state = _workflow_state_for_model(project_path, model_id)
+    file_model = _parse_model_yml_to_object(model_yml_path)
     if isinstance(workflow_payload, dict):
+        workflow_model = _build_model_object_from_workflow(workflow_payload)
+        workflow_model["fields"] = file_model.get("fields", [])
+        workflow_target = workflow_model.get("target_table")
+        file_target = file_model.get("target_table")
+        if isinstance(workflow_target, dict) and isinstance(file_target, dict):
+            if file_target.get("table") not in {None, ""}:
+                workflow_target["table"] = file_target.get("table")
+            if file_target.get("name") not in {None, ""} and workflow_target.get("name") in {None, ""}:
+                workflow_target["name"] = file_target.get("name")
         return {
             "project_id": project_id,
             "model_id": model_id,
             "path": str(model_yml_path.relative_to(project_path)),
-            "model": _build_model_object_from_workflow(workflow_payload),
+            "model": workflow_model,
             "data_source": "workflow",
             "workflow_status": workflow_state.get("status"),
             "workflow_source": workflow_state.get("source"),
@@ -3917,7 +4019,7 @@ def get_model_as_object(project_id: str, model_id: str) -> dict[str, object]:
         "project_id": project_id,
         "model_id": model_id,
         "path": str(model_yml_path.relative_to(project_path)),
-        "model": _parse_model_yml_to_object(model_yml_path),
+        "model": file_model,
         "data_source": "fallback",
         "workflow_status": workflow_state.get("status"),
         "workflow_source": workflow_state.get("source"),

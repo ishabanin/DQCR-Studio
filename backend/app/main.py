@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.routers.admin import router as admin_router
+from app.routers.catalog import router as catalog_router
 from app.routers.files import router as files_router
 from app.routers.projects import router as projects_router
 from app.routers.ws import router as ws_router
@@ -67,6 +68,7 @@ def ready(request: Request) -> dict[str, str]:
 app.include_router(projects_router, prefix=settings.api_prefix)
 app.include_router(files_router, prefix=settings.api_prefix)
 app.include_router(admin_router, prefix=settings.api_prefix)
+app.include_router(catalog_router, prefix=settings.api_prefix)
 app.include_router(ws_router)
 
 
