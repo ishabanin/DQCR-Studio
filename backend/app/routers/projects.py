@@ -23,6 +23,7 @@ from app.core.project_registry import (
     upsert_registry_entry,
 )
 from app.schemas.project import ContextSchema, ProjectSchema
+from app.services.catalog_service import CatalogService
 from app.services import (
     FWService,
     TemplateRegistry,
@@ -2197,11 +2198,127 @@ def _merge_autocomplete_objects(objects: list[dict[str, object]]) -> list[dict[s
     return sorted(
         merged.values(),
         key=lambda item: (
-            0 if str(item.get("kind", "")).lower() == "workflow_query" else 1,
+            (
+                0
+                if str(item.get("kind", "")).lower() == "workflow_query"
+                else 1
+                if str(item.get("kind", "")).lower() == "target_table"
+                else 2
+                if str(item.get("kind", "")).lower() == "catalog_entity"
+                else 3
+            ),
             str(item.get("model_id", "")).lower(),
             str(item.get("name", "")).lower(),
         ),
     )
+
+
+def _build_catalog_entity_autocomplete_object(entity_raw: object) -> dict[str, object] | None:
+    if not hasattr(entity_raw, "name") or not hasattr(entity_raw, "attributes"):
+        return None
+
+    entity_name = str(getattr(entity_raw, "name", "")).strip()
+    if not entity_name:
+        return None
+
+    columns_raw = [
+        {
+            "name": str(getattr(attribute, "name", "")).strip(),
+            "domain_type": getattr(attribute, "domain_type", None),
+            "is_key": getattr(attribute, "is_key", None),
+        }
+        for attribute in getattr(entity_raw, "attributes", [])
+    ]
+    columns = _normalize_autocomplete_columns(columns_raw)
+
+    return {
+        "name": entity_name,
+        "kind": "catalog_entity",
+        "source": "catalog",
+        "model_id": None,
+        "path": None,
+        "lookup_keys": _normalize_autocomplete_lookup_keys([entity_name]),
+        "columns": columns,
+    }
+
+
+def _collect_catalog_autocomplete_objects() -> list[dict[str, object]]:
+    try:
+        service = CatalogService(Path(settings.catalog_path))
+        entities = service.list_entities()
+    except Exception:
+        return []
+
+    objects: list[dict[str, object]] = []
+    for entity in entities:
+        obj = _build_catalog_entity_autocomplete_object(entity)
+        if obj is not None:
+            objects.append(obj)
+    return _merge_autocomplete_objects(objects)
+
+
+def _autocomplete_object_priority(item: dict[str, object]) -> int:
+    source = str(item.get("source", "")).strip().lower()
+    return 1 if source == "catalog" else 0
+
+
+def _autocomplete_object_lookup_tokens(item: dict[str, object]) -> list[str]:
+    raw_lookup = item.get("lookup_keys")
+    lookup = raw_lookup if isinstance(raw_lookup, list) else []
+    candidates = [str(value) for value in lookup if isinstance(value, str)]
+    candidates.append(str(item.get("name", "")))
+    return [value.strip().lower() for value in _normalize_autocomplete_lookup_keys(candidates)]
+
+
+def _merge_autocomplete_object_pair(primary: dict[str, object], secondary: dict[str, object]) -> dict[str, object]:
+    merged = dict(primary)
+    merged["lookup_keys"] = _normalize_autocomplete_lookup_keys(
+        [
+            *(primary.get("lookup_keys") if isinstance(primary.get("lookup_keys"), list) else []),
+            *(secondary.get("lookup_keys") if isinstance(secondary.get("lookup_keys"), list) else []),
+        ]
+    )
+
+    primary_columns = primary.get("columns") if isinstance(primary.get("columns"), list) else []
+    secondary_columns = secondary.get("columns") if isinstance(secondary.get("columns"), list) else []
+    merged["columns"] = secondary_columns if len(secondary_columns) > len(primary_columns) else primary_columns
+
+    if not merged.get("path") and secondary.get("path"):
+        merged["path"] = secondary.get("path")
+    if not merged.get("model_id") and secondary.get("model_id"):
+        merged["model_id"] = secondary.get("model_id")
+    return merged
+
+
+def _dedupe_autocomplete_objects_by_lookup(objects: list[dict[str, object]]) -> list[dict[str, object]]:
+    deduped: list[dict[str, object]] = []
+    token_to_index: dict[str, int] = {}
+
+    for item in objects:
+        tokens = _autocomplete_object_lookup_tokens(item)
+        if not tokens:
+            deduped.append(item)
+            continue
+
+        duplicate_index = next((token_to_index[token] for token in tokens if token in token_to_index), None)
+        if duplicate_index is None:
+            deduped.append(item)
+            index = len(deduped) - 1
+            for token in tokens:
+                token_to_index[token] = index
+            continue
+
+        existing = deduped[duplicate_index]
+        if _autocomplete_object_priority(item) < _autocomplete_object_priority(existing):
+            merged = _merge_autocomplete_object_pair(item, existing)
+        else:
+            merged = _merge_autocomplete_object_pair(existing, item)
+
+        deduped[duplicate_index] = merged
+        for token in _autocomplete_object_lookup_tokens(merged):
+            token_to_index[token] = duplicate_index
+
+    return deduped
 
 
 def _collect_project_autocomplete_objects(
@@ -3726,7 +3843,9 @@ def get_project_autocomplete(project_id: str, model_id: str | None = Query(defau
     base_projects = Path(settings.projects_path)
     project_path = resolve_project_path(base_projects, project_id)
     parameters, all_contexts, parameter_fallback_models = _collect_project_parameters_primary(project_path, project_id)
-    objects, object_fallback_models = _collect_project_autocomplete_objects(project_path, project_id, model_id)
+    project_objects, object_fallback_models = _collect_project_autocomplete_objects(project_path, project_id, model_id)
+    catalog_objects = _collect_catalog_autocomplete_objects()
+    objects = _dedupe_autocomplete_objects_by_lookup([*project_objects, *catalog_objects])
 
     macros = [{"name": macro_name, "source": "builtin"} for macro_name in DEFAULT_MACROS]
     fallback_models = sorted(set([*parameter_fallback_models, *object_fallback_models]), key=str.lower)

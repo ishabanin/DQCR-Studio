@@ -86,8 +86,8 @@ export interface DqcrAutocompleteObjectColumn {
 
 export interface DqcrAutocompleteObject {
   name: string;
-  kind: "target_table" | "workflow_query";
-  source: "project_workflow" | "project_model_fallback";
+  kind: "target_table" | "workflow_query" | "catalog_entity";
+  source: "project_workflow" | "project_model_fallback" | "catalog";
   model_id?: string | null;
   path?: string | null;
   lookup_keys: string[];
@@ -374,8 +374,10 @@ export function extractAliasMappings(sql: string): Map<string, string> {
 function rankObject(item: DqcrAutocompleteObject, activeModelId: string | null): number {
   if (item.kind === "workflow_query" && item.model_id === activeModelId) return 0;
   if (item.kind === "target_table" && item.model_id === activeModelId) return 1;
-  if (item.kind === "target_table") return 2;
-  return 3;
+  if (item.kind === "catalog_entity") return 2;
+  if (item.kind === "workflow_query") return 3;
+  if (item.kind === "target_table") return 4;
+  return 5;
 }
 
 function sortObjects(items: DqcrAutocompleteObject[], activeModelId: string | null): DqcrAutocompleteObject[] {
@@ -477,6 +479,7 @@ export function resolveAutocompleteContext(
 
 function buildObjectDetail(item: DqcrAutocompleteObject): string {
   if (item.kind === "workflow_query") return `Workflow query${item.path ? ` · ${item.path}` : ""}`;
+  if (item.kind === "catalog_entity") return "Catalog entity";
   return `Project table${item.path ? ` · ${item.path}` : ""}`;
 }
 

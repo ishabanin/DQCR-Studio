@@ -33,6 +33,18 @@ const baseData: DqcrAutocompleteData = {
       ],
     },
     {
+      name: "Account",
+      kind: "catalog_entity",
+      source: "catalog",
+      model_id: null,
+      path: null,
+      lookup_keys: ["Account"],
+      columns: [
+        { name: "ID", domain_type: "bigint", is_key: true },
+        { name: "BranchID", domain_type: "decimal(19,0)", is_key: false },
+      ],
+    },
+    {
       name: "_w.01_stage.001_main",
       kind: "workflow_query",
       source: "project_workflow",
@@ -105,5 +117,29 @@ describe("dqcrLanguage SQL autocomplete helpers", () => {
 
     expect(result.mode).toBe("member");
     expect(result.columnSuggestions.map((item) => item.name)).toEqual(["id", "amount"]);
+  });
+
+  it("includes catalog entities in object-context suggestions", () => {
+    const { sql, offset } = withCursor(`
+      select *
+      from |
+    `);
+
+    const result = resolveAutocompleteContext(sql, offset, baseData);
+
+    expect(result.mode).toBe("object");
+    expect(result.objectSuggestions.some((item) => item.name === "Account")).toBe(true);
+  });
+
+  it("resolves catalog entity columns for alias member completion", () => {
+    const { sql, offset } = withCursor(`
+      select a.|
+      from Account a
+    `);
+
+    const result = resolveAutocompleteContext(sql, offset, baseData);
+
+    expect(result.mode).toBe("member");
+    expect(result.columnSuggestions.map((item) => item.name)).toEqual(["ID", "BranchID"]);
   });
 });

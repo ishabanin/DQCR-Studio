@@ -75,6 +75,7 @@ export default function CatalogPanelBase({ mode, expandSignal }: CatalogPanelBas
       void queryClient.invalidateQueries({ queryKey: ["catalogStatus"] });
       void queryClient.invalidateQueries({ queryKey: ["catalogEntitiesPreview"] });
       void queryClient.invalidateQueries({ queryKey: ["catalogEntityPreview"] });
+      void queryClient.invalidateQueries({ queryKey: ["autocomplete"] });
       addToast(`Catalog loaded: ${result.meta?.entity_count ?? 0} entities`, "success");
     },
     onError: (error) => {

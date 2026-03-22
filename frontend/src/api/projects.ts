@@ -75,8 +75,8 @@ export interface AutocompleteObjectColumnItem {
 
 export interface AutocompleteObjectItem {
   name: string;
-  kind: "target_table" | "workflow_query";
-  source: "project_workflow" | "project_model_fallback";
+  kind: "target_table" | "workflow_query" | "catalog_entity";
+  source: "project_workflow" | "project_model_fallback" | "catalog";
   model_id: string | null;
   path: string | null;
   lookup_keys: string[];

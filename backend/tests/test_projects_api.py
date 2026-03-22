@@ -284,6 +284,76 @@ def test_autocomplete_includes_columns_from_target_table_attributes(api_client: 
     assert any(str(column.get("name", "")).lower() == "id" for column in columns)
 
 
+def test_autocomplete_includes_catalog_entities_when_catalog_loaded(api_client: TestClient) -> None:
+    upload_response = api_client.post(
+        "/api/v1/catalog/upload",
+        files={"file": ("catalog.xlsx", _build_catalog_xlsx_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert upload_response.status_code == 200, upload_response.text
+
+    response = api_client.get("/api/v1/projects/demo/autocomplete", params={"model_id": "SampleModel"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    catalog_object = next((item for item in body["objects"] if item.get("kind") == "catalog_entity" and item.get("name") == "Account"), None)
+    assert catalog_object is not None
+    assert catalog_object["source"] == "catalog"
+    assert len(catalog_object["columns"]) == 3
+    by_name = {item["name"]: item for item in catalog_object["columns"]}
+    assert by_name["ID"]["domain_type"] == "bigint"
+    assert by_name["ID"]["is_key"] is True
+
+
+def test_autocomplete_without_catalog_keeps_previous_behavior(api_client: TestClient) -> None:
+    response = api_client.get("/api/v1/projects/demo/autocomplete", params={"model_id": "SampleModel"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert all(item.get("kind") != "catalog_entity" for item in body["objects"])
+
+
+def test_autocomplete_prefers_project_object_when_catalog_name_conflicts(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    model_path = Path(settings.projects_path) / "demo" / "model" / "SampleModel" / "model.yml"
+    model_path.write_text(
+        "\n".join(
+            [
+                "target_table:",
+                "  name: Account",
+                "  attributes:",
+                "    - name: ID",
+                "      domain_type: bigint",
+                "      is_key: true",
+                "workflow:",
+                "  folders:",
+                "    01_stage:",
+                "      enabled: true",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    upload_response = api_client.post(
+        "/api/v1/catalog/upload",
+        files={"file": ("catalog.xlsx", _build_catalog_xlsx_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert upload_response.status_code == 200, upload_response.text
+
+    monkeypatch.setattr(projects_router, "_ensure_workflow_payload", lambda _p, _m, force_rebuild=False: None)
+    response = api_client.get("/api/v1/projects/demo/autocomplete", params={"model_id": "SampleModel"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+
+    account_matches = [
+        item
+        for item in body["objects"]
+        if any(str(key).strip().lower() == "account" for key in item.get("lookup_keys", []))
+    ]
+    assert len(account_matches) == 1
+    account_object = account_matches[0]
+    assert account_object["kind"] == "target_table"
+    assert account_object["source"] == "project_model_fallback"
+    assert {column["name"] for column in account_object["columns"]} == {"ID", "BranchID", "Title"}
+
+
 def test_get_model_migrates_legacy_fields_into_attributes(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     model_path = Path(settings.projects_path) / "demo" / "model" / "SampleModel" / "model.yml"
     model_path.write_text(
