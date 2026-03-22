@@ -50,13 +50,13 @@ export default function TopBar({ hubMode = false }: TopBarProps) {
     onSuccess: (result) => {
       setLatestRun(result);
       addToast(
-        `Validation: ${result.summary.errors} errors, ${result.summary.warnings} warnings, ${result.summary.passed} passed`,
+        `Проверка: ${result.summary.errors} ошибок, ${result.summary.warnings} предупреждений, ${result.summary.passed} успешно`,
         result.summary.errors > 0 ? "error" : "success",
       );
       setActiveTab("validate");
     },
     onError: () => {
-      addToast("Validation failed", "error");
+      addToast("Проверка завершилась с ошибкой", "error");
       setActiveTab("validate");
     },
   });
@@ -85,11 +85,11 @@ export default function TopBar({ hubMode = false }: TopBarProps) {
       >
         DQCR
       </span>
-      <span style={{ fontSize: "var(--hub-text-lg)", color: "var(--color-text-secondary)" }}> Studio</span>
+      <span style={{ fontSize: "var(--hub-text-lg)", color: "var(--color-text-secondary)" }}> Студия</span>
 
       {!hubMode && (
         <button className="hub-btn-secondary" style={{ marginLeft: 8, fontSize: 11, padding: "3px 10px" }} onClick={() => setProject(null)}>
-          ⊟ All projects
+          ⊟ Все проекты
         </button>
       )}
 
@@ -99,7 +99,7 @@ export default function TopBar({ hubMode = false }: TopBarProps) {
         <span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>{userEmail}</span>
       ) : (
         <div className="topbar-controls">
-          <Select value={currentProjectId ?? ""} onChange={(event) => setProject(event.target.value || null)} aria-label="Project switcher">
+          <Select value={currentProjectId ?? ""} onChange={(event) => setProject(event.target.value || null)} aria-label="Выбор проекта">
             {(projectsQuery.data ?? []).map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -108,7 +108,7 @@ export default function TopBar({ hubMode = false }: TopBarProps) {
           </Select>
 
           {!multiMode ? (
-            <Select value={activeContext} onChange={(event) => setActiveContext(event.target.value)} aria-label="Context switcher">
+            <Select value={activeContext} onChange={(event) => setActiveContext(event.target.value)} aria-label="Выбор контекста">
               {(contextsQuery.data ?? [{ id: "default", name: "default" }]).map((context) => (
                 <option key={context.id} value={context.id}>
                   {context.name}
@@ -131,28 +131,28 @@ export default function TopBar({ hubMode = false }: TopBarProps) {
           )}
 
           <Button disabled={!currentProjectId || validateMutation.isPending} onClick={() => validateMutation.mutate()} type="button">
-            Validate
+            Проверить
           </Button>
           <Button className="action-btn-primary action-btn-build" disabled={!currentProjectId} onClick={() => setActiveTab("build")} type="button">
-            Build
+            Сборка
           </Button>
           <Button disabled={userRole !== "admin"} onClick={() => setActiveTab("admin")} type="button">
-            Admin
+            Админ
           </Button>
-          <Select value={userRole} onChange={(event) => setUserRole(event.target.value as "user" | "admin" | "viewer")} aria-label="Role">
-            <option value="user">role:user</option>
-            <option value="admin">role:admin</option>
-            <option value="viewer">role:viewer</option>
+          <Select value={userRole} onChange={(event) => setUserRole(event.target.value as "user" | "admin" | "viewer")} aria-label="Роль">
+            <option value="user">роль:пользователь</option>
+            <option value="admin">роль:админ</option>
+            <option value="viewer">роль:наблюдатель</option>
           </Select>
           <Button onClick={toggleTheme} type="button">
-            {theme === "light" ? "Dark" : "Light"}
+            {theme === "light" ? "Тёмная" : "Светлая"}
           </Button>
-          <Tooltip text="Switch between one context and multiple contexts">
+          <Tooltip text="Переключить режим одного или нескольких контекстов">
             <Button onClick={toggleMultiMode} type="button">
-              {multiMode ? "Single Context" : "Multi Context"}
+              {multiMode ? "Один контекст" : "Несколько контекстов"}
             </Button>
           </Tooltip>
-          {multiMode ? <Badge>{activeContexts.length} selected</Badge> : null}
+          {multiMode ? <Badge>Выбрано: {activeContexts.length}</Badge> : null}
         </div>
       )}
     </header>

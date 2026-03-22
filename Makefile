@@ -1,4 +1,4 @@
-.PHONY: dev build test deploy down
+.PHONY: dev build test deploy down prod-build prod-up prod-down prod-logs prod-health
 
 dev:
 	docker compose -f infra/docker/docker-compose.yml up --build
@@ -12,7 +12,22 @@ test:
 	pnpm --dir frontend test
 
 deploy:
-	@echo "Deploy pipeline is not configured yet (placeholder target)."
+	./scripts/prod-up.sh
 
 down:
 	docker compose -f infra/docker/docker-compose.yml down
+
+prod-build:
+	docker compose -f infra/docker/docker-compose.prod.yml build
+
+prod-up:
+	./scripts/prod-up.sh
+
+prod-down:
+	./scripts/prod-down.sh
+
+prod-logs:
+	./scripts/prod-logs.sh
+
+prod-health:
+	./scripts/prod-health.sh

@@ -22,26 +22,26 @@ export default function Terminal() {
     terminal.loadAddon(fitAddon);
     terminal.open(rootRef.current);
     fitAddon.fit();
-    terminal.writeln("DQCR Studio Terminal");
-    terminal.writeln("\x1b[32mANSI colors enabled\x1b[0m");
-    terminal.writeln("Connecting to WebSocket terminal...");
+    terminal.writeln("Терминал DQCR Studio");
+    terminal.writeln("\x1b[32mПоддержка ANSI-цветов включена\x1b[0m");
+    terminal.writeln("Подключение к WebSocket-терминалу...");
     terminal.write("> ");
 
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const websocket = new WebSocket(`${protocol}://${window.location.host}/ws/terminal/default`);
 
     websocket.onopen = () => {
-      terminal.writeln("WebSocket connected.");
+      terminal.writeln("WebSocket подключён.");
       websocket.send("help");
     };
     websocket.onmessage = (event) => {
       terminal.writeln(event.data);
     };
     websocket.onclose = () => {
-      terminal.writeln("WebSocket disconnected.");
+      terminal.writeln("WebSocket отключён.");
     };
     websocket.onerror = () => {
-      terminal.writeln("WebSocket error.");
+      terminal.writeln("Ошибка WebSocket.");
     };
 
     const history: string[] = [];

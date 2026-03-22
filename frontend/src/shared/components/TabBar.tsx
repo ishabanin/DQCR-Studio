@@ -3,14 +3,14 @@ import { useEffect } from "react";
 import { TabId, useEditorStore } from "../../app/store/editorStore";
 
 const tabs: Array<{ id: TabId; label: string }> = [
-  { id: "project", label: "◈ Project info" },
-  { id: "lineage", label: "⬡ Lineage" },
-  { id: "model", label: "⊞ Model editor" },
-  { id: "sql", label: "{} SQL editor" },
-  { id: "parameters", label: "⊕ Parameters" },
-  { id: "validate", label: "✓ Validate" },
-  { id: "build", label: "⚙ Build" },
-  { id: "admin", label: "Admin" },
+  { id: "project", label: "◈ Проект" },
+  { id: "lineage", label: "⬡ Линейность" },
+  { id: "model", label: "⊞ Редактор модели" },
+  { id: "sql", label: "{} Редактор SQL" },
+  { id: "parameters", label: "⊕ Параметры" },
+  { id: "validate", label: "✓ Проверка" },
+  { id: "build", label: "⚙ Сборка" },
+  { id: "admin", label: "Админ" },
 ];
 
 export default function TabBar() {

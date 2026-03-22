@@ -8,11 +8,11 @@ import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
 
 const WORKFLOW_LABELS: Record<WorkflowStatus, string> = {
-  ready: "✓ workflow",
-  stale: "⚠ cache stale",
-  building: "⟳ building…",
-  error: "✗ cache error",
-  missing: "⚪ no cache",
+  ready: "✓ workflow готов",
+  stale: "⚠ cache устарел",
+  building: "⟳ обновление…",
+  error: "✗ ошибка cache",
+  missing: "⚪ cache отсутствует",
 };
 
 const WORKFLOW_COLORS: Record<WorkflowStatus, string> = {
@@ -57,7 +57,7 @@ export default function StatusBar() {
       await Promise.all(modelIds.map((modelId) => rebuildModelWorkflow(currentProjectId, modelId)));
     },
     onError: () => {
-      addToast("Workflow rebuild failed", "error");
+      addToast("Не удалось пересобрать workflow", "error");
     },
   });
   const activeModelState = useMemo(() => {
@@ -79,7 +79,7 @@ export default function StatusBar() {
   useEffect(() => {
     if (!rebuildTriggeredRef.current) return;
     if (statusToShow !== "ready") return;
-    addToast("✓ Workflow cache обновлён", "success");
+    addToast("✓ Кэш workflow обновлён", "success");
     rebuildTriggeredRef.current = false;
   }, [addToast, statusToShow]);
 
@@ -91,8 +91,8 @@ export default function StatusBar() {
 
   return (
     <footer className="statusbar">
-      <span>Project: {currentProjectId ?? "none"}</span>
-      <span>Context: {multiMode ? activeContexts.join(", ") : activeContext}</span>
+      <span>Проект: {currentProjectId ?? "не выбран"}</span>
+      <span>Контекст: {multiMode ? activeContexts.join(", ") : activeContext}</span>
       <button
         type="button"
         className="statusbar-workflow-btn"
@@ -102,9 +102,9 @@ export default function StatusBar() {
       >
         {WORKFLOW_LABELS[statusToShow]}
       </button>
-      <span>Model source: {activeModelState?.source ?? "—"}</span>
+      <span>Источник модели: {activeModelState?.source ?? "—"}</span>
       <span>
-        Workflow at: {activeModelState?.updated_at ? new Date(activeModelState.updated_at).toLocaleString() : "—"}
+        Workflow обновлён: {activeModelState?.updated_at ? new Date(activeModelState.updated_at).toLocaleString() : "—"}
       </span>
     </footer>
   );

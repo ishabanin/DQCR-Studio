@@ -19,7 +19,7 @@ export default function ExpandedFieldEditorModal({
   language,
   value,
   theme,
-  confirmLabel = "Apply",
+  confirmLabel = "Применить",
   onChange,
   onClose,
   onApply,
@@ -57,10 +57,10 @@ export default function ExpandedFieldEditorModal({
       <div className="expanded-editor-modal" onClick={(event) => event.stopPropagation()}>
         <div className="expanded-editor-modal-head">
           <div>
-            <p className="expanded-editor-modal-eyebrow">Expanded editor</p>
+            <p className="expanded-editor-modal-eyebrow">Расширенный редактор</p>
             <h3>{title}</h3>
           </div>
-          <button type="button" className="action-btn" onClick={onClose} aria-label="Close expanded editor">
+          <button type="button" className="action-btn" onClick={onClose} aria-label="Закрыть расширенный редактор">
             ✕
           </button>
         </div>
@@ -86,10 +86,10 @@ export default function ExpandedFieldEditorModal({
           />
         </div>
         <div className="expanded-editor-modal-actions">
-          <span className="expanded-editor-modal-hint">Esc to close, Ctrl/Cmd+Enter to apply</span>
+          <span className="expanded-editor-modal-hint">Esc — закрыть, Ctrl/Cmd+Enter — применить</span>
           <div className="expanded-editor-modal-actions-group">
             <button type="button" className="action-btn" onClick={onClose}>
-              Cancel
+              Отмена
             </button>
             <button type="button" className="action-btn action-btn-primary" onClick={onApply}>
               {confirmLabel}

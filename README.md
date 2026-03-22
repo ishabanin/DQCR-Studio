@@ -26,6 +26,55 @@ Main system reference:
    - `http://localhost:80/api/v1/projects/demo/files/tree`
    - `http://localhost:80/api/v1/projects/demo/files/content?path=project.yml`
 
+## Production deploy (very simple)
+
+Minimal requirements:
+
+- Docker + Docker Compose
+
+### 1) Go to project directory
+
+```bash
+cd "/Users/IgorShabanin/dev/DQCR Studio"
+```
+
+### 2) Start production (automated)
+
+```bash
+make prod-up
+```
+
+What this does automatically:
+
+- creates `backend/.env` from `backend/.env.example` if missing
+- generates secure `SECRET_KEY` if default value is still used
+- builds production images
+- starts containers in background
+- waits for readiness
+
+### 3) Open application
+
+- [http://127.0.0.1](http://127.0.0.1)
+- If port `80` is busy, script auto-switches to `8080`.
+
+### 4) Check health
+
+```bash
+make prod-health
+```
+
+### Useful commands
+
+- Start/update: `make prod-up`
+- View logs: `make prod-logs`
+- Stop: `make prod-down`
+- Rebuild only: `make prod-build`
+- Custom port example: `DQCR_PORT=8080 make prod-up`
+
+Detailed Russian guide:
+
+- `Docs/DEPLOYMENT_PRODUCTION_RU.md`
+
 ## Implemented now
 
 - `GET /health`

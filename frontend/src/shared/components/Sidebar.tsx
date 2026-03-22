@@ -506,18 +506,18 @@ function SidebarTreeNode({
         <div className="tree-row-actions">
           {isDirectory ? (
             <>
-              <TreeActionButton icon="new-file" label="New file" onClick={() => onAction("new-file", node.path, "directory")} />
-              <TreeActionButton icon="new-folder" label="New folder" onClick={() => onAction("new-folder", node.path, "directory")} />
+              <TreeActionButton icon="new-file" label="Новый файл" onClick={() => onAction("new-file", node.path, "directory")} />
+              <TreeActionButton icon="new-folder" label="Новая папка" onClick={() => onAction("new-folder", node.path, "directory")} />
               {canCreateModelAtPath(node.path, node.type) ? (
-                <TreeActionButton icon="new-model" label="New model" onClick={() => onAction("new-model", node.path, "directory")} />
+                <TreeActionButton icon="new-model" label="Новая модель" onClick={() => onAction("new-model", node.path, "directory")} />
               ) : null}
-              {node.path !== "." ? <TreeActionButton icon="rename" label="Rename" onClick={() => onAction("rename", node.path, "directory")} /> : null}
-              {node.path !== "." ? <TreeActionButton icon="delete" label="Delete" onClick={() => onAction("delete", node.path, "directory")} /> : null}
+              {node.path !== "." ? <TreeActionButton icon="rename" label="Переименовать" onClick={() => onAction("rename", node.path, "directory")} /> : null}
+              {node.path !== "." ? <TreeActionButton icon="delete" label="Удалить" onClick={() => onAction("delete", node.path, "directory")} /> : null}
             </>
           ) : (
             <>
-              <TreeActionButton icon="rename" label="Rename" onClick={() => onAction("rename", node.path, "file")} />
-              <TreeActionButton icon="delete" label="Delete" onClick={() => onAction("delete", node.path, "file")} />
+              <TreeActionButton icon="rename" label="Переименовать" onClick={() => onAction("rename", node.path, "file")} />
+              <TreeActionButton icon="delete" label="Удалить" onClick={() => onAction("delete", node.path, "file")} />
             </>
           )}
         </div>
@@ -624,20 +624,20 @@ export default function Sidebar() {
     mutationFn: ({ path, newName }: { path: string; newName: string }) => renameProjectPath(currentProjectId as string, path, newName),
     onSuccess: async () => {
       await refreshTree();
-      addToast("Path renamed", "success");
+      addToast("Путь переименован", "success");
       setActionState(null);
     },
-    onError: () => addToast("Failed to rename path", "error"),
+    onError: () => addToast("Не удалось переименовать путь", "error"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: ({ path }: { path: string }) => deleteProjectPath(currentProjectId as string, path),
     onSuccess: async () => {
       await refreshTree();
-      addToast("Path deleted", "success");
+      addToast("Путь удалён", "success");
       setActionState(null);
     },
-    onError: () => addToast("Failed to delete path", "error"),
+    onError: () => addToast("Не удалось удалить путь", "error"),
   });
 
   const createFileMutation = useMutation({
@@ -646,10 +646,10 @@ export default function Sidebar() {
       await refreshTree();
       openFile(variables.path);
       setActiveTab("sql");
-      addToast("File created", "success");
+      addToast("Файл создан", "success");
       setActionState(null);
     },
-    onError: () => addToast("Failed to create file", "error"),
+    onError: () => addToast("Не удалось создать файл", "error"),
   });
 
   const createFolderMutation = useMutation({
@@ -657,10 +657,10 @@ export default function Sidebar() {
     onSuccess: async (_, variables) => {
       setExpandedPaths((previous) => ({ ...previous, [variables.path]: true }));
       await refreshTree();
-      addToast("Folder created", "success");
+      addToast("Папка создана", "success");
       setActionState(null);
     },
-    onError: () => addToast("Failed to create folder", "error"),
+    onError: () => addToast("Не удалось создать папку", "error"),
   });
 
   const createModelMutation = useMutation({
@@ -678,10 +678,10 @@ export default function Sidebar() {
       ]);
       setInitialModelId(payload.model_id);
       setActiveTab("model");
-      addToast("Model created", "success");
+      addToast("Модель создана", "success");
       setActionState(null);
     },
-    onError: () => addToast("Failed to create model", "error"),
+    onError: () => addToast("Не удалось создать модель", "error"),
   });
 
   const pending =
@@ -720,7 +720,7 @@ export default function Sidebar() {
 
     const trimmed = actionState.mode === "new-model" ? actionValue.trim() : actionValue.trim().replace(/^\/+/g, "");
     if (!trimmed) {
-      addToast("Value is required", "error");
+      addToast("Требуется значение", "error");
       return;
     }
 
@@ -739,7 +739,7 @@ export default function Sidebar() {
       return;
     }
 
-    const content = trimmed.endsWith(".sql") ? "-- New SQL file\nSELECT 1;\n" : "";
+    const content = trimmed.endsWith(".sql") ? "-- Новый SQL-файл\nSELECT 1;\n" : "";
     createFileMutation.mutate({ path: trimmed, content });
   };
 
@@ -790,7 +790,7 @@ export default function Sidebar() {
     window.addEventListener("mouseup", stopResize);
   };
 
-  const projectName = useMemo(() => projectsQuery.data?.find((project) => project.id === currentProjectId)?.name ?? "Project Explorer", [currentProjectId, projectsQuery.data]);
+  const projectName = useMemo(() => projectsQuery.data?.find((project) => project.id === currentProjectId)?.name ?? "Проводник проекта", [currentProjectId, projectsQuery.data]);
   const visibleTree = useMemo(() => {
     if (!treeQuery.data) return null;
     return filterTreeForDisplay(treeQuery.data, showSystemFolders);
@@ -801,26 +801,26 @@ export default function Sidebar() {
       <aside className={sidebarCollapsed ? "sidebar sidebar-collapsed" : "sidebar"}>
         <div className="sidebar-head">
           <div className="sidebar-head-title">
-            <span className="sidebar-head-eyebrow">Project Explorer</span>
+            <span className="sidebar-head-eyebrow">Проводник проекта</span>
             {!sidebarCollapsed ? <strong>{projectName}</strong> : null}
           </div>
           <div className="sidebar-head-actions">
             {!sidebarCollapsed ? (
               <>
-                <TreeActionButton icon="new-file" label="New file" onClick={() => openActionDialog("new-file", ".", "directory")} />
-                <TreeActionButton icon="new-folder" label="New folder" onClick={() => openActionDialog("new-folder", ".", "directory")} />
-                <TreeActionButton icon="new-model" label="New model" onClick={() => openActionDialog("new-model", ".", "directory")} />
+                <TreeActionButton icon="new-file" label="Новый файл" onClick={() => openActionDialog("new-file", ".", "directory")} />
+                <TreeActionButton icon="new-folder" label="Новая папка" onClick={() => openActionDialog("new-folder", ".", "directory")} />
+                <TreeActionButton icon="new-model" label="Новая модель" onClick={() => openActionDialog("new-model", ".", "directory")} />
                 <TreeActionButton
                   icon="system-folders"
                   label={showSystemFolders ? "Скрыть системные папки" : "Показать системные папки"}
                   onClick={() => setShowSystemFolders((previous) => !previous)}
                 />
-                <TreeActionButton icon="collapse-all" label="Collapse all" onClick={collapseAll} />
-                <TreeActionButton icon="reveal-active" label="Reveal active file" onClick={revealActiveFile} />
+                <TreeActionButton icon="collapse-all" label="Свернуть всё" onClick={collapseAll} />
+                <TreeActionButton icon="reveal-active" label="Показать активный файл" onClick={revealActiveFile} />
               </>
             ) : null}
-            <Tooltip text={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
-              <button type="button" className="tree-action-btn tree-action-btn-head" onClick={toggleSidebar} aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
+            <Tooltip text={sidebarCollapsed ? "Развернуть боковую панель" : "Свернуть боковую панель"}>
+              <button type="button" className="tree-action-btn tree-action-btn-head" onClick={toggleSidebar} aria-label={sidebarCollapsed ? "Развернуть боковую панель" : "Свернуть боковую панель"}>
                 <ChevronIcon expanded={!sidebarCollapsed} />
               </button>
             </Tooltip>
@@ -888,7 +888,7 @@ export default function Sidebar() {
             onMouseDown={startResize}
             role="separator"
             aria-orientation="vertical"
-            aria-label="Resize sidebar"
+            aria-label="Изменить размер боковой панели"
           />
         ) : null}
       </aside>

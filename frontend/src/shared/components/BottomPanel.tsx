@@ -3,9 +3,9 @@ import { useUiStore } from "../../app/store/uiStore";
 import Terminal from "./Terminal";
 
 const tabs: Array<{ id: "terminal" | "logs" | "output"; label: string }> = [
-  { id: "terminal", label: "Terminal" },
-  { id: "logs", label: "Logs" },
-  { id: "output", label: "Output" },
+  { id: "terminal", label: "Терминал" },
+  { id: "logs", label: "Логи" },
+  { id: "output", label: "Вывод" },
 ];
 
 export default function BottomPanel() {
@@ -57,7 +57,7 @@ export default function BottomPanel() {
           onMouseDown={startResize}
           role="separator"
           aria-orientation="horizontal"
-          aria-label="Resize bottom panel"
+          aria-label="Изменить размер нижней панели"
         />
       ) : null}
       <div className="bottom-panel-head">
@@ -74,7 +74,7 @@ export default function BottomPanel() {
           ))}
         </div>
         <button type="button" onClick={toggleBottomPanel}>
-          {bottomPanelExpanded ? "Collapse" : "Expand"}
+          {bottomPanelExpanded ? "Свернуть" : "Развернуть"}
         </button>
       </div>
 
@@ -84,12 +84,12 @@ export default function BottomPanel() {
           {bottomPanelTab === "logs" ? (
             <div className="bottom-logs">
               <button type="button" className="action-btn" onClick={clearApiLogs}>
-                Clear Logs
+                Очистить логи
               </button>
-              <pre>{apiLogs.length > 0 ? apiLogs.join("\n") : "No API calls yet."}</pre>
+              <pre>{apiLogs.length > 0 ? apiLogs.join("\n") : "Вызовов API пока нет."}</pre>
             </div>
           ) : null}
-          {bottomPanelTab === "output" ? "Output placeholder" : null}
+          {bottomPanelTab === "output" ? "Панель вывода в разработке" : null}
         </div>
       ) : null}
     </section>

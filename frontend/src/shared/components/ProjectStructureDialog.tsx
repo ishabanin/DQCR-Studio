@@ -7,11 +7,11 @@ export interface ProjectStructureActionState {
 }
 
 const MODE_LABELS: Record<ProjectStructureActionMode, string> = {
-  rename: "Rename",
-  delete: "Delete",
-  "new-file": "New file",
-  "new-folder": "New folder",
-  "new-model": "New model",
+  rename: "Переименовать",
+  delete: "Удалить",
+  "new-file": "Новый файл",
+  "new-folder": "Новая папка",
+  "new-model": "Новая модель",
 };
 
 function normalizeRootPath(path: string): string {
@@ -47,17 +47,17 @@ export default function ProjectStructureDialog({
   const parentPath = state.nodeType === "directory" ? state.path : state.path.split("/").slice(0, -1).join("/");
   const title =
     state.mode === "rename"
-      ? `Rename ${state.nodeType}`
+      ? `Переименовать ${state.nodeType === "directory" ? "папку" : "файл"}`
       : state.mode === "delete"
-        ? `Delete ${state.nodeType}`
+        ? `Удалить ${state.nodeType === "directory" ? "папку" : "файл"}`
         : state.mode === "new-file"
-          ? "Create file"
+          ? "Создать файл"
           : state.mode === "new-folder"
-            ? "Create folder"
-            : "Create model";
+            ? "Создать папку"
+            : "Создать модель";
 
-  const fieldLabel = state.mode === "rename" ? "New name" : state.mode === "new-model" ? "Model ID" : "Path";
-  const primaryLabel = pending ? "Working..." : state.mode === "delete" ? "Delete" : "Apply";
+  const fieldLabel = state.mode === "rename" ? "Новое имя" : state.mode === "new-model" ? "ID модели" : "Путь";
+  const primaryLabel = pending ? "Выполняется..." : state.mode === "delete" ? "Удалить" : "Применить";
 
   return (
     <div className="sidebar-dialog-overlay" role="dialog" aria-modal="true">
@@ -65,7 +65,7 @@ export default function ProjectStructureDialog({
         <div className="sidebar-dialog-head">
           <h2>{title}</h2>
           <button type="button" className="action-btn" onClick={onCancel}>
-            Close
+            Закрыть
           </button>
         </div>
         {availableModes.length > 1 ? (
@@ -84,16 +84,16 @@ export default function ProjectStructureDialog({
         ) : null}
         {state.mode === "delete" ? (
           <p className="sidebar-dialog-copy">
-            Delete <code>{state.path}</code>? This action removes the item from the project tree.
+            Удалить <code>{state.path}</code>? Это действие удалит элемент из дерева проекта.
           </p>
         ) : (
           <>
             <p className="sidebar-dialog-copy">
               {state.mode === "rename"
-                ? `Current name: ${baseName}`
+                ? `Текущее имя: ${baseName}`
                 : state.mode === "new-model"
-                  ? `Model root: ${getModelRootPath()}`
-                  : `Base path: ${normalizeRootPath(parentPath) || "project root"}`}
+                  ? `Корень моделей: ${getModelRootPath()}`
+                  : `Базовый путь: ${normalizeRootPath(parentPath) || "корень проекта"}`}
             </p>
             <label className="sidebar-dialog-field">
               <span>{fieldLabel}</span>
@@ -101,14 +101,14 @@ export default function ProjectStructureDialog({
             </label>
             {state.mode === "new-model" ? (
               <p className="sidebar-dialog-copy">
-                Creates <code>{`${getModelRootPath()}/${value.trim() || "<ModelId>"}/model.yml`}</code> with an empty model scaffold.
+                Будет создан <code>{`${getModelRootPath()}/${value.trim() || "<ModelId>"}/model.yml`}</code> с пустым каркасом модели.
               </p>
             ) : null}
           </>
         )}
         <div className="sidebar-dialog-actions">
           <button type="button" className="action-btn" onClick={onCancel}>
-            Cancel
+            Отмена
           </button>
           <button type="button" className="action-btn action-btn-primary" onClick={onConfirm} disabled={pending}>
             {primaryLabel}

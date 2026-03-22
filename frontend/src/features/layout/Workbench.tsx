@@ -9,14 +9,14 @@ import SqlEditorScreen from "../sql/SqlEditorScreen";
 import ValidateScreen from "../validate/ValidateScreen";
 
 const tabTitleMap: Record<string, string> = {
-  project: "Project Info",
-  lineage: "Lineage Screen",
-  model: "Model Editor Screen",
-  sql: "SQL Editor Screen",
-  validate: "Validate Screen",
-  parameters: "Parameters Screen",
-  build: "Build Screen",
-  admin: "Admin Screen",
+  project: "Информация о проекте",
+  lineage: "Линейность",
+  model: "Редактор модели",
+  sql: "Редактор SQL",
+  validate: "Проверка",
+  parameters: "Параметры",
+  build: "Сборка",
+  admin: "Администрирование",
 };
 
 export default function Workbench() {
@@ -51,8 +51,8 @@ export default function Workbench() {
   return (
     <section className="workbench">
       <h1>{tabTitleMap[activeTab]}</h1>
-      <p>Current implementation slice: layout + project navigation + file tree wiring.</p>
-      <p>Open files: {openFiles.length > 0 ? openFiles.join(", ") : "none"}</p>
+      <p>Текущий срез реализации: layout + навигация по проекту + дерево файлов.</p>
+      <p>Открытые файлы: {openFiles.length > 0 ? openFiles.join(", ") : "нет"}</p>
     </section>
   );
 }
