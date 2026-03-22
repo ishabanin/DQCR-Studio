@@ -345,14 +345,6 @@ export interface ModelAttributeItem {
   default_value?: string | number | boolean | null;
 }
 
-export interface ModelFieldItem {
-  name: string;
-  display_name?: string | null;
-  type?: string | null;
-  is_key?: boolean | null;
-  nullable?: boolean | null;
-}
-
 export interface ModelFolderItem {
   id: string;
   description?: string | null;
@@ -379,7 +371,6 @@ export interface ModelObjectResponse {
       engine?: string | null;
       attributes: ModelAttributeItem[];
     };
-    fields?: ModelFieldItem[];
     workflow: {
       description?: string | null;
       folders: ModelFolderItem[];

@@ -2,28 +2,27 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { getCatalogStatus, getEntity, searchEntities, type CatalogEntity } from "../../api/catalog";
-import type { ModelFieldItem } from "../../api/projects";
+import type { ModelAttributeItem } from "../../api/projects";
 
 export type ImportStrategy = "replace" | "merge";
 
 interface EntityPickerDialogProps {
   open: boolean;
-  existingFields: ModelFieldItem[];
+  existingAttributes: ModelAttributeItem[];
   onClose: () => void;
   onImport: (entity: CatalogEntity, strategy: ImportStrategy) => void;
 }
 
-function fieldsEqual(left: ModelFieldItem | undefined, right: ModelFieldItem | undefined): boolean {
+function attributesEqual(left: ModelAttributeItem | undefined, right: ModelAttributeItem | undefined): boolean {
   if (!left || !right) return false;
   return (
-    (left.display_name ?? "") === (right.display_name ?? "") &&
-    (left.type ?? "") === (right.type ?? "") &&
+    (left.domain_type ?? "") === (right.domain_type ?? "") &&
     Boolean(left.is_key) === Boolean(right.is_key) &&
-    Boolean(left.nullable) === Boolean(right.nullable)
+    Boolean(left.required) === Boolean(right.required)
   );
 }
 
-export default function EntityPickerDialog({ open, existingFields, onClose, onImport }: EntityPickerDialogProps) {
+export default function EntityPickerDialog({ open, existingAttributes, onClose, onImport }: EntityPickerDialogProps) {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -48,7 +47,7 @@ export default function EntityPickerDialog({ open, existingFields, onClose, onIm
     }
   }, [open]);
 
-  const hasExistingFields = existingFields.length > 0;
+  const hasExistingAttributes = existingAttributes.length > 0;
 
   const statusQuery = useQuery({
     queryKey: ["catalogStatus"],
@@ -85,26 +84,25 @@ export default function EntityPickerDialog({ open, existingFields, onClose, onIm
     const entity = entityQuery.data;
     if (!entity) return null;
 
-    const incomingFields: ModelFieldItem[] = entity.attributes.map((attribute) => ({
+    const incomingAttributes: ModelAttributeItem[] = entity.attributes.map((attribute) => ({
       name: attribute.name,
-      display_name: attribute.display_name,
-      type: attribute.domain_type,
+      domain_type: attribute.domain_type,
       is_key: attribute.is_key,
-      nullable: attribute.is_nullable,
+      required: attribute.is_nullable === false,
     }));
 
-    const incomingByName = new Map(incomingFields.map((item) => [item.name, item]));
-    const existingByName = new Map(existingFields.map((item) => [item.name, item]));
+    const incomingByName = new Map(incomingAttributes.map((item) => [item.name, item]));
+    const existingByName = new Map(existingAttributes.map((item) => [item.name, item]));
 
     let added = 0;
     let updated = 0;
     let unchanged = 0;
 
-    for (const incoming of incomingFields) {
+    for (const incoming of incomingAttributes) {
       const previous = existingByName.get(incoming.name);
       if (!previous) {
         added += 1;
-      } else if (fieldsEqual(previous, incoming)) {
+      } else if (attributesEqual(previous, incoming)) {
         unchanged += 1;
       } else {
         updated += 1;
@@ -112,20 +110,20 @@ export default function EntityPickerDialog({ open, existingFields, onClose, onIm
     }
 
     let removed = 0;
-    for (const existing of existingFields) {
+    for (const existing of existingAttributes) {
       if (!incomingByName.has(existing.name)) {
         removed += 1;
       }
     }
 
     return {
-      incomingCount: incomingFields.length,
+      incomingCount: incomingAttributes.length,
       added,
       updated,
       removed,
       unchanged,
     };
-  }, [entityQuery.data, existingFields]);
+  }, [entityQuery.data, existingAttributes]);
 
   useEffect(() => {
     if (!open) return;
@@ -151,7 +149,7 @@ export default function EntityPickerDialog({ open, existingFields, onClose, onIm
       }
       if (event.key === "Enter") {
         event.preventDefault();
-        if (entityQuery.data && (!hasExistingFields || confirmed)) {
+        if (entityQuery.data && (!hasExistingAttributes || confirmed)) {
           onImport(entityQuery.data, importStrategy);
           return;
         }
@@ -163,7 +161,7 @@ export default function EntityPickerDialog({ open, existingFields, onClose, onIm
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose, rows, selectedName, entityQuery.data, hasExistingFields, confirmed, onImport, importStrategy]);
+  }, [open, onClose, rows, selectedName, entityQuery.data, hasExistingAttributes, confirmed, onImport, importStrategy]);
 
   if (!open) return null;
 
@@ -171,7 +169,7 @@ export default function EntityPickerDialog({ open, existingFields, onClose, onIm
     <div className="entity-picker-overlay" onClick={onClose}>
       <div className="entity-picker-dialog" onClick={(event) => event.stopPropagation()}>
         <div className="entity-picker-head">
-          <h3>Import fields from catalog</h3>
+          <h3>Import attributes from catalog</h3>
           <button type="button" className="action-btn" onClick={onClose}>
             ✕
           </button>
@@ -238,7 +236,7 @@ export default function EntityPickerDialog({ open, existingFields, onClose, onIm
               </div>
             ) : null}
 
-            {hasExistingFields && diffSummary ? (
+            {hasExistingAttributes && diffSummary ? (
               <div className="catalog-warning">
                 <div className="entity-picker-diff-head">Import impact</div>
                 <div className="entity-picker-diff-grid">
@@ -259,7 +257,7 @@ export default function EntityPickerDialog({ open, existingFields, onClose, onIm
                         setConfirmed(false);
                       }}
                     />
-                    Replace model fields with catalog fields ({diffSummary.incomingCount})
+                    Replace model attributes with catalog attributes ({diffSummary.incomingCount})
                   </label>
                   <label className="entity-picker-radio">
                     <input
@@ -271,13 +269,13 @@ export default function EntityPickerDialog({ open, existingFields, onClose, onIm
                         setConfirmed(false);
                       }}
                     />
-                    Merge: update matching names, keep extra model fields
+                    Merge catalog attributes into model attributes
                   </label>
                 </div>
 
                 <label className="entity-picker-confirm">
                   <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} />
-                  I understand that existing model fields will be modified.
+                  I understand that existing model attributes will be modified.
                 </label>
               </div>
             ) : null}
@@ -289,14 +287,14 @@ export default function EntityPickerDialog({ open, existingFields, onClose, onIm
               <button
                 type="button"
                 className="action-btn action-btn-primary"
-                disabled={!entityQuery.data || (hasExistingFields && !confirmed)}
+                disabled={!entityQuery.data || (hasExistingAttributes && !confirmed)}
                 onClick={() => {
                   if (!entityQuery.data) return;
-                  if (hasExistingFields && !confirmed) return;
+                  if (hasExistingAttributes && !confirmed) return;
                   onImport(entityQuery.data, importStrategy);
                 }}
               >
-                Import fields
+                Import attributes
               </button>
             </div>
           </>

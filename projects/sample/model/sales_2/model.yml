@@ -1,821 +1,179 @@
 target_table:
-  name: DealAccLink
-  table: DealAccLink
+  name: OthAssetPos
+  table: OthAssetPos
   attributes:
-    - name: new_field_1
-      domain_type: string
+    - name: RID
+      domain_type: decimal(19,0)
+      is_key: true
+      required: true
+    - name: MainDealID
+      domain_type: decimal
       is_key: false
       required: false
-    - name: new_field_2
-      domain_type: string
+    - name: DateRest
+      domain_type: datetime
       is_key: false
       required: false
-    - name: new_field_3
-      domain_type: string
+    - name: AssetSumVal
+      domain_type: decimal(28,10)
       is_key: false
       required: false
-
-fields:
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: RID
-    display_name: RID
-    type: decimal(19,0)
-    is_key: true
-    nullable: false
-  - name: AccountID
-    display_name: ИДАнСчет
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: MainDealID
-    display_name: ИДСделка
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: AccountRole
-    display_name: РольСчета
-    type: decimal(19,0)
-    is_key: false
-    nullable: false
-  - name: DateBegin
-    display_name: ДатаНачала
-    type: datetime
-    is_key: false
-    nullable: false
-  - name: DateEnd
-    display_name: ДатаОкончания
-    type: datetime
-    is_key: false
-    nullable: true
-  - name: RowStatus
-    display_name: СтатусЗаписи
-    type: varchar(1)
-    is_key: false
-    nullable: false
-  - name: CommissionID
-    display_name: ИДВидКомиссии
-    type: decimal
-    is_key: false
-    nullable: true
-  - name: ContractKind
-    display_name: ВидДоговора
-    type: decimal(19,0)
-    is_key: false
-    nullable: true
-  - name: BranchID
-    display_name: ИДСтруктураКомпании
-    type: decimal
-    is_key: false
-    nullable: true
+    - name: AssetSumRub
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: ReserveSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: PercentSumVal
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: PercentSumRub
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: FactPercentResSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: RowStatus
+      domain_type: varchar(1)
+      is_key: false
+      required: true
+    - name: OverdueMDSumVal
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: OverdueMDSumRub
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: OverdueMDResSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: OverduePercentSumVal
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: OverduePercentSumRub
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: OverduePercentReserveSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: NegatRevalSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: PositRevalSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: NegatAdjustSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: PositAdjustSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: NegAdjResSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: PositAdjResSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: NegAdjOverMDResSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: PositAdjOverMDResSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: NegAdjOverPrcResSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: PositAdjOverPrcResSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: NegAdjPercentResSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: PositAdjPercentResSum
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: PrcPaymentSumVal
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: PrcPaymentSumRub
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: ExpensePaymentSumVal
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: ExpensePaymentSumRub
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: OtherIncomePaymentSumVal
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: OtherIncomePaymentSumRub
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: ExpenseSumVal
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: ExpenseSumRub
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: OtherIncomeSumVal
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: OtherIncomeSumRub
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: LoanMainDealID
+      domain_type: decimal
+      is_key: false
+      required: true
+    - name: CessMainDealID
+      domain_type: decimal
+      is_key: false
+      required: true
+    - name: InitialLoanNumber
+      domain_type: varchar(80)
+      is_key: false
+      required: false
+    - name: NominalSumRub
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: PriceRub
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
 
 workflow:
   description: Демонстрационный workflow загрузки и агрегации продаж

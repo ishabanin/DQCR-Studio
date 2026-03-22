@@ -2,13 +2,23 @@
   "model_name": "sales_2",
   "model_path": "/app/projects/sample/model/sales_2",
   "target_table": {
-    "name": "DealAccLink",
+    "name": "OthAssetPos",
     "context": "all",
     "schema": null,
     "attributes": [
       {
-        "name": "new_field_1",
-        "domain_type": "string",
+        "name": "RID",
+        "domain_type": "decimal(19,0)",
+        "required": true,
+        "is_key": true,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "MainDealID",
+        "domain_type": "decimal",
         "required": false,
         "is_key": false,
         "constraints": [],
@@ -17,8 +27,8 @@
         "partition_key": null
       },
       {
-        "name": "new_field_2",
-        "domain_type": "string",
+        "name": "DateRest",
+        "domain_type": "datetime",
         "required": false,
         "is_key": false,
         "constraints": [],
@@ -27,8 +37,398 @@
         "partition_key": null
       },
       {
-        "name": "new_field_3",
-        "domain_type": "string",
+        "name": "AssetSumVal",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "AssetSumRub",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "ReserveSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "PercentSumVal",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "PercentSumRub",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "FactPercentResSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "RowStatus",
+        "domain_type": "varchar(1)",
+        "required": true,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "OverdueMDSumVal",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "OverdueMDSumRub",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "OverdueMDResSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "OverduePercentSumVal",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "OverduePercentSumRub",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "OverduePercentReserveSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "NegatRevalSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "PositRevalSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "NegatAdjustSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "PositAdjustSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "NegAdjResSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "PositAdjResSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "NegAdjOverMDResSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "PositAdjOverMDResSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "NegAdjOverPrcResSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "PositAdjOverPrcResSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "NegAdjPercentResSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "PositAdjPercentResSum",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "PrcPaymentSumVal",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "PrcPaymentSumRub",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "ExpensePaymentSumVal",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "ExpensePaymentSumRub",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "OtherIncomePaymentSumVal",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "OtherIncomePaymentSumRub",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "ExpenseSumVal",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "ExpenseSumRub",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "OtherIncomeSumVal",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "OtherIncomeSumRub",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "LoanMainDealID",
+        "domain_type": "decimal",
+        "required": true,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "CessMainDealID",
+        "domain_type": "decimal",
+        "required": true,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "InitialLoanNumber",
+        "domain_type": "varchar(80)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "NominalSumRub",
+        "domain_type": "decimal(28,10)",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
+        "name": "PriceRub",
+        "domain_type": "decimal(28,10)",
         "required": false,
         "is_key": false,
         "constraints": [],

@@ -193,19 +193,18 @@ def test_catalog_entities_requires_loaded_catalog(api_client: TestClient) -> Non
     assert response.status_code == 404
 
 
-def test_save_model_persists_fields_and_target_table_table(api_client: TestClient) -> None:
+def test_save_model_persists_attributes_and_target_table_table(api_client: TestClient) -> None:
     payload = {
         "model": {
             "target_table": {
                 "name": "Account",
                 "table": "Account",
                 "schema": "dbo",
-                "attributes": [],
+                "attributes": [
+                    {"name": "ID", "domain_type": "bigint", "is_key": True, "required": True},
+                    {"name": "BranchID", "domain_type": "decimal", "is_key": False, "required": True},
+                ],
             },
-            "fields": [
-                {"name": "ID", "display_name": "ИД", "type": "bigint", "is_key": True, "nullable": False},
-                {"name": "BranchID", "display_name": "ИДСтруктураКомпании", "type": "decimal", "is_key": False, "nullable": False},
-            ],
             "workflow": {"description": "wf", "folders": [{"id": "01_stage", "enabled": True}]},
             "cte_settings": {"default": "insert_fc", "by_context": {}},
         }
@@ -216,9 +215,10 @@ def test_save_model_persists_fields_and_target_table_table(api_client: TestClien
     model_path = Path(settings.projects_path) / "demo" / "model" / "SampleModel" / "model.yml"
     raw = model_path.read_text(encoding="utf-8")
     assert "table: Account" in raw
-    assert "fields:" in raw
-    assert "display_name: ИД" in raw
-    assert "type: bigint" in raw
+    assert "fields:" not in raw
+    assert "attributes:" in raw
+    assert "domain_type: bigint" in raw
+    assert "required: true" in raw
     assert "entity_ref" not in raw
 
 
@@ -242,7 +242,6 @@ def test_save_model_creates_workflow_root_when_missing(api_client: TestClient) -
                 "schema": "dbo",
                 "attributes": [],
             },
-            "fields": [{"name": "ID", "display_name": "ИД", "type": "bigint", "is_key": True, "nullable": False}],
             "workflow": {"description": "wf", "folders": [{"id": "01_stage", "enabled": True}]},
         }
     }
@@ -252,7 +251,7 @@ def test_save_model_creates_workflow_root_when_missing(api_client: TestClient) -
     assert (model_root / "workflow" / "01_stage" / "folder.yml").exists()
 
 
-def test_autocomplete_includes_columns_from_fields_in_model_yml(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_autocomplete_includes_columns_from_target_table_attributes(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     model_path = Path(settings.projects_path) / "demo" / "model" / "SampleModel" / "model.yml"
     model_path.write_text(
         "\n".join(
@@ -261,12 +260,9 @@ def test_autocomplete_includes_columns_from_fields_in_model_yml(api_client: Test
                 "  name: Account",
                 "  schema: dbo",
                 "  attributes:",
-                "fields:",
-                "  - name: ID",
-                "    display_name: ИД",
-                "    type: bigint",
-                "    is_key: true",
-                "    nullable: false",
+                "    - name: ID",
+                "      domain_type: bigint",
+                "      is_key: true",
                 "workflow:",
                 "  folders:",
                 "    01_stage:",
@@ -286,6 +282,49 @@ def test_autocomplete_includes_columns_from_fields_in_model_yml(api_client: Test
     assert target_obj is not None
     columns = target_obj.get("columns", [])
     assert any(str(column.get("name", "")).lower() == "id" for column in columns)
+
+
+def test_get_model_migrates_legacy_fields_into_attributes(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    model_path = Path(settings.projects_path) / "demo" / "model" / "SampleModel" / "model.yml"
+    model_path.write_text(
+        "\n".join(
+            [
+                "target_table:",
+                "  name: Account",
+                "  schema: dbo",
+                "  attributes:",
+                "fields:",
+                "  - name: ID",
+                "    type: bigint",
+                "    is_key: true",
+                "  - name: ID",
+                "    type: bigint",
+                "    is_key: true",
+                "  - name: BranchID",
+                "    type: decimal",
+                "    is_key: false",
+                "workflow:",
+                "  folders:",
+                "    01_stage:",
+                "      enabled: true",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(projects_router, "_ensure_workflow_payload", lambda _p, _m, force_rebuild=False: None)
+
+    response = api_client.get("/api/v1/projects/demo/models/SampleModel")
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    model = payload["model"]
+    attrs = model["target_table"]["attributes"]
+    assert len(attrs) == 2
+    assert attrs[0]["name"] == "ID"
+    assert attrs[0]["domain_type"] == "bigint"
+    assert attrs[0]["is_key"] is True
+    assert attrs[1]["name"] == "BranchID"
+    assert "fields" not in model
 
 
 def test_projects_list_and_create(api_client: TestClient) -> None:
