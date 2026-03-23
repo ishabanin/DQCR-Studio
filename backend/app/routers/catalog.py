@@ -78,7 +78,7 @@ def get_catalog_entities(
     filtered = [
         entity
         for entity in all_entities
-        if not query or query in entity.name.lower() or query in entity.display_name.lower()
+        if not query or query in entity.name.lower() or query in entity.display_name.lower() or query in entity.module.lower()
     ]
 
     return {

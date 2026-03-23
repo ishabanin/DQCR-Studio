@@ -1,14 +1,11 @@
 {
-  "rf110": {
-    "name": "RF110",
+  "rf110new": {
+    "name": "\u0424\u043e\u0440\u043c\u0430 110",
     "source_type": "imported",
     "source_path": null,
-    "availability_status": "available"
-  },
-  "rf110new_manual": {
-    "name": "RF110NEW",
-    "source_type": "imported",
-    "source_path": null,
-    "availability_status": "available"
+    "availability_status": "available",
+    "description": "\u0422\u0435\u0441\u0442\u043e\u0432\u0430\u044f \u0444\u043e\u0440\u043c\u0430",
+    "visibility": "private",
+    "tags": []
   }
 }

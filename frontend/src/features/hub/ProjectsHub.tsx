@@ -22,6 +22,8 @@ type ModalState =
   | { type: "delete"; project: ProjectListItem }
   | null;
 
+type HubVisualTheme = "default" | "editorial" | "industrial";
+
 export default function ProjectsHub() {
   const setProject = useProjectStore((state) => state.setProject);
   const {
@@ -41,12 +43,23 @@ export default function ProjectsHub() {
   } = useProjects();
 
   const [view, setViewState] = useState<"grid" | "list">(() => (window.localStorage.getItem("dqcr_hub_view") as "grid" | "list") ?? "grid");
+  const [visualTheme, setVisualThemeState] = useState<HubVisualTheme>(() => {
+    const stored = window.localStorage.getItem("dqcr_hub_visual_theme");
+    if (stored === "editorial" || stored === "industrial" || stored === "default") {
+      return stored;
+    }
+    return "default";
+  });
   const [modal, setModal] = useState<ModalState>(null);
   const [catalogExpandSignal, setCatalogExpandSignal] = useState(0);
 
   const setView = (value: "grid" | "list") => {
     setViewState(value);
     window.localStorage.setItem("dqcr_hub_view", value);
+  };
+  const setVisualTheme = (value: HubVisualTheme) => {
+    setVisualThemeState(value);
+    window.localStorage.setItem("dqcr_hub_visual_theme", value);
   };
 
   const { filtered, filters, patchFilter, clearFilters, counts, allTags, sortBy, sortDir, toggleSort } = useProjectFilters(projects);
@@ -94,41 +107,67 @@ export default function ProjectsHub() {
   };
 
   return (
-    <div style={{ display: "flex", height: "calc(100vh - var(--hub-topbar-h))" }}>
+    <div className={`hub-stage hub-visual-${visualTheme}`} style={{ display: "flex", height: "calc(100vh - var(--hub-topbar-h))" }}>
       <div className="hub-sidebar-wrap">
         <HubSidebar counts={counts} filters={filters} onFilter={patchFilter} />
       </div>
 
       <main style={{ flex: 1, minWidth: 0, padding: "var(--hub-page-py) var(--hub-page-px)", overflowY: "auto" }}>
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
-          <div>
-            <h1 style={{ fontSize: "var(--hub-text-xl)", fontWeight: "var(--hub-weight-medium)", color: "var(--color-text-primary)", marginBottom: 4 }}>All projects</h1>
-            <p style={{ fontSize: "var(--hub-text-sm)", color: "var(--color-text-secondary)" }}>
-              {hasActiveFilters ? `Showing ${filtered.length} of ${projects.length}` : "Manage and open DQCR projects"}
-            </p>
+        <section className="hub-hero">
+          <div className="hub-hero-row">
+            <div>
+              <div className="hub-crumbs">
+                <span>Workspace</span>
+                <span>/</span>
+                <span className="hub-crumbs-current">Projects</span>
+              </div>
+              <h1 style={{ fontSize: "var(--hub-text-xl)", fontWeight: "var(--hub-weight-medium)", color: "var(--color-text-primary)", marginBottom: 4 }}>All projects</h1>
+              <p style={{ fontSize: "var(--hub-text-sm)", color: "var(--color-text-secondary)" }}>
+                {hasActiveFilters ? `Showing ${filtered.length} of ${projects.length}` : "Manage and open DQCR projects"}
+              </p>
+            </div>
+            <div className="hub-hero-actions">
+              <div className="hub-theme-switch" role="group" aria-label="Hub visual theme">
+                {(
+                  [
+                    { id: "default", label: "Base" },
+                    { id: "editorial", label: "Editorial" },
+                    { id: "industrial", label: "Industrial" },
+                  ] as const
+                ).map((item) => (
+                  <button
+                    key={item.id}
+                    className={visualTheme === item.id ? "hub-theme-switch-btn active" : "hub-theme-switch-btn"}
+                    onClick={() => setVisualTheme(item.id)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              <button className="hub-btn-primary" onClick={() => setModal({ type: "create", mode: "create" })}>
+                + New project
+              </button>
+              <button className="hub-btn-secondary" onClick={() => setModal({ type: "create", mode: "import" })}>
+                ↓ Import
+              </button>
+            </div>
           </div>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-            <button className="hub-btn-primary" onClick={() => setModal({ type: "create", mode: "create" })}>
-              + New project
-            </button>
-            <button className="hub-btn-secondary" onClick={() => setModal({ type: "create", mode: "import" })}>
-              ↓ Import
-            </button>
-          </div>
+          {!hasActiveFilters && !isLoading && (
+            <div className="hub-metric-grid">
+              <MetricCard value={counts.all} label="All projects" />
+              <MetricCard value={counts.public} label="Public" />
+              <MetricCard value={totalModels} label="Models" />
+              <MetricCard value={totalSql} label="SQL files" />
+            </div>
+          )}
+        </section>
+
+        {/* toolbar is kept outside the hero card, similar to shadcn SidebarInset sections */}
+        <div className="hub-toolbar-wrap">
+          <HubToolbar filters={filters} onFilter={patchFilter} view={view} setView={setView} onOpenCatalog={openCatalogPanel} />
         </div>
 
-        {!hasActiveFilters && !isLoading && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10, marginBottom: 20 }}>
-            <MetricCard value={counts.all} label="All projects" />
-            <MetricCard value={counts.public} label="Public" />
-            <MetricCard value={totalModels} label="Models" />
-            <MetricCard value={totalSql} label="SQL files" />
-          </div>
-        )}
-
         {isLoading && <StatsRowSkeleton />}
-
-        <HubToolbar filters={filters} onFilter={patchFilter} view={view} setView={setView} onOpenCatalog={openCatalogPanel} />
 
         {isError && (
           <div style={{ textAlign: "center", padding: "48px 20px" }}>

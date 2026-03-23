@@ -25,8 +25,10 @@ const baseData: DqcrAutocompleteData = {
       kind: "target_table",
       source: "project_workflow",
       model_id: "SalesReport",
+      module: "SalesReport",
+      object_name: "sales_report",
       path: "model/SalesReport/model.yml",
-      lookup_keys: ["dm.sales_report", "sales_report"],
+      lookup_keys: ["dm.sales_report", "sales_report", "_m.SalesReport.sales_report"],
       columns: [
         { name: "id", domain_type: "number", is_key: true },
         { name: "amount", domain_type: "number", is_key: false },
@@ -37,10 +39,12 @@ const baseData: DqcrAutocompleteData = {
       kind: "catalog_entity",
       source: "catalog",
       model_id: null,
+      module: "DWH",
+      object_name: "Account",
       path: null,
-      lookup_keys: ["Account"],
+      lookup_keys: ["Account", "_m.DWH.Account"],
       columns: [
-        { name: "ID", domain_type: "bigint", is_key: true },
+        { name: "ID", domain_type: "bigint", is_key: true, description: "Primary key" },
         { name: "BranchID", domain_type: "decimal(19,0)", is_key: false },
       ],
     },
@@ -140,6 +144,39 @@ describe("dqcrLanguage SQL autocomplete helpers", () => {
     const result = resolveAutocompleteContext(sql, offset, baseData);
 
     expect(result.mode).toBe("member");
+    expect(result.columnSuggestions.map((item) => item.name)).toEqual(["ID", "BranchID"]);
+  });
+
+  it("suggests modules for _m namespace", () => {
+    const { sql, offset } = withCursor(`
+      select _m.|
+    `);
+
+    const result = resolveAutocompleteContext(sql, offset, baseData);
+
+    expect(result.mode).toBe("model_module");
+    expect(result.moduleSuggestions).toEqual(["SalesReport", "DWH"]);
+  });
+
+  it("suggests objects for _m.<module> namespace", () => {
+    const { sql, offset } = withCursor(`
+      select _m.DWH.|
+    `);
+
+    const result = resolveAutocompleteContext(sql, offset, baseData);
+
+    expect(result.mode).toBe("model_object");
+    expect(result.objectSuggestions.map((item) => item.name)).toEqual(["Account"]);
+  });
+
+  it("suggests attributes for _m.<module>.<object> namespace", () => {
+    const { sql, offset } = withCursor(`
+      select _m.DWH.Account.|
+    `);
+
+    const result = resolveAutocompleteContext(sql, offset, baseData);
+
+    expect(result.mode).toBe("model_attribute");
     expect(result.columnSuggestions.map((item) => item.name)).toEqual(["ID", "BranchID"]);
   });
 });

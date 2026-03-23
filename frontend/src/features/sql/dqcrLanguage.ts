@@ -1,8 +1,8 @@
 import type * as Monaco from "monaco-editor";
 
 const DQCR_LANGUAGE_ID = "dqcr-sql";
-const DQCR_THEME_LIGHT = "dqcr-light";
-const DQCR_THEME_DARK = "dqcr-dark";
+const DQCR_THEME_LIGHT = "dqcr-github-light";
+const DQCR_THEME_DARK = "dqcr-dracula";
 
 const sqlKeywords = [
   "select",
@@ -82,6 +82,7 @@ export interface DqcrAutocompleteObjectColumn {
   name: string;
   domain_type?: string | null;
   is_key?: boolean | null;
+  description?: string | null;
 }
 
 export interface DqcrAutocompleteObject {
@@ -89,6 +90,8 @@ export interface DqcrAutocompleteObject {
   kind: "target_table" | "workflow_query" | "catalog_entity";
   source: "project_workflow" | "project_model_fallback" | "catalog";
   model_id?: string | null;
+  module?: string | null;
+  object_name?: string | null;
   path?: string | null;
   lookup_keys: string[];
   columns: DqcrAutocompleteObjectColumn[];
@@ -108,9 +111,10 @@ export interface LocalCteDefinition {
 }
 
 export interface AutocompleteResolution {
-  mode: "macro" | "member" | "object" | "default";
+  mode: "macro" | "member" | "object" | "default" | "model_module" | "model_object" | "model_attribute";
   objectSuggestions: DqcrAutocompleteObject[];
   columnSuggestions: DqcrAutocompleteObjectColumn[];
+  moduleSuggestions: string[];
   localCtes: LocalCteDefinition[];
 }
 
@@ -155,6 +159,7 @@ function normalizeColumns(columns: DqcrAutocompleteObjectColumn[]): DqcrAutocomp
       name,
       domain_type: item.domain_type ?? null,
       is_key: item.is_key ?? null,
+      description: item.description ?? null,
     });
   }
   return result;
@@ -371,6 +376,97 @@ export function extractAliasMappings(sql: string): Map<string, string> {
   return aliases;
 }
 
+function normalizeModelNamespaceToken(value: string | null | undefined): string {
+  return (value ?? "").trim();
+}
+
+function objectModuleName(item: DqcrAutocompleteObject): string {
+  const direct = normalizeModelNamespaceToken(item.module);
+  if (direct) return direct;
+  const fallback = normalizeModelNamespaceToken(item.model_id);
+  if (fallback) return fallback;
+  return "";
+}
+
+function objectEntityName(item: DqcrAutocompleteObject): string {
+  const direct = normalizeModelNamespaceToken(item.object_name);
+  if (direct) return direct;
+  if (item.kind === "target_table") {
+    const parts = item.name.split(".").map((part) => part.trim()).filter(Boolean);
+    return parts.length > 0 ? parts[parts.length - 1] : item.name;
+  }
+  return item.name;
+}
+
+function modelNamespaceCandidates(objects: DqcrAutocompleteObject[]): DqcrAutocompleteObject[] {
+  return objects.filter((item) => item.kind === "target_table" || item.kind === "catalog_entity");
+}
+
+function parseModelNamespaceContext(textBeforeCursor: string): { stage: "module" | "object" | "attribute"; module?: string; object?: string } | null {
+  if (/_m\.$/.test(textBeforeCursor)) {
+    return { stage: "module" };
+  }
+
+  const objectMatch = textBeforeCursor.match(/_m\.([A-Za-z_][\w$]*)\.$/);
+  if (objectMatch?.[1]) {
+    return { stage: "object", module: objectMatch[1] };
+  }
+
+  const attrMatch = textBeforeCursor.match(/_m\.([A-Za-z_][\w$]*)\.([A-Za-z_][\w$]*)\.$/);
+  if (attrMatch?.[1] && attrMatch?.[2]) {
+    return { stage: "attribute", module: attrMatch[1], object: attrMatch[2] };
+  }
+
+  return null;
+}
+
+function resolveModuleSuggestions(objects: DqcrAutocompleteObject[], activeModelId: string | null): string[] {
+  const seen = new Set<string>();
+  const rows: Array<{ value: string; priority: number }> = [];
+  for (const item of modelNamespaceCandidates(objects)) {
+    const moduleName = objectModuleName(item);
+    if (!moduleName) continue;
+    const key = moduleName.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const priority = normalizeSqlName(moduleName) === normalizeSqlName(activeModelId ?? "") ? 0 : item.source === "catalog" ? 2 : 1;
+    rows.push({ value: moduleName, priority });
+  }
+  return rows.sort((left, right) => left.priority - right.priority || left.value.localeCompare(right.value)).map((item) => item.value);
+}
+
+function resolveNamespacedObjects(
+  objects: DqcrAutocompleteObject[],
+  moduleName: string,
+  activeModelId: string | null,
+): DqcrAutocompleteObject[] {
+  const wantedModule = normalizeSqlName(moduleName);
+  const seen = new Set<string>();
+  const result: DqcrAutocompleteObject[] = [];
+  const sorted = sortObjects(modelNamespaceCandidates(objects), activeModelId);
+  for (const item of sorted) {
+    if (normalizeSqlName(objectModuleName(item)) !== wantedModule) continue;
+    const objectName = objectEntityName(item);
+    const dedupeKey = normalizeSqlName(objectName);
+    if (!dedupeKey || seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    result.push({
+      ...item,
+      name: objectName,
+    });
+  }
+  return result;
+}
+
+function resolveNamespacedColumns(objects: DqcrAutocompleteObject[], moduleName: string, objectName: string): DqcrAutocompleteObjectColumn[] {
+  const wantedModule = normalizeSqlName(moduleName);
+  const wantedObject = normalizeSqlName(objectName);
+  const matched = modelNamespaceCandidates(objects).find((item) => {
+    return normalizeSqlName(objectModuleName(item)) === wantedModule && normalizeSqlName(objectEntityName(item)) === wantedObject;
+  });
+  return matched?.columns ?? [];
+}
+
 function rankObject(item: DqcrAutocompleteObject, activeModelId: string | null): number {
   if (item.kind === "workflow_query" && item.model_id === activeModelId) return 0;
   if (item.kind === "target_table" && item.model_id === activeModelId) return 1;
@@ -447,15 +543,45 @@ export function resolveAutocompleteContext(
   const macroOpenIndex = textBeforeCursor.lastIndexOf("{{");
   const macroCloseIndex = textBeforeCursor.lastIndexOf("}}");
   if (macroOpenIndex > macroCloseIndex) {
-    return { mode: "macro", objectSuggestions: [], columnSuggestions: [], localCtes };
+    return { mode: "macro", objectSuggestions: [], columnSuggestions: [], moduleSuggestions: [], localCtes };
   }
 
-  const memberMatch = textBeforeCursor.match(/([A-Za-z_][\w$]*)\.([A-Za-z_][\w$]*)?$/);
+  const namespaceContext = parseModelNamespaceContext(textBeforeCursor);
+  if (namespaceContext?.stage === "module") {
+    return {
+      mode: "model_module",
+      objectSuggestions: [],
+      columnSuggestions: [],
+      moduleSuggestions: resolveModuleSuggestions(objects, data.activeModelId ?? null),
+      localCtes,
+    };
+  }
+  if (namespaceContext?.stage === "object" && namespaceContext.module) {
+    return {
+      mode: "model_object",
+      objectSuggestions: resolveNamespacedObjects(objects, namespaceContext.module, data.activeModelId ?? null),
+      columnSuggestions: [],
+      moduleSuggestions: [],
+      localCtes,
+    };
+  }
+  if (namespaceContext?.stage === "attribute" && namespaceContext.module && namespaceContext.object) {
+    return {
+      mode: "model_attribute",
+      objectSuggestions: [],
+      columnSuggestions: resolveNamespacedColumns(objects, namespaceContext.module, namespaceContext.object),
+      moduleSuggestions: [],
+      localCtes,
+    };
+  }
+
+  const memberMatch = textBeforeCursor.match(/([A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)*)\.([A-Za-z_][\w$]*)?$/);
   if (memberMatch?.[1]) {
     return {
       mode: "member",
       objectSuggestions: [],
       columnSuggestions: resolveColumnsForQualifier(memberMatch[1], aliases, localCtes, objects),
+      moduleSuggestions: [],
       localCtes,
     };
   }
@@ -465,6 +591,7 @@ export function resolveAutocompleteContext(
       mode: "object",
       objectSuggestions: resolveObjectSuggestions(localCtes, objects, data.activeModelId ?? null),
       columnSuggestions: [],
+      moduleSuggestions: [],
       localCtes,
     };
   }
@@ -473,6 +600,7 @@ export function resolveAutocompleteContext(
     mode: "default",
     objectSuggestions: sortObjects(objects, data.activeModelId ?? null),
     columnSuggestions: [],
+    moduleSuggestions: [],
     localCtes,
   };
 }
@@ -481,6 +609,21 @@ function buildObjectDetail(item: DqcrAutocompleteObject): string {
   if (item.kind === "workflow_query") return `Workflow query${item.path ? ` · ${item.path}` : ""}`;
   if (item.kind === "catalog_entity") return "Catalog entity";
   return `Project table${item.path ? ` · ${item.path}` : ""}`;
+}
+
+function buildModuleSuggestions(
+  monaco: typeof Monaco,
+  range: Monaco.IRange,
+  items: string[],
+): Monaco.languages.CompletionItem[] {
+  return items.map((item, index) => ({
+    label: item,
+    kind: monaco.languages.CompletionItemKind.Module,
+    insertText: item,
+    detail: "Model module",
+    sortText: `${String(index).padStart(4, "0")}-${item.toLowerCase()}`,
+    range,
+  }));
 }
 
 function buildObjectSuggestions(
@@ -507,7 +650,7 @@ function buildColumnSuggestions(
     label: item.name,
     kind: monaco.languages.CompletionItemKind.Field,
     insertText: item.name,
-    detail: item.domain_type ? `Column · ${item.domain_type}` : "Column",
+    detail: item.description ? `${item.domain_type ? `Column · ${item.domain_type}` : "Column"} · ${item.description}` : item.domain_type ? `Column · ${item.domain_type}` : "Column",
     sortText: `${String(index).padStart(4, "0")}-${item.name.toLowerCase()}`,
     range,
   }));
@@ -650,8 +793,12 @@ export function configureDqcrMonaco(monaco: typeof Monaco): void {
         if (isMacro) {
           completionItems.push(...buildMacroSuggestions(monaco, range));
         }
-        if (context.mode === "member") {
+        if (context.mode === "member" || context.mode === "model_attribute") {
           completionItems.push(...buildColumnSuggestions(monaco, range, context.columnSuggestions));
+        } else if (context.mode === "model_module") {
+          completionItems.push(...buildModuleSuggestions(monaco, range, context.moduleSuggestions));
+        } else if (context.mode === "model_object") {
+          completionItems.push(...buildObjectSuggestions(monaco, range, context.objectSuggestions));
         } else if (context.mode === "object") {
           completionItems.push(...buildObjectSuggestions(monaco, range, context.objectSuggestions));
         } else if (context.mode === "default") {
@@ -667,26 +814,26 @@ export function configureDqcrMonaco(monaco: typeof Monaco): void {
       base: "vs",
       inherit: true,
       rules: [
-        { token: "keyword", foreground: "0F6E56", fontStyle: "bold" },
-        { token: "keyword.dqcr.config", foreground: "F0997B" },
-        { token: "keyword.dqcr.macro.start", foreground: "85B7EB", fontStyle: "bold" },
-        { token: "keyword.dqcr.macro.end", foreground: "85B7EB", fontStyle: "bold" },
-        { token: "variable.dqcr.key", foreground: "0F6E56", fontStyle: "bold" },
-        { token: "variable.parameter.dqcr", foreground: "BA7517" },
-        { token: "entity.name.function.dqcr", foreground: "85B7EB" },
-        { token: "string", foreground: "8B6914" },
-        { token: "comment", foreground: "888780", fontStyle: "italic" },
+        { token: "keyword", foreground: "CF222E", fontStyle: "bold" },
+        { token: "keyword.dqcr.config", foreground: "6639BA" },
+        { token: "keyword.dqcr.macro.start", foreground: "0550AE", fontStyle: "bold" },
+        { token: "keyword.dqcr.macro.end", foreground: "0550AE", fontStyle: "bold" },
+        { token: "variable.dqcr.key", foreground: "116329", fontStyle: "bold" },
+        { token: "variable.parameter.dqcr", foreground: "953800" },
+        { token: "entity.name.function.dqcr", foreground: "8250DF" },
+        { token: "string", foreground: "0A3069" },
+        { token: "comment", foreground: "6E7781", fontStyle: "italic" },
       ],
       colors: {
         "editor.background": "#FFFFFF",
-        "editor.foreground": "#444441",
-        "editor.lineHighlightBackground": "#F7F7F5",
-        "editor.selectionBackground": "#C8EEE180",
-        "editorLineNumber.foreground": "#B4B2A9",
-        "editorLineNumber.activeForeground": "#5F5E5A",
-        "editorIndentGuide.background": "#F1EFE8",
-        "editorCursor.foreground": "#1D9E75",
-        "editorGutter.background": "#FAFAF8",
+        "editor.foreground": "#24292F",
+        "editor.lineHighlightBackground": "#F6F8FA",
+        "editor.selectionBackground": "#B6D6FA80",
+        "editorLineNumber.foreground": "#8C959F",
+        "editorLineNumber.activeForeground": "#57606A",
+        "editorIndentGuide.background": "#D0D7DE",
+        "editorCursor.foreground": "#0969DA",
+        "editorGutter.background": "#FFFFFF",
       },
     });
 
@@ -694,25 +841,25 @@ export function configureDqcrMonaco(monaco: typeof Monaco): void {
       base: "vs-dark",
       inherit: true,
       rules: [
-        { token: "keyword", foreground: "5DCAA5", fontStyle: "bold" },
-        { token: "keyword.dqcr.config", foreground: "F0997B" },
-        { token: "keyword.dqcr.macro.start", foreground: "85B7EB" },
-        { token: "keyword.dqcr.macro.end", foreground: "85B7EB" },
-        { token: "variable.dqcr.key", foreground: "5DCAA5" },
-        { token: "variable.parameter.dqcr", foreground: "FAC775" },
-        { token: "entity.name.function.dqcr", foreground: "85B7EB" },
-        { token: "string", foreground: "FAC775" },
-        { token: "comment", foreground: "6A9955", fontStyle: "italic" },
+        { token: "keyword", foreground: "FF79C6", fontStyle: "bold" },
+        { token: "keyword.dqcr.config", foreground: "FFB86C" },
+        { token: "keyword.dqcr.macro.start", foreground: "8BE9FD" },
+        { token: "keyword.dqcr.macro.end", foreground: "8BE9FD" },
+        { token: "variable.dqcr.key", foreground: "50FA7B" },
+        { token: "variable.parameter.dqcr", foreground: "FFB86C" },
+        { token: "entity.name.function.dqcr", foreground: "8BE9FD" },
+        { token: "string", foreground: "F1FA8C" },
+        { token: "comment", foreground: "6272A4", fontStyle: "italic" },
       ],
       colors: {
-        "editor.background": "#1E1E1E",
-        "editor.foreground": "#CDCDCD",
-        "editor.lineHighlightBackground": "#282828",
-        "editor.selectionBackground": "#264F78",
-        "editorLineNumber.foreground": "#5F5E5A",
-        "editorLineNumber.activeForeground": "#9D9D9D",
-        "editorGutter.background": "#252526",
-        "editorCursor.foreground": "#AEAFAD",
+        "editor.background": "#282A36",
+        "editor.foreground": "#F8F8F2",
+        "editor.lineHighlightBackground": "#343746",
+        "editor.selectionBackground": "#44475A",
+        "editorLineNumber.foreground": "#6272A4",
+        "editorLineNumber.activeForeground": "#BD93F9",
+        "editorGutter.background": "#282A36",
+        "editorCursor.foreground": "#F8F8F2",
         "scrollbar.shadow": "#000000",
       },
     });

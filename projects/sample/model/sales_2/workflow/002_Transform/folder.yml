@@ -1,4 +1,0 @@
-002_Transform:
-  enabled:
-    contexts: [default]
-  materialized: None

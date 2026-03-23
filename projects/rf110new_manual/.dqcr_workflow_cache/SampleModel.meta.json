@@ -1,8 +1,0 @@
-{
-  "project_id": "rf110new_manual",
-  "model_id": "SampleModel",
-  "status": "error",
-  "updated_at": "2026-03-21T14:01:28.672927+00:00",
-  "source": "framework_cli",
-  "error": "Model 'SampleModel' not found."
-}

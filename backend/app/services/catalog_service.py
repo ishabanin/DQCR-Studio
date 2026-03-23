@@ -17,6 +17,7 @@ TYPE_DIMENSION_PATTERN = re.compile(r"\[(\d+)(?:,\s*(\d+))?\]")
 class CatalogAttribute(BaseModel):
     name: str
     display_name: str
+    description: str
     domain_type: str
     raw_type: str
     is_nullable: bool
@@ -63,18 +64,28 @@ class CatalogService:
                 for idx, value in enumerate(headers_row)
                 if isinstance(value, str) and str(value).strip()
             }
-            required_headers = [
-                "Наименование сущности",
-                "Наименование сущности (сист.)",
-                "Информационный объект",
-                "Модуль",
-                "Наименование атрибута (сист.)",
-                "Наименование атрибута",
-                "Тип",
-                "Допустимость пустого значения",
-                "П. Н.",
-            ]
-            missing = [name for name in required_headers if name not in headers]
+            aliases = {
+                "entity_display_name": ["Наименование сущности", "наименование сущности"],
+                "entity_name": ["Наименование сущности (сист.)", "Объект"],
+                "info_object": ["Информационный объект"],
+                "module": ["Модуль", "Module"],
+                "attribute_name": ["Наименование атрибута (сист.)", "атрибут"],
+                "attribute_display_name": ["Наименование атрибута"],
+                "attribute_description": ["Описание", "Описание атрибута"],
+                "raw_type": ["Тип"],
+                "nullable": ["Допустимость пустого значения"],
+                "key": ["П. Н."],
+            }
+            header_index: dict[str, int] = {}
+            missing: list[str] = []
+            for field, options in aliases.items():
+                idx = next((headers[item] for item in options if item in headers), None)
+                if idx is None:
+                    if field in {"attribute_display_name", "attribute_description"}:
+                        continue
+                    missing.append("/".join(options))
+                else:
+                    header_index[field] = idx
             if missing:
                 raise ValueError(f"Missing required columns in 'Атрибуты': {', '.join(missing)}")
 
@@ -82,18 +93,19 @@ class CatalogService:
             entity_order: list[str] = []
 
             for row in row_iter:
-                entity_name = _to_text(_cell(row, headers["Наименование сущности (сист.)"]))
-                attr_name = _to_text(_cell(row, headers["Наименование атрибута (сист.)"]))
+                entity_name = _to_text(_cell(row, header_index["entity_name"]))
+                attr_name = _to_text(_cell(row, header_index["attribute_name"]))
                 if not entity_name or not attr_name:
                     continue
 
-                entity_display_name = _to_text(_cell(row, headers["Наименование сущности"])) or entity_name
-                info_object = _to_text(_cell(row, headers["Информационный объект"]))
-                module = _to_text(_cell(row, headers["Модуль"]))
-                attr_display_name = _to_text(_cell(row, headers["Наименование атрибута"])) or attr_name
-                raw_type = _to_text(_cell(row, headers["Тип"]))
-                is_nullable = _is_nullable(_cell(row, headers["Допустимость пустого значения"]))
-                is_key = _is_key(_cell(row, headers["П. Н."]))
+                entity_display_name = _to_text(_cell(row, header_index["entity_display_name"])) or entity_name
+                info_object = _to_text(_cell(row, header_index["info_object"]))
+                module = _to_text(_cell(row, header_index["module"]))
+                attr_display_name = _to_text(_cell(row, header_index.get("attribute_display_name", -1))) or attr_name
+                attr_description = _to_text(_cell(row, header_index.get("attribute_description", -1)))
+                raw_type = _to_text(_cell(row, header_index["raw_type"]))
+                is_nullable = _is_nullable(_cell(row, header_index["nullable"]))
+                is_key = _is_key(_cell(row, header_index["key"]))
 
                 entity = entities_map.get(entity_name)
                 if entity is None:
@@ -111,6 +123,7 @@ class CatalogService:
                     CatalogAttribute(
                         name=attr_name,
                         display_name=attr_display_name,
+                        description=attr_description,
                         domain_type=_normalize_domain_type(raw_type),
                         raw_type=raw_type,
                         is_nullable=is_nullable,
@@ -162,7 +175,12 @@ class CatalogService:
         normalized_query = query.strip().lower()
         matched: list[dict[str, Any]] = []
         for entity in self.list_entities():
-            if normalized_query and normalized_query not in entity.name.lower() and normalized_query not in entity.display_name.lower():
+            if (
+                normalized_query
+                and normalized_query not in entity.name.lower()
+                and normalized_query not in entity.display_name.lower()
+                and normalized_query not in entity.module.lower()
+            ):
                 continue
             matched.append(
                 {

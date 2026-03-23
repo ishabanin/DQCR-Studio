@@ -1,0 +1,142 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>SQL Editor UI Interface</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.45;color:#111;margin:28px auto;max-width:980px;padding:0 16px}
+h1,h2,h3{line-height:1.25;margin-top:1.2em}
+h1{font-size:30px} h2{font-size:24px} h3{font-size:20px}
+p{margin:0.5em 0 0.9em}
+ul,ol{margin:0.4em 0 0.9em 1.4em}
+li{margin:0.25em 0}
+code{background:#f4f4f4;padding:1px 5px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+img{display:block;max-width:100%;height:auto;border:1px solid #ddd;border-radius:6px;margin:8px 0 20px}
+hr{border:none;border-top:1px solid #ddd;margin:22px 0}
+small{color:#666}
+@media print{body{max-width:none;margin:12mm;font-size:11pt} h1{font-size:22pt} h2{font-size:16pt} h3{font-size:13pt} img{page-break-inside:avoid}}
+</style></head><body>
+<h1>SQL Editor UI: подробное описание интерфейса</h1>
+<p>Дата фиксации интерфейса: 24 марта 2026</p>
+<p>Окружение: локальный стенд (<code>make dev</code>), проект <code>RF110</code>, контекст <code>default</code>.</p>
+<h2>1. Назначение экрана SQL Editor</h2>
+<p><code>SQL Editor</code> в DQCR Studio предназначен для работы с SQL-файлами внутри проектной структуры (<code>model/&lt;ModelId&gt;/SQL|workflow/...</code>). Экран объединяет:</p>
+<ul>
+<li>навигацию по дереву проекта;</li>
+<li>редактирование SQL в Monaco Editor;</li>
+<li>панель приоритетов <code>@config</code> (справа/снизу в expanded-режиме);</li>
+<li>операции <code>Save</code>, <code>Format</code>, авто-валидацию;</li>
+<li>системную статусную строку процесса (проект, контекст, состояние workflow cache).</li>
+</ul>
+<h2>2. Общая компоновка интерфейса</h2>
+<p>Экран делится на 5 логических зон:</p>
+<ol>
+<li>Верхний глобальный бар (проект, контекст, Validate/Build, роль, переключатель светлой/тёмной темы).</li>
+<li>Верхняя таб-панель приложения (Проект, Линейность, Редактор модели, Редактор SQL и т.д.).</li>
+<li>Левая панель-навигатор дерева файлов проекта.</li>
+<li>Центральная рабочая область SQL (Monaco + мета-блоки открытого файла).</li>
+<li>Правая панель <code>@config Priority Chain</code> (или нижняя в expanded-режиме).</li>
+</ol>
+<h2>3. Скриншоты интерфейса</h2>
+<h3>3.1 SQL Editor (стартовый вид, файл не выбран)</h3>
+<p>Показывает состояние, когда пользователь открыл вкладку SQL, но ещё не открыл конкретный SQL-файл.</p>
+<img alt="SQL Editor empty state" src="file:///Users/IgorShabanin/dev/DQCR%20Studio/Docs/assets/sql-editor-ui/01-sql-editor-overview-light.png">
+<h3>3.2 SQL Editor со светлой темой и открытым SQL-файлом</h3>
+<p>На примере файла <code>001_Query.sql</code> видно:</p>
+<ul>
+<li>заголовок файла в рабочей области;</li>
+<li>breadcrumb-чипы пути (<code>model / RF110RestTurnReg / SQL / ...</code>);</li>
+<li>Monaco-редактор с подсветкой синтаксиса;</li>
+<li>правую панель <code>@config Priority Chain</code>;</li>
+<li>нижнюю панель действий <code>Save / Format / Auto validate</code>.</li>
+</ul>
+<img alt="SQL Editor light opened" src="file:///Users/IgorShabanin/dev/DQCR%20Studio/Docs/assets/sql-editor-ui/08-sql-editor-full-light-opened.png">
+<h3>3.3 Expanded-режим редактора</h3>
+<p>В expanded-режиме высота редактора увеличивается, а панель <code>@config</code> переносится ниже. Это удобно для длинных SQL-скриптов.</p>
+<img alt="SQL Editor expanded mode" src="file:///Users/IgorShabanin/dev/DQCR%20Studio/Docs/assets/sql-editor-ui/10-sql-editor-expanded-opened.png">
+<h3>3.4 Тёмная тема (Dracula для Monaco)</h3>
+<p>На скриншоте отражён тёмный режим интерфейса и тёмная тема Monaco (Dracula), применяемая к SQL-редактору.</p>
+<img alt="SQL Editor dark dracula" src="file:///Users/IgorShabanin/dev/DQCR%20Studio/Docs/assets/sql-editor-ui/11-sql-editor-dracula-opened.png">
+<h3>3.5 Панель действий SQL Editor</h3>
+<p>Крупный фрагмент области действий:</p>
+<ul>
+<li><code>Save (Ctrl+S)</code> — сохранение файла;</li>
+<li><code>Format (Ctrl+Shift+F)</code> — форматирование SQL;</li>
+<li><code>Auto validate on save</code> — автоматическая проверка после сохранения;</li>
+<li>индикатор состояния (<code>Saved</code> / <code>Editing</code>).</li>
+</ul>
+<img alt="SQL Editor actions panel" src="file:///Users/IgorShabanin/dev/DQCR%20Studio/Docs/assets/sql-editor-ui/12-sql-editor-actions.png">
+<h2>4. Детализация ключевых UI-элементов</h2>
+<h3>4.1 Верхний бар</h3>
+<p>Содержит глобальные настройки и команды:</p>
+<ul>
+<li>выбор проекта;</li>
+<li>выбор контекста;</li>
+<li>быстрые действия <code>Проверить</code> и <code>Сборка</code>;</li>
+<li>отображение роли пользователя;</li>
+<li>переключатель темы интерфейса (<code>Тёмная</code>/<code>Светлая</code>);</li>
+<li>режим работы с одним/несколькими контекстами.</li>
+</ul>
+<h3>4.2 Левое дерево проекта</h3>
+<p>Позволяет открыть SQL-файлы из структуры проекта. Для SQL Editor типичный путь:</p>
+<ul>
+<li><code>model</code> → <code>&lt;ModelId&gt;</code> → <code>SQL</code> (или <code>workflow</code>) → папка шага → <code>*.sql</code>.</li>
+</ul>
+<p>В дереве также доступны операции файлового менеджмента (через иконки/контекстные действия): создание, переименование, удаление и т.д.</p>
+<h3>4.3 Центральная область Monaco Editor</h3>
+<p>Основные элементы:</p>
+<ul>
+<li>заголовок открытого файла <code>SQL Editor: &lt;filename&gt;.sql</code>;</li>
+<li>чип активного файла и breadcrumb-чипы пути;</li>
+<li>поле редактирования Monaco;</li>
+<li>кнопка разворота/сворачивания expanded-режима.</li>
+</ul>
+<p>Поведение:</p>
+<ul>
+<li>изменения текста переключают статус в <code>Editing</code>;</li>
+<li>после успешного сохранения — <code>Saved</code>;</li>
+<li>подсветка синтаксиса SQL + DQCR-расширения;</li>
+<li>в тёмной теме применяется Dracula, в светлой — GitHub Light.</li>
+</ul>
+<h3>4.4 Панель <code>@config Priority Chain</code></h3>
+<p>Показывает разрешение параметров конфигурации (<code>enabled</code>, <code>materialized</code>, и т.д.) по уровням приоритета:</p>
+<ul>
+<li>Template</li>
+<li>Project</li>
+<li>Model</li>
+<li>Folder</li>
+<li>SQL <code>@config</code></li>
+</ul>
+<p>Это позволяет понять, откуда пришло итоговое значение и где его переопределять.</p>
+<h3>4.5 Нижний статус-бар приложения</h3>
+<p>Отображает технический контекст:</p>
+<ul>
+<li>текущий проект;</li>
+<li>текущий контекст;</li>
+<li>статус workflow cache (<code>ready/stale/building/...</code>);</li>
+<li>источник модели и время обновления workflow.</li>
+</ul>
+<h2>5. UX-сценарий работы пользователя</h2>
+<ol>
+<li>Открыть вкладку <code>Редактор SQL</code>.</li>
+<li>В левом дереве выбрать SQL-файл.</li>
+<li>Внести изменения в Monaco.</li>
+<li>Нажать <code>Save (Ctrl+S)</code>.</li>
+<li>При необходимости применить <code>Format (Ctrl+Shift+F)</code>.</li>
+<li>Проверить влияние <code>@config</code> в панели Priority Chain.</li>
+<li>При больших скриптах включить expanded-режим.</li>
+</ol>
+<h2>6. Краткая оценка текущего UI</h2>
+<p>Сильные стороны:</p>
+<ul>
+<li>удобная компоновка «дерево + редактор + config chain»;</li>
+<li>быстрые действия редактирования и сохранения под рукой;</li>
+<li>прозрачность приоритетов <code>@config</code>;</li>
+<li>корректная работа светлой/тёмной темы и читаемость SQL.</li>
+</ul>
+<p>Потенциальные зоны усиления:</p>
+<ul>
+<li>отдельная явная кнопка <code>Find/Replace</code> рядом с <code>Format</code> (для discoverability);</li>
+<li>визуальное выделение текущей строки/ошибки при валидации (если включены маркеры);</li>
+<li>компактный режим для правой панели на узких экранах.</li>
+</ul>
+<hr>
+<p>Скриншоты находятся в каталоге: <code>Docs/assets/sql-editor-ui/</code>.</p>
+</body></html>

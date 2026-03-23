@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { getCatalogStatus, getEntity, searchEntities, type CatalogEntity } from "../../api/catalog";
 import type { ModelAttributeItem } from "../../api/projects";
+import Tooltip from "../../shared/components/ui/Tooltip";
 
 export type ImportStrategy = "replace" | "merge";
 
@@ -209,6 +210,7 @@ export default function EntityPickerDialog({ open, existingAttributes, onClose, 
                       <th>#</th>
                       <th>System name</th>
                       <th>Display name</th>
+                      <th>Description</th>
                       <th>Type</th>
                       <th>Badges</th>
                     </tr>
@@ -219,6 +221,7 @@ export default function EntityPickerDialog({ open, existingAttributes, onClose, 
                         <td>{attr.position}</td>
                         <td>{attr.name}</td>
                         <td>{attr.display_name}</td>
+                        <td>{attr.description ? <Tooltip text={attr.description}>{attr.description}</Tooltip> : ""}</td>
                         <td>{attr.domain_type}</td>
                         <td>
                           {attr.is_key ? "🔑" : ""} {attr.is_nullable ? "∅" : ""}

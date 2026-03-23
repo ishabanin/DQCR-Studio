@@ -2052,6 +2052,7 @@ def _normalize_autocomplete_columns(columns_raw: object) -> list[dict[str, objec
                 "name": name,
                 "domain_type": item.get("domain_type") if item.get("domain_type") is not None else item.get("type"),
                 "is_key": item.get("is_key"),
+                "description": item.get("description"),
             }
         )
 
@@ -2095,7 +2096,10 @@ def _build_target_table_autocomplete_object(
 
     schema_name = str(target_table.get("schema", "")).strip()
     canonical_name = f"{schema_name}.{table_name}" if schema_name else table_name
-    lookup_keys = _normalize_autocomplete_lookup_keys([canonical_name, table_name])
+    module_name = model_id.strip()
+    object_name = table_name
+    namespaced_key = f"_m.{module_name}.{object_name}" if module_name and object_name else ""
+    lookup_keys = _normalize_autocomplete_lookup_keys([canonical_name, table_name, namespaced_key])
     columns = _normalize_autocomplete_columns(target_table.get("attributes"))
 
     return {
@@ -2103,6 +2107,8 @@ def _build_target_table_autocomplete_object(
         "kind": "target_table",
         "source": source,
         "model_id": model_id,
+        "module": module_name,
+        "object_name": object_name,
         "path": f"model/{model_id}/model.yml",
         "lookup_keys": lookup_keys,
         "columns": columns,
@@ -2220,12 +2226,15 @@ def _build_catalog_entity_autocomplete_object(entity_raw: object) -> dict[str, o
     entity_name = str(getattr(entity_raw, "name", "")).strip()
     if not entity_name:
         return None
+    module_name = str(getattr(entity_raw, "module", "")).strip()
+    namespaced_key = f"_m.{module_name}.{entity_name}" if module_name else ""
 
     columns_raw = [
         {
             "name": str(getattr(attribute, "name", "")).strip(),
             "domain_type": getattr(attribute, "domain_type", None),
             "is_key": getattr(attribute, "is_key", None),
+            "description": getattr(attribute, "description", None),
         }
         for attribute in getattr(entity_raw, "attributes", [])
     ]
@@ -2236,8 +2245,10 @@ def _build_catalog_entity_autocomplete_object(entity_raw: object) -> dict[str, o
         "kind": "catalog_entity",
         "source": "catalog",
         "model_id": None,
+        "module": module_name or None,
+        "object_name": entity_name,
         "path": None,
-        "lookup_keys": _normalize_autocomplete_lookup_keys([entity_name]),
+        "lookup_keys": _normalize_autocomplete_lookup_keys([entity_name, namespaced_key]),
         "columns": columns,
     }
 
@@ -2287,6 +2298,10 @@ def _merge_autocomplete_object_pair(primary: dict[str, object], secondary: dict[
         merged["path"] = secondary.get("path")
     if not merged.get("model_id") and secondary.get("model_id"):
         merged["model_id"] = secondary.get("model_id")
+    if not merged.get("module") and secondary.get("module"):
+        merged["module"] = secondary.get("module")
+    if not merged.get("object_name") and secondary.get("object_name"):
+        merged["object_name"] = secondary.get("object_name")
     return merged
 
 

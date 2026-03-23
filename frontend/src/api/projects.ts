@@ -71,6 +71,7 @@ export interface AutocompleteObjectColumnItem {
   name: string;
   domain_type: string | null;
   is_key: boolean | null;
+  description?: string | null;
 }
 
 export interface AutocompleteObjectItem {
@@ -78,6 +79,8 @@ export interface AutocompleteObjectItem {
   kind: "target_table" | "workflow_query" | "catalog_entity";
   source: "project_workflow" | "project_model_fallback" | "catalog";
   model_id: string | null;
+  module?: string | null;
+  object_name?: string | null;
   path: string | null;
   lookup_keys: string[];
   columns: AutocompleteObjectColumnItem[];

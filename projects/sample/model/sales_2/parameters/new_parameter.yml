@@ -1,9 +1,0 @@
-parameter:
-  name: new_parameter
-  description: "пыфропяропс"
-  domain_type: string
-
-  values:
-    all:
-      type: static
-      value: ""

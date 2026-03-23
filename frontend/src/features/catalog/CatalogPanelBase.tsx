@@ -10,6 +10,7 @@ import {
   type EntitySummary,
 } from "../../api/catalog";
 import { useUiStore } from "../../app/store/uiStore";
+import Tooltip from "../../shared/components/ui/Tooltip";
 
 interface CatalogPanelBaseProps {
   mode: "hub" | "admin";
@@ -250,6 +251,7 @@ export default function CatalogPanelBase({ mode, expandSignal }: CatalogPanelBas
                       <tr>
                         <th>Name</th>
                         <th>Display</th>
+                        <th>Description</th>
                         <th>Type</th>
                         <th>🔑</th>
                         <th>∅</th>
@@ -260,6 +262,7 @@ export default function CatalogPanelBase({ mode, expandSignal }: CatalogPanelBas
                         <tr key={`${attr.name}-${attr.position}`}>
                           <td>{attr.name}</td>
                           <td>{attr.display_name}</td>
+                          <td>{attr.description ? <Tooltip text={attr.description}>{attr.description}</Tooltip> : ""}</td>
                           <td>{attr.domain_type}</td>
                           <td>{attr.is_key ? "yes" : ""}</td>
                           <td>{attr.is_nullable ? "yes" : ""}</td>

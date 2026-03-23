@@ -22,15 +22,16 @@ def _build_catalog_xlsx_bytes() -> bytes:
             "Модуль",
             "Наименование атрибута (сист.)",
             "Наименование атрибута",
+            "Описание",
             "Тип",
             "Допустимость пустого значения",
             "П. Н.",
         ]
     )
-    sheet.append(["Аналитический счет", "Account", "ГК", "DWH", "ID", "ИД", "Длинное целое число", "нет", 0])
-    sheet.append(["Аналитический счет", "Account", "ГК", "DWH", "BranchID", "ИДСтруктураКомпании", "Число [19, 0]", "нет", 1])
-    sheet.append(["Аналитический счет", "Account", "ГК", "DWH", "Title", "Наименование", "Строка [30]", "да", 1])
-    sheet.append(["Клиент", "Client", "ГК", "DWH", "CreatedAt", "ДатаСоздания", "Дата и время", "нет", 1])
+    sheet.append(["Аналитический счет", "Account", "ГК", "DWH", "ID", "ИД", "Ключевой идентификатор", "Длинное целое число", "нет", 0])
+    sheet.append(["Аналитический счет", "Account", "ГК", "DWH", "BranchID", "ИДСтруктураКомпании", "ИД филиала", "Число [19, 0]", "нет", 1])
+    sheet.append(["Аналитический счет", "Account", "ГК", "DWH", "Title", "Наименование", "Наименование счета", "Строка [30]", "да", 1])
+    sheet.append(["Клиент", "Client", "ГК", "DWH", "CreatedAt", "ДатаСоздания", "Дата создания клиента", "Дата и время", "нет", 1])
     payload = io.BytesIO()
     workbook.save(payload)
     workbook.close()
@@ -118,12 +119,13 @@ def test_catalog_upload_replaces_previous_catalog(api_client: TestClient) -> Non
             "Модуль",
             "Наименование атрибута (сист.)",
             "Наименование атрибута",
+            "Описание",
             "Тип",
             "Допустимость пустого значения",
             "П. Н.",
         ]
     )
-    sheet.append(["Контрагент", "Counterparty", "ГК", "DWH", "CounterpartyID", "ИД", "Целое число", "нет", 0])
+    sheet.append(["Контрагент", "Counterparty", "ГК", "DWH", "CounterpartyID", "ИД", "ИД контрагента", "Целое число", "нет", 0])
     replacement_payload = io.BytesIO()
     workbook.save(replacement_payload)
     workbook.close()
@@ -181,11 +183,50 @@ def test_catalog_entities_search_and_get(api_client: TestClient) -> None:
     assert len(entity_payload["attributes"]) == 3
     by_name = {item["name"]: item for item in entity_payload["attributes"]}
     assert by_name["ID"]["domain_type"] == "bigint"
+    assert by_name["ID"]["description"] == "Ключевой идентификатор"
     assert by_name["BranchID"]["domain_type"] == "decimal(19,0)"
     assert by_name["Title"]["domain_type"] == "varchar(30)"
 
     not_found = api_client.get("/api/v1/catalog/entities/NonExistent")
     assert not_found.status_code == 404
+
+
+def test_catalog_upload_supports_alias_headers(api_client: TestClient) -> None:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Атрибуты"
+    sheet.append(
+        [
+            "наименование сущности",
+            "Объект",
+            "Информационный объект",
+            "Module",
+            "атрибут",
+            "Наименование атрибута",
+            "Описание атрибута",
+            "Тип",
+            "Допустимость пустого значения",
+            "П. Н.",
+        ]
+    )
+    sheet.append(["Карточка клиента", "ClientCard", "ГК", "CRM", "ClientCardID", "ИДКарточки", "Идентификатор карточки", "Целое число", "нет", 0])
+    payload = io.BytesIO()
+    workbook.save(payload)
+    workbook.close()
+
+    upload_response = api_client.post(
+        "/api/v1/catalog/upload",
+        files={"file": ("catalog.xlsx", payload.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert upload_response.status_code == 200, upload_response.text
+
+    entity_response = api_client.get("/api/v1/catalog/entities/ClientCard")
+    assert entity_response.status_code == 200, entity_response.text
+    item = entity_response.json()
+    assert item["module"] == "CRM"
+    assert item["display_name"] == "Карточка клиента"
+    assert item["attributes"][0]["name"] == "ClientCardID"
+    assert item["attributes"][0]["description"] == "Идентификатор карточки"
 
 
 def test_catalog_entities_requires_loaded_catalog(api_client: TestClient) -> None:
@@ -297,10 +338,14 @@ def test_autocomplete_includes_catalog_entities_when_catalog_loaded(api_client: 
     catalog_object = next((item for item in body["objects"] if item.get("kind") == "catalog_entity" and item.get("name") == "Account"), None)
     assert catalog_object is not None
     assert catalog_object["source"] == "catalog"
+    assert catalog_object["module"] == "DWH"
+    assert catalog_object["object_name"] == "Account"
+    assert "_m.DWH.Account" in catalog_object["lookup_keys"]
     assert len(catalog_object["columns"]) == 3
     by_name = {item["name"]: item for item in catalog_object["columns"]}
     assert by_name["ID"]["domain_type"] == "bigint"
     assert by_name["ID"]["is_key"] is True
+    assert by_name["ID"]["description"] == "Ключевой идентификатор"
 
 
 def test_autocomplete_without_catalog_keeps_previous_behavior(api_client: TestClient) -> None:

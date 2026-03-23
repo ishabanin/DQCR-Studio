@@ -1,6 +1,0 @@
-name: RF110
-description: "Проект RF110 для тестирования фреваваймворка"
-template: flx
-
-properties:
-  repsysname: f110

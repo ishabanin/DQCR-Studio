@@ -28,6 +28,7 @@ export interface EntitySearchResult {
 export interface CatalogAttribute {
   name: string;
   display_name: string;
+  description: string;
   domain_type: string;
   raw_type: string;
   is_nullable: boolean;

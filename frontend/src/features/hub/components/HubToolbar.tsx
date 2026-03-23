@@ -10,7 +10,7 @@ interface HubToolbarProps {
 
 function SearchInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
+    <div style={{ position: "relative", flex: 1, maxWidth: 320 }}>
       <span
         style={{
           position: "absolute",
@@ -57,21 +57,8 @@ function SearchInput({ value, onChange }: { value: string; onChange: (v: string)
 function PillFilter({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
+      className={active ? "hub-toolbar-pill active" : "hub-toolbar-pill"}
       onClick={onClick}
-      style={{
-        padding: "5px 12px",
-        borderRadius: 20,
-        border: "0.5px solid",
-        borderColor: active ? "var(--hub-accent-200)" : "var(--color-border-secondary)",
-        background: active ? "var(--hub-accent-50)" : "var(--hub-surface-card)",
-        color: active ? "var(--hub-accent-600)" : "var(--color-text-secondary)",
-        fontSize: "var(--hub-text-sm)",
-        fontFamily: "var(--hub-font-ui)",
-        cursor: "pointer",
-        fontWeight: active ? "var(--hub-weight-medium)" : "var(--hub-weight-regular)",
-        transition: "all var(--hub-transition-fast)",
-        whiteSpace: "nowrap",
-      }}
     >
       {label}
     </button>
@@ -80,28 +67,12 @@ function PillFilter({ label, active, onClick }: { label: string; active: boolean
 
 function ViewToggle({ value, onChange }: { value: "grid" | "list"; onChange: (v: "grid" | "list") => void }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        border: "var(--hub-border-medium)",
-        borderRadius: 6,
-        overflow: "hidden",
-      }}
-    >
+    <div className="hub-view-toggle">
       {(["grid", "list"] as const).map((variant) => (
         <button
           key={variant}
           onClick={() => onChange(variant)}
-          style={{
-            padding: "5px 11px",
-            background: value === variant ? "var(--hub-surface-panel)" : "var(--hub-surface-card)",
-            border: "none",
-            color: value === variant ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-            cursor: "pointer",
-            fontSize: 14,
-            fontFamily: "var(--hub-font-ui)",
-            transition: "background var(--hub-transition-fast)",
-          }}
+          className={value === variant ? "hub-view-btn active" : "hub-view-btn"}
         >
           {variant === "grid" ? "⊞" : "≡"}
         </button>
@@ -112,7 +83,7 @@ function ViewToggle({ value, onChange }: { value: "grid" | "list"; onChange: (v:
 
 export function HubToolbar({ filters, onFilter, view, setView, onOpenCatalog }: HubToolbarProps) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+    <div className="hub-toolbar">
       <SearchInput value={filters.search} onChange={(value) => onFilter({ search: value })} />
       <PillFilter
         label="◎ Public"
@@ -127,7 +98,7 @@ export function HubToolbar({ filters, onFilter, view, setView, onOpenCatalog }: 
       <button className="hub-btn-secondary" onClick={onOpenCatalog}>
         Data Catalog
       </button>
-      <div style={{ flex: 1 }} />
+      <div className="hub-toolbar-spacer" />
       <ViewToggle value={view} onChange={setView} />
     </div>
   );
