@@ -5,6 +5,8 @@ import { createProjectFolder, createProjectModel, deleteProjectPath, fetchProjec
 import { useEditorStore } from "../../app/store/editorStore";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
+import { useSqlTabsStore } from "../../app/store/sqlTabsStore";
+import { useValidationBadges, type ValidationBadgeItem } from "../hooks/useValidationBadges";
 import ProjectStructureDialog, { type ProjectStructureActionMode, type ProjectStructureActionState } from "./ProjectStructureDialog";
 import Tooltip from "./ui/Tooltip";
 
@@ -424,6 +426,7 @@ function SidebarTreeNode({
   node,
   depth,
   activeFilePath,
+  validationBadges,
   expandedPaths,
   onToggle,
   onOpen,
@@ -435,6 +438,7 @@ function SidebarTreeNode({
   node: FileNode;
   depth: number;
   activeFilePath: string | null;
+  validationBadges: Map<string, ValidationBadgeItem>;
   expandedPaths: Record<string, boolean>;
   onToggle: (path: string) => void;
   onOpen: (path: string, nodeType: "file" | "directory") => void;
@@ -460,6 +464,15 @@ function SidebarTreeNode({
   ]
     .filter(Boolean)
     .join(" ");
+  const badge = validationBadges.get(node.path);
+  const badgeClassName =
+    badge?.level === "error"
+      ? "tree-validation-badge tree-validation-badge-error"
+      : badge?.level === "warning"
+        ? "tree-validation-badge tree-validation-badge-warning"
+        : badge?.level === "info"
+          ? "tree-validation-badge tree-validation-badge-info"
+          : null;
 
   return (
     <li
@@ -501,7 +514,10 @@ function SidebarTreeNode({
             <span className="tree-expander tree-expander-spacer" aria-hidden="true" />
           )}
           <NodeIcon kind={kind} />
-          <span className="tree-label">{node.path === "." ? rootLabel : node.name}</span>
+          <span className="tree-label-wrap">
+            <span className="tree-label">{node.path === "." ? rootLabel : node.name}</span>
+            {badge && badgeClassName ? <span className={badgeClassName} title={badge.tooltip} aria-label={badge.tooltip} /> : null}
+          </span>
         </button>
         <div className="tree-row-actions">
           {isDirectory ? (
@@ -530,6 +546,7 @@ function SidebarTreeNode({
               node={child}
               depth={depth + 1}
               activeFilePath={activeFilePath}
+              validationBadges={validationBadges}
               expandedPaths={expandedPaths}
               onToggle={onToggle}
               onOpen={onOpen}
@@ -557,8 +574,10 @@ export default function Sidebar() {
   const setInitialParamScopeFilter = useUiStore((state) => state.setInitialParamScopeFilter);
   const addToast = useUiStore((state) => state.addToast);
   const openFile = useEditorStore((state) => state.openFile);
+  const openSqlTab = useSqlTabsStore((state) => state.openTab);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
   const activeFilePath = useEditorStore((state) => state.activeFilePath);
+  const validationBadges = useValidationBadges(currentProjectId);
   const setLineageTarget = useEditorStore((state) => state.setLineageTarget);
   const [actionState, setActionState] = useState<ProjectStructureActionState | null>(null);
   const [actionValue, setActionValue] = useState("");
@@ -644,6 +663,7 @@ export default function Sidebar() {
     mutationFn: ({ path, content }: { path: string; content: string }) => saveFileContent(currentProjectId as string, path, content),
     onSuccess: async (_, variables) => {
       await refreshTree();
+      openSqlTab(variables.path);
       openFile(variables.path);
       setActiveTab("sql");
       addToast("Файл создан", "success");
@@ -833,6 +853,7 @@ export default function Sidebar() {
                 node={visibleTree ?? treeQuery.data}
                 depth={0}
                 activeFilePath={activeFilePath}
+                validationBadges={validationBadges}
                 expandedPaths={expandedPaths}
                 onToggle={togglePath}
                 onOpen={(path, nodeType) => {
@@ -842,6 +863,11 @@ export default function Sidebar() {
                   }
 
                   if (nodeType === "file") {
+                    const tabResult = openSqlTab(path);
+                    if (!tabResult.ok && tabResult.reason === "limit") {
+                      addToast("Достигнут лимит открытых файлов (20). Закройте ненужные вкладки.", "error");
+                      return;
+                    }
                     openFile(path);
                     setActiveTab("sql");
                     return;

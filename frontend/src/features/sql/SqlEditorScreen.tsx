@@ -4,9 +4,7 @@ import Editor from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 
 import {
-  fetchBuildPreview,
   fetchFileContent,
-  fetchModelConfigChain,
   fetchProjectAutocomplete,
   fetchProjectTree,
   runProjectValidation,
@@ -15,9 +13,18 @@ import {
 import { useTheme } from "../../app/providers/ThemeProvider";
 import { useEditorStore } from "../../app/store/editorStore";
 import { useProjectStore } from "../../app/store/projectStore";
+import { useSqlTabsStore } from "../../app/store/sqlTabsStore";
 import { useUiStore } from "../../app/store/uiStore";
 import { useValidationStore } from "../../app/store/validationStore";
 import { configureDqcrMonaco, DQCR_LANGUAGE_ID, getDqcrTheme, setDqcrAutocompleteData } from "./dqcrLanguage";
+import SqlMetaPanel from "./components/SqlMetaPanel";
+import SqlFullscreenOverlay from "./components/SqlFullscreenOverlay";
+import SqlModeBar from "./components/SqlModeBar";
+import SqlTabBar from "./components/SqlTabBar";
+import { useSqlFullscreen } from "./hooks/useSqlFullscreen";
+import { useSqlRenderedContent } from "./hooks/useSqlRenderedContent";
+import { useSqlStepMeta } from "./hooks/useSqlStepMeta";
+import { useSqlViewMode } from "./hooks/useSqlViewMode";
 
 function Breadcrumb({ path }: { path: string }) {
   const parts = path.split("/").filter(Boolean);
@@ -31,79 +38,6 @@ function Breadcrumb({ path }: { path: string }) {
       ))}
     </div>
   );
-}
-
-function FileTabs() {
-  const openFiles = useEditorStore((state) => state.openFiles);
-  const activeFilePath = useEditorStore((state) => state.activeFilePath);
-  const setActiveFile = useEditorStore((state) => state.setActiveFile);
-  const closeFile = useEditorStore((state) => state.closeFile);
-  const reorderFiles = useEditorStore((state) => state.reorderFiles);
-  const dirtyFiles = useEditorStore((state) => state.dirtyFiles);
-
-  return (
-    <div className="file-tabs">
-      {openFiles.map((filePath) => {
-        const fileName = filePath.split("/").pop() ?? filePath;
-        const isActive = activeFilePath === filePath;
-        const isDirty = Boolean(dirtyFiles[filePath]);
-        return (
-          <div key={filePath} className={isActive ? "file-tab file-tab-active" : "file-tab"}>
-            <button
-              type="button"
-              draggable
-              onDragStart={(event) => {
-                event.dataTransfer.setData("text/plain", filePath);
-              }}
-              onDragOver={(event) => {
-                event.preventDefault();
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                const fromPath = event.dataTransfer.getData("text/plain");
-                if (!fromPath) return;
-                reorderFiles(fromPath, filePath);
-              }}
-              onClick={() => setActiveFile(filePath)}
-              className="file-tab-name"
-            >
-              {fileName}
-              {isDirty ? " ●" : ""}
-            </button>
-            <button type="button" onClick={() => closeFile(filePath)} className="file-tab-close">
-              x
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function parseSqlParameters(sql: string): string[] {
-  const pattern = /\{\{\s*([^}]+?)\s*\}\}/g;
-  const items = new Set<string>();
-  for (const match of sql.matchAll(pattern)) {
-    const expr = (match[1] ?? "").trim();
-    if (!expr) continue;
-    if (expr.includes("(")) continue;
-    const token = expr.split(/\s|\|/)[0]?.trim();
-    if (!token) continue;
-    if (!/^[A-Za-z_][\w.]*$/.test(token)) continue;
-    items.add(token);
-  }
-  return Array.from(items).sort((a, b) => a.localeCompare(b));
-}
-
-function parseSqlCtes(sql: string): string[] {
-  const items = new Set<string>();
-  for (const match of sql.matchAll(/\bwith\s+([A-Za-z_][\w]*)\s+as\s*\(/gi)) {
-    items.add(match[1]);
-  }
-  for (const match of sql.matchAll(/,\s*([A-Za-z_][\w]*)\s+as\s*\(/gi)) {
-    items.add(match[1]);
-  }
-  return Array.from(items);
 }
 
 function formatSqlBasic(raw: string): string {
@@ -161,157 +95,24 @@ function resolveEditorLanguage(path: string | null): string {
 
 const DEFAULT_VALIDATE_CATEGORIES = ["general", "sql", "descriptions"];
 
-function PriorityChainPanel({
-  levels,
-  resolved,
-  parameterUsages,
-  ctes,
-  cteDefault,
-  cteByContext,
-  inlineCteConfigs,
-  generatedOutputs,
-  previewLoading,
-  previewEngine,
-  previewContent,
-  onPreview,
-  dataSource,
-  fallback,
-}: {
-  levels: Array<{
-    id: string;
-    label: string;
-    source_path: string | null;
-    values: Record<string, string | null>;
-  }>;
-  resolved: Array<{
-    key: string;
-    value: string | null;
-    source_level: string;
-  }>;
-  parameterUsages: Array<{
-    name: string;
-    domain_type: string | null;
-    value_type: string | null;
-  }>;
-  ctes: string[];
-  cteDefault: string | null;
-  cteByContext: Record<string, string>;
-  inlineCteConfigs: Record<string, string>;
-  generatedOutputs: string[];
-  previewLoading: boolean;
-  previewEngine: string | null;
-  previewContent: string;
-  onPreview: (engine: string) => void;
-  dataSource?: string;
-  fallback?: boolean;
-}) {
-  const orderedLevels = ["template", "project", "model", "folder", "sql"];
-  const levelById = new Map(levels.map((level) => [level.id, level]));
-
-  return (
-    <aside className="config-chain-panel">
-      <h2>@config Priority Chain</h2>
-      {fallback ? <p className="config-chain-placeholder">Fallback mode: workflow cache unavailable, values are file-derived.</p> : null}
-      {dataSource && !fallback ? <p className="inspector-meta">source: {dataSource}</p> : null}
-      {resolved.map((item) => (
-        <div key={item.key} className="config-row">
-          <div className="config-row-head">
-            <code>{item.key}</code>
-            <span className="config-resolved">
-              resolved: <strong>{item.value ?? "—"}</strong>
-            </span>
-          </div>
-          <div className="config-levels">
-            {orderedLevels.map((levelId) => {
-              const level = levelById.get(levelId);
-              const rawValue = level?.values[item.key] ?? null;
-              const isActive = item.source_level === levelId && rawValue !== null;
-              return (
-                <div
-                  key={`${item.key}-${levelId}`}
-                  className={isActive ? "config-level config-level-active" : "config-level"}
-                  title={level?.source_path ?? ""}
-                >
-                  <span>{level?.label ?? levelId}</span>
-                  <code>{rawValue ?? "—"}</code>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-
-      <section className="inspector-section">
-        <h3>Parameters Used</h3>
-        {parameterUsages.length === 0 ? (
-          <p className="inspector-placeholder">No template parameters in current SQL.</p>
-        ) : (
-          <ul className="inspector-list">
-            {parameterUsages.map((item) => (
-              <li key={item.name}>
-                <code>{item.name}</code>
-                <span>{item.domain_type ?? "—"}</span>
-                <span>{item.value_type ?? "—"}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="inspector-section">
-        <h3>CTE Inspector</h3>
-        <p className="inspector-meta">
-          default: <strong>{cteDefault ?? "—"}</strong>
-        </p>
-        <p className="inspector-meta">
-          by_context:{" "}
-          {Object.keys(cteByContext).length > 0
-            ? Object.entries(cteByContext)
-                .map(([ctx, value]) => `${ctx}=${value}`)
-                .join(", ")
-            : "—"}
-        </p>
-        <p className="inspector-meta">
-          ctes: {ctes.length > 0 ? ctes.join(", ") : "—"}
-        </p>
-        <p className="inspector-meta">
-          inline_cte_configs:{" "}
-          {Object.keys(inlineCteConfigs).length > 0
-            ? Object.entries(inlineCteConfigs)
-                .map(([key, value]) => `${key}=${value}`)
-                .join(", ")
-            : "—"}
-        </p>
-      </section>
-
-      <section className="inspector-section">
-        <h3>Generated Output</h3>
-        <div className="generated-output-list">
-          {generatedOutputs.map((engine) => (
-            <button key={engine} type="button" className="generated-output-btn" onClick={() => onPreview(engine)}>
-              Preview {engine}
-            </button>
-          ))}
-        </div>
-        {previewLoading ? <p className="inspector-placeholder">Generating preview...</p> : null}
-        {previewEngine ? <p className="inspector-meta">engine: {previewEngine}</p> : null}
-        {previewContent ? <pre className="generated-preview">{previewContent}</pre> : null}
-      </section>
-    </aside>
-  );
-}
-
 export default function SqlEditorScreen() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
   const activeTab = useEditorStore((state) => state.activeTab);
-  const activeFilePath = useEditorStore((state) => state.activeFilePath);
+  const setActiveFile = useEditorStore((state) => state.setActiveFile);
   const openFile = useEditorStore((state) => state.openFile);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
-  const setDirty = useEditorStore((state) => state.setDirty);
   const cursorStateByFile = useEditorStore((state) => state.cursorStateByFile);
   const setCursorState = useEditorStore((state) => state.setCursorState);
   const navigateTo = useEditorStore((state) => state.navigateTo);
   const setNavigateTo = useEditorStore((state) => state.setNavigateTo);
+  const setLineageTarget = useEditorStore((state) => state.setLineageTarget);
+  const sqlTabs = useSqlTabsStore((state) => state.tabs);
+  const activeSqlTabId = useSqlTabsStore((state) => state.activeTabId);
+  const setActiveSqlTab = useSqlTabsStore((state) => state.setActiveTab);
+  const closeSqlTab = useSqlTabsStore((state) => state.closeTab);
+  const openSqlTab = useSqlTabsStore((state) => state.openTab);
+  const setSqlTabDirty = useSqlTabsStore((state) => state.setTabDirty);
+  const updateSqlTabScroll = useSqlTabsStore((state) => state.updateTabScroll);
   const addToast = useUiStore((state) => state.addToast);
   const setLastSavedAt = useUiStore((state) => state.setLastSavedAt);
   const userRole = useUiStore((state) => state.role);
@@ -322,6 +123,8 @@ export default function SqlEditorScreen() {
   const setLatestValidationRun = useValidationStore((state) => state.setLatestRun);
   const lastValidationCategories = useValidationStore((state) => state.lastCategories);
   const { theme } = useTheme();
+  const activeSqlTab = useMemo(() => sqlTabs.find((tab) => tab.id === activeSqlTabId) ?? null, [activeSqlTabId, sqlTabs]);
+  const activeFilePath = activeSqlTab?.filePath ?? null;
   const [draft, setDraft] = useState("");
   const [findVisible, setFindVisible] = useState(false);
   const [findQuery, setFindQuery] = useState("");
@@ -331,18 +134,51 @@ export default function SqlEditorScreen() {
   const [quickOpenQuery, setQuickOpenQuery] = useState("");
   const [quickOpenIndex, setQuickOpenIndex] = useState(0);
   const [isEditorExpanded, setIsEditorExpanded] = useState(false);
-  const [previewEngine, setPreviewEngine] = useState<string | null>(null);
-  const [previewContent, setPreviewContent] = useState("");
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
+  const modeViewStateRef = useRef<Record<string, Monaco.editor.ICodeEditorViewState | null>>({});
   const findInputRef = useRef<HTMLInputElement | null>(null);
   const quickOpenInputRef = useRef<HTMLInputElement | null>(null);
+  const [pendingCloseTabId, setPendingCloseTabId] = useState<string | null>(null);
+  const activeSqlTabIdRef = useRef<string | null>(activeSqlTabId);
   const prevActiveTabRef = useRef(activeTab);
   const prevActiveFilePathRef = useRef<string | null>(activeFilePath);
   const navigationDecorationsRef = useRef<string[]>([]);
   const navigationDecorationTimerRef = useRef<number | null>(null);
   const modelId = useMemo(() => extractModelIdFromPath(activeFilePath), [activeFilePath]);
   const editorLanguage = useMemo(() => resolveEditorLanguage(activeFilePath), [activeFilePath]);
+  const { mode, setMode, selectedTool, setSelectedTool } = useSqlViewMode(activeFilePath);
+  const sqlStepMeta = useSqlStepMeta(currentProjectId, modelId, activeFilePath);
+  const pendingCloseTab = useMemo(() => sqlTabs.find((tab) => tab.id === pendingCloseTabId) ?? null, [pendingCloseTabId, sqlTabs]);
+  const prevFullscreenRef = useRef(false);
+  const { isFullscreen, enter: enterFullscreen, exit: exitFullscreen } = useSqlFullscreen({
+    enabled: Boolean(activeFilePath),
+    onEnter: () => setIsEditorExpanded(false),
+  });
+
+  useEffect(() => {
+    activeSqlTabIdRef.current = activeSqlTabId;
+  }, [activeSqlTabId]);
+
+  useEffect(() => {
+    if (prevFullscreenRef.current && !isFullscreen) {
+      window.setTimeout(() => {
+        editorRef.current?.layout();
+      }, 0);
+    }
+    prevFullscreenRef.current = isFullscreen;
+  }, [isFullscreen]);
+
+  const openPathInSql = (path: string) => {
+    const result = openSqlTab(path);
+    if (!result.ok && result.reason === "limit") {
+      addToast("Достигнут лимит открытых файлов (20). Закройте ненужные вкладки.", "error");
+      return false;
+    }
+    openFile(path);
+    setActiveTab("sql");
+    return true;
+  };
 
   const contentQuery = useQuery({
     queryKey: ["fileContent", currentProjectId, activeFilePath],
@@ -353,11 +189,6 @@ export default function SqlEditorScreen() {
     queryKey: ["autocomplete", currentProjectId, modelId],
     queryFn: () => fetchProjectAutocomplete(currentProjectId as string, modelId),
     enabled: Boolean(currentProjectId),
-  });
-  const configChainQuery = useQuery({
-    queryKey: ["configChain", currentProjectId, modelId, activeFilePath],
-    queryFn: () => fetchModelConfigChain(currentProjectId as string, modelId as string, activeFilePath as string),
-    enabled: Boolean(currentProjectId && modelId && activeFilePath),
   });
   const projectTreeQuery = useQuery({
     queryKey: ["projectTree", currentProjectId],
@@ -420,23 +251,13 @@ export default function SqlEditorScreen() {
     () => new Set((autocompleteQuery.data?.macros ?? []).map((item) => item.name.toLowerCase())),
     [autocompleteQuery.data?.macros],
   );
-  const parameterUsages = useMemo(() => {
-    const namesFromWorkflow = configChainQuery.data?.sql_metadata?.parameters ?? [];
-    const names = namesFromWorkflow.length > 0 ? namesFromWorkflow : parseSqlParameters(draft);
-    return names.map((name) => {
-      const meta = parametersByName.get(name) ?? parametersByName.get(name.toLowerCase());
-      return {
-        name,
-        domain_type: meta?.domain_type ?? null,
-        value_type: meta?.value_type ?? null,
-      };
-    });
-  }, [configChainQuery.data?.sql_metadata?.parameters, draft, parametersByName]);
-  const ctes = useMemo(() => {
-    const workflowCtes = configChainQuery.data?.sql_metadata?.ctes ?? [];
-    if (workflowCtes.length > 0) return workflowCtes;
-    return parseSqlCtes(draft);
-  }, [configChainQuery.data?.sql_metadata?.ctes, draft]);
+  const workflowTools = useMemo(() => {
+    const toolsRaw = sqlStepMeta.workflow?.tools;
+    if (!Array.isArray(toolsRaw)) return [] as string[];
+    return toolsRaw.filter((item): item is string => typeof item === "string");
+  }, [sqlStepMeta.workflow]);
+  const renderedSql = useSqlRenderedContent(sqlStepMeta.step, mode, selectedTool);
+  const editorContent = mode === "source" ? draft : renderedSql ?? "";
 
   useEffect(() => {
     if (!autocompleteQuery.data) return;
@@ -452,9 +273,49 @@ export default function SqlEditorScreen() {
   useEffect(() => {
     if (contentQuery.data !== undefined) {
       setDraft(contentQuery.data);
-      if (activeFilePath) setDirty(activeFilePath, false);
+      if (activeSqlTab) setSqlTabDirty(activeSqlTab.id, false);
     }
-  }, [contentQuery.data, activeFilePath, setDirty]);
+  }, [activeSqlTab, contentQuery.data, setSqlTabDirty]);
+
+  useEffect(() => {
+    setActiveFile(activeFilePath);
+  }, [activeFilePath, setActiveFile]);
+
+  useEffect(() => {
+    if (mode === "source") return;
+    if (workflowTools.length === 0) return;
+    if (selectedTool && workflowTools.includes(selectedTool)) return;
+    setSelectedTool(workflowTools[0]);
+  }, [mode, selectedTool, setSelectedTool, workflowTools]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !activeFilePath) return;
+    const key = `${activeFilePath}:${mode}`;
+    const timer = window.setTimeout(() => {
+      const state = modeViewStateRef.current[key];
+      if (state) {
+        editor.restoreViewState(state);
+      }
+      editor.focus();
+    }, 20);
+    return () => window.clearTimeout(timer);
+  }, [activeFilePath, mode, editorContent]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !activeFilePath) return;
+    const key = `${activeFilePath}:${mode}`;
+    return () => {
+      modeViewStateRef.current[key] = editor.saveViewState();
+    };
+  }, [activeFilePath, mode]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.updateOptions({ readOnly: mode !== "source" });
+  }, [mode]);
 
   useEffect(() => {
     const prevTab = prevActiveTabRef.current;
@@ -465,9 +326,12 @@ export default function SqlEditorScreen() {
         scrollTop: editor.getScrollTop(),
         scrollLeft: editor.getScrollLeft(),
       });
+      if (activeSqlTab) {
+        updateSqlTabScroll(activeSqlTab.id, editor.getScrollTop());
+      }
     }
     prevActiveTabRef.current = activeTab;
-  }, [activeFilePath, activeTab, setCursorState]);
+  }, [activeFilePath, activeSqlTab, activeTab, setCursorState, updateSqlTabScroll]);
 
   useEffect(() => {
     const prevPath = prevActiveFilePathRef.current;
@@ -478,9 +342,12 @@ export default function SqlEditorScreen() {
         scrollTop: editor.getScrollTop(),
         scrollLeft: editor.getScrollLeft(),
       });
+      if (activeSqlTab) {
+        updateSqlTabScroll(activeSqlTab.id, editor.getScrollTop());
+      }
     }
     prevActiveFilePathRef.current = activeFilePath;
-  }, [activeFilePath, activeTab, setCursorState]);
+  }, [activeFilePath, activeSqlTab, activeTab, setCursorState, updateSqlTabScroll]);
 
   useEffect(() => {
     if (activeTab !== "sql") return;
@@ -492,11 +359,12 @@ export default function SqlEditorScreen() {
         editor.setPosition(state.position);
         editor.revealPositionInCenter(state.position, 0);
       }
-      editor.setScrollTop(state.scrollTop);
+      const tabScroll = activeSqlTab?.scrollTop ?? state.scrollTop;
+      editor.setScrollTop(tabScroll);
       editor.setScrollLeft(state.scrollLeft);
     }, 50);
     return () => window.clearTimeout(timer);
-  }, [activeFilePath, activeTab, cursorStateByFile]);
+  }, [activeFilePath, activeSqlTab, activeTab, cursorStateByFile]);
 
   useEffect(() => {
     if (!navigateTo) return;
@@ -569,11 +437,10 @@ export default function SqlEditorScreen() {
   const saveMutation = useMutation({
     mutationFn: () => saveFileContent(currentProjectId as string, activeFilePath as string, draft),
     onSuccess: async () => {
-      if (activeFilePath) setDirty(activeFilePath, false);
+      if (activeSqlTab) setSqlTabDirty(activeSqlTab.id, false);
       const savedAt = new Date();
       setLastSavedAt(savedAt);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["configChain", currentProjectId, modelId, activeFilePath] }),
         queryClient.invalidateQueries({ queryKey: ["autocomplete", currentProjectId] }),
         queryClient.invalidateQueries({ queryKey: ["lineage", currentProjectId, modelId] }),
         queryClient.invalidateQueries({ queryKey: ["projectParameters", currentProjectId] }),
@@ -622,21 +489,6 @@ export default function SqlEditorScreen() {
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Failed to save file";
       addToast(message, "error");
-    },
-  });
-  const previewMutation = useMutation({
-    mutationFn: (engine: string) =>
-      fetchBuildPreview(currentProjectId as string, engine, {
-        model_id: modelId as string,
-        sql_path: activeFilePath as string,
-        inline_sql: draft,
-      }),
-    onSuccess: (payload) => {
-      setPreviewEngine(payload.engine);
-      setPreviewContent(payload.preview);
-    },
-    onError: () => {
-      addToast("Preview generation failed", "error");
     },
   });
 
@@ -720,8 +572,8 @@ export default function SqlEditorScreen() {
       // fallback formatter is already applied above
     }
     setDraft(formatted);
-    if (activeFilePath) {
-      setDirty(activeFilePath, formatted !== (contentQuery.data ?? ""));
+    if (activeSqlTab) {
+      setSqlTabDirty(activeSqlTab.id, formatted !== (contentQuery.data ?? ""));
     }
     addToast("SQL formatted", "success");
   };
@@ -737,9 +589,9 @@ export default function SqlEditorScreen() {
 
     const parameterTarget = parametersByName.get(word) ?? parametersByName.get(word.toLowerCase());
     if (parameterTarget?.path) {
-      openFile(parameterTarget.path);
-      setActiveTab("sql");
-      addToast(`Opened ${parameterTarget.path}`, "success");
+      if (openPathInSql(parameterTarget.path)) {
+        addToast(`Opened ${parameterTarget.path}`, "success");
+      }
       return;
     }
 
@@ -759,7 +611,7 @@ export default function SqlEditorScreen() {
       const isFormat = (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "f";
       const isGotoDefinition = event.key === "F12";
 
-      if (isSave && activeFilePath) {
+      if (isSave && activeFilePath && mode === "source") {
         event.preventDefault();
         saveMutation.mutate();
         return;
@@ -777,7 +629,7 @@ export default function SqlEditorScreen() {
         setTimeout(() => quickOpenInputRef.current?.focus(), 0);
         return;
       }
-      if (isFormat && activeFilePath) {
+      if (isFormat && activeFilePath && mode === "source") {
         event.preventDefault();
         void applyFormatting();
         return;
@@ -802,7 +654,7 @@ export default function SqlEditorScreen() {
           event.preventDefault();
           const selected = quickOpenCandidates[quickOpenIndex];
           if (selected) {
-            openFile(selected);
+            openPathInSql(selected);
             setQuickOpenVisible(false);
             setQuickOpenQuery("");
           }
@@ -817,12 +669,14 @@ export default function SqlEditorScreen() {
       }
 
       if (findVisible && event.key === "Escape") {
+        if (isFullscreen) return;
         event.preventDefault();
         setFindVisible(false);
         return;
       }
 
       if (isEditorExpanded && event.key === "Escape") {
+        if (isFullscreen) return;
         event.preventDefault();
         setIsEditorExpanded(false);
         return;
@@ -849,8 +703,10 @@ export default function SqlEditorScreen() {
     quickOpenCandidates,
     quickOpenIndex,
     findVisible,
+    isFullscreen,
     isEditorExpanded,
-    openFile,
+    mode,
+    openPathInSql,
   ]);
 
   const title = useMemo(() => {
@@ -881,8 +737,35 @@ export default function SqlEditorScreen() {
           {isEditorExpanded ? "⤡" : "⤢"}
         </button>
       </div>
-      <FileTabs />
+      <SqlTabBar
+        tabs={sqlTabs}
+        activeTabId={activeSqlTabId}
+        onSelectTab={(tabId) => {
+          setActiveSqlTab(tabId);
+        }}
+        onRequestClose={(tabId) => {
+          const tab = sqlTabs.find((item) => item.id === tabId);
+          if (!tab) return;
+          if (!tab.isDirty) {
+            closeSqlTab(tabId);
+            return;
+          }
+          setPendingCloseTabId(tabId);
+        }}
+      />
       <Breadcrumb path={activeFilePath} />
+      <SqlModeBar
+        mode={mode}
+        onModeChange={setMode}
+        tools={workflowTools}
+        selectedTool={selectedTool}
+        onToolChange={setSelectedTool}
+        hasWorkflowCache={sqlStepMeta.status === "ok"}
+        onToggleFullscreen={() => {
+          if (isFullscreen) exitFullscreen();
+          else enterFullscreen();
+        }}
+      />
       {quickOpenVisible ? (
         <div className="sql-quickopen-panel">
           <div className="sql-quickopen-row">
@@ -914,7 +797,7 @@ export default function SqlEditorScreen() {
                   type="button"
                   className={index === quickOpenIndex ? "sql-quickopen-item sql-quickopen-item-active" : "sql-quickopen-item"}
                   onClick={() => {
-                    openFile(filePath);
+                    openPathInSql(filePath);
                     setQuickOpenVisible(false);
                     setQuickOpenQuery("");
                   }}
@@ -979,79 +862,153 @@ export default function SqlEditorScreen() {
               {isEditorExpanded ? "⤡" : "⤢"}
             </button>
           </div>
-          <Editor
-            height={isEditorExpanded ? "76vh" : "420px"}
-            beforeMount={configureDqcrMonaco}
-            onMount={(editor, monaco) => {
-              editorRef.current = editor;
-              monacoRef.current = monaco;
-            }}
-            language={editorLanguage}
-            theme={getDqcrTheme(theme)}
-            value={draft}
-            options={{
-              minimap: { enabled: false },
-              fontSize: 11.5,
-              lineHeight: 19,
-              fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", "Courier New", monospace',
-              automaticLayout: true,
-              wordWrap: "on",
-              scrollBeyondLastLine: false,
-            }}
-            onChange={(value) => {
-              const nextValue = value ?? "";
-              setDraft(nextValue);
-              const editor = editorRef.current;
-              if (editor && navigationDecorationsRef.current.length > 0) {
-                navigationDecorationsRef.current = editor.deltaDecorations(navigationDecorationsRef.current, []);
-              }
-              setDirty(activeFilePath, nextValue !== (contentQuery.data ?? ""));
-            }}
-          />
+          <div className={isFullscreen ? "sql-editor-canvas sql-editor--fullscreen" : "sql-editor-canvas"}>
+            <Editor
+              height={isFullscreen ? "100vh" : isEditorExpanded ? "76vh" : "420px"}
+              beforeMount={configureDqcrMonaco}
+              onMount={(editor, monaco) => {
+                editorRef.current = editor;
+                monacoRef.current = monaco;
+                editor.onDidScrollChange(() => {
+                  const currentTabId = activeSqlTabIdRef.current;
+                  if (!currentTabId) return;
+                  updateSqlTabScroll(currentTabId, editor.getScrollTop());
+                });
+              }}
+              language={editorLanguage}
+              theme={getDqcrTheme(theme)}
+              value={editorContent}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 11.5,
+                lineHeight: 19,
+                fontFamily: '"SF Mono", "Fira Code", "Cascadia Code", "Courier New", monospace',
+                automaticLayout: true,
+                wordWrap: "on",
+                scrollBeyondLastLine: false,
+                readOnly: mode !== "source",
+              }}
+              onChange={(value) => {
+                if (mode !== "source") return;
+                const nextValue = value ?? "";
+                setDraft(nextValue);
+                const editor = editorRef.current;
+                if (editor && navigationDecorationsRef.current.length > 0) {
+                  navigationDecorationsRef.current = editor.deltaDecorations(navigationDecorationsRef.current, []);
+                }
+                if (activeSqlTab) {
+                  setSqlTabDirty(activeSqlTab.id, nextValue !== (contentQuery.data ?? ""));
+                }
+              }}
+            />
+            {isFullscreen && activeSqlTab ? (
+              <SqlFullscreenOverlay
+                fileName={activeSqlTab.fileName}
+                isDirty={activeSqlTab.isDirty}
+                mode={mode}
+                onModeChange={setMode}
+                tools={workflowTools}
+                selectedTool={selectedTool}
+                onToolChange={setSelectedTool}
+                onSave={() => {
+                  if (mode !== "source") return;
+                  saveMutation.mutate();
+                }}
+                onFormat={() => {
+                  if (mode !== "source") return;
+                  void applyFormatting();
+                }}
+                onExit={exitFullscreen}
+              />
+            ) : null}
+          </div>
+          {mode !== "source" && sqlStepMeta.status === "ok" && !editorContent ? (
+            <p className="sql-mode-placeholder sql-mode-placeholder-under-editor">Нет SQL для выбранного tool в этом режиме.</p>
+          ) : null}
         </div>
-        {configChainQuery.data ? (
-          <PriorityChainPanel
-            levels={configChainQuery.data.levels}
-            resolved={configChainQuery.data.resolved}
-            parameterUsages={parameterUsages}
-            ctes={ctes}
-            cteDefault={configChainQuery.data.cte_settings.default}
-            cteByContext={configChainQuery.data.cte_settings.by_context}
-            inlineCteConfigs={configChainQuery.data.sql_metadata?.inline_cte_configs ?? {}}
-            generatedOutputs={configChainQuery.data.generated_outputs}
-            previewLoading={previewMutation.isPending}
-            previewEngine={previewEngine}
-            previewContent={previewContent}
-            onPreview={(engine) => previewMutation.mutate(engine)}
-            dataSource={configChainQuery.data.data_source}
-            fallback={configChainQuery.data.fallback}
+        {!isFullscreen ? (
+          <SqlMetaPanel
+          filePath={activeFilePath}
+          modelId={modelId}
+          allProjectFiles={allProjectFiles}
+          step={sqlStepMeta.step}
+          workflow={sqlStepMeta.workflow}
+          status={sqlStepMeta.status}
+          workflowStatus={sqlStepMeta.workflowStatus}
+          isLoading={sqlStepMeta.isLoading}
+          onOpenFile={(path) => {
+            openPathInSql(path);
+          }}
+          onOpenLineage={(dependency) => {
+            setActiveTab("lineage");
+            setNavigateTo(null);
+            setLineageTarget({ modelId, nodePath: dependency });
+          }}
           />
-        ) : (
-          <aside className="config-chain-panel">
-            <h2>@config Priority Chain</h2>
-            <p className="config-chain-placeholder">
-              {modelId ? "No config chain data yet." : "Open a file inside model/* to load config chain."}
-            </p>
-          </aside>
-        )}
+        ) : null}
       </div>
-      <div className="sql-actions">
-        <button type="button" className="action-btn action-btn-primary" onClick={() => saveMutation.mutate()}>
-          Save (Ctrl+S)
-        </button>
-        <button type="button" className="action-btn" onClick={applyFormatting}>
-          Format (Ctrl+Shift+F)
-        </button>
-        <label className="sql-auto-validate-toggle">
-          <input
-            type="checkbox"
-            checked={validationAutoRun}
-            onChange={(event) => setValidationAutoRun(event.target.checked)}
-          />
-          Auto validate on save
-        </label>
-        <span>{saveMutation.isSuccess ? "Saved" : "Editing"}</span>
-      </div>
+      {mode === "source" ? (
+        <div className="sql-actions">
+          <button type="button" className="action-btn action-btn-primary" onClick={() => saveMutation.mutate()}>
+            Save (Ctrl+S)
+          </button>
+          <button type="button" className="action-btn" onClick={applyFormatting}>
+            Format (Ctrl+Shift+F)
+          </button>
+          <label className="sql-auto-validate-toggle">
+            <input
+              type="checkbox"
+              checked={validationAutoRun}
+              onChange={(event) => setValidationAutoRun(event.target.checked)}
+            />
+            Auto validate on save
+          </label>
+          <span>{saveMutation.isSuccess ? "Saved" : "Editing"}</span>
+        </div>
+      ) : null}
+      {pendingCloseTab ? (
+        <div className="sql-close-dialog-overlay" role="dialog" aria-modal="true">
+          <div className="sql-close-dialog">
+            <h3>Несохранённые изменения</h3>
+            <p>Файл {pendingCloseTab.fileName} имеет несохранённые изменения. Закрыть без сохранения?</p>
+            <div className="sql-close-dialog-actions">
+              <button
+                type="button"
+                className="action-btn action-btn-primary"
+                onClick={() => {
+                  if (activeSqlTabId !== pendingCloseTab.id) {
+                    setActiveSqlTab(pendingCloseTab.id);
+                    setPendingCloseTabId(null);
+                    addToast("Сначала сохраните файл из активной вкладки", "error");
+                    return;
+                  }
+                  saveMutation.mutate(undefined, {
+                    onSuccess: () => {
+                      closeSqlTab(pendingCloseTab.id);
+                      setPendingCloseTabId(null);
+                    },
+                  });
+                }}
+              >
+                Сохранить
+              </button>
+              <button
+                type="button"
+                className="action-btn"
+                onClick={() => {
+                  closeSqlTab(pendingCloseTab.id);
+                  setPendingCloseTabId(null);
+                }}
+              >
+                Не сохранять
+              </button>
+              <button type="button" className="action-btn" onClick={() => setPendingCloseTabId(null)}>
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

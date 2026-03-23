@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { useEffect } from "react";
 import { fetchProject } from "./api/projects";
 import { useProjectStore } from "./app/store/projectStore";
+import { useSqlTabsStore } from "./app/store/sqlTabsStore";
 import ProjectsHub from "./features/hub/ProjectsHub";
 import Workbench from "./features/layout/Workbench";
 import ProjectWizardModal from "./features/wizard/ProjectWizardModal";
@@ -20,6 +21,7 @@ export default function App() {
   const sidebarWidth = useUiStore((state) => state.sidebarWidth);
   const bottomPanelExpanded = useUiStore((state) => state.bottomPanelExpanded);
   const bottomPanelHeight = useUiStore((state) => state.bottomPanelHeight);
+  const isEditorFullscreen = useSqlTabsStore((state) => state.isFullscreen);
   const hasActiveProject = Boolean(currentProjectId);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export default function App() {
         </div>
       ) : (
         <div
-          className="app-shell"
+          className={isEditorFullscreen ? "app-shell app--editor-fullscreen" : "app-shell"}
           style={
             {
               "--width-sidebar": `${sidebarCollapsed ? 64 : sidebarWidth}px`,
