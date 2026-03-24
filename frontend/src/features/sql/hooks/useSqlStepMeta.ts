@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { fetchModelWorkflow } from "../../../api/projects";
 import { useContextStore } from "../../../app/store/contextStore";
+import { getStepMatchScore, parseSqlFileKey } from "../sqlStepUtils";
 
 interface SqlStepMetaResult {
   workflow: Record<string, unknown> | null;
@@ -12,48 +13,17 @@ interface SqlStepMetaResult {
   isLoading: boolean;
 }
 
-function parseSqlKeyFromPath(filePath: string | null): { folder: string; queryName: string } | null {
-  if (!filePath) return null;
-  const parts = filePath.split("/").filter(Boolean);
-  const workflowIndex = parts.findIndex((part) => part === "workflow");
-  if (workflowIndex < 0) return null;
-  const folder = parts[workflowIndex + 1];
-  const fileName = parts[workflowIndex + 2];
-  if (!folder || !fileName || !fileName.endsWith(".sql")) return null;
-  return { folder, queryName: fileName.replace(/\.sql$/i, "") };
-}
-
-function getMatchingStep(
-  workflow: Record<string, unknown>,
-  key: { folder: string; queryName: string },
-  activeContext: string,
-): Record<string, unknown> | null {
+function getMatchingStep(workflow: Record<string, unknown>, key: { folder: string; queryName: string }, activeContext: string): Record<string, unknown> | null {
   const stepsRaw = workflow.steps;
   if (!Array.isArray(stepsRaw)) return null;
 
-  const expectedPrefix = `${key.folder}/${key.queryName}`;
-
   const sqlSteps = stepsRaw
     .filter((step): step is Record<string, unknown> => typeof step === "object" && step !== null)
-    .filter((step) => step.step_type === "sql")
-    .filter((step) => {
-      const fullName = typeof step.full_name === "string" ? step.full_name : "";
-      return !fullName.includes("/cte/");
-    })
-    .filter((step) => {
-      const fullName = typeof step.full_name === "string" ? step.full_name : "";
-      return fullName === expectedPrefix || fullName.startsWith(`${expectedPrefix}/`);
-    });
+    .map((step) => ({ step, score: getStepMatchScore(step, key, activeContext) }))
+    .filter((item) => item.score >= 0)
+    .sort((a, b) => b.score - a.score);
 
-  if (sqlSteps.length === 0) return null;
-
-  const exactContext = sqlSteps.find((step) => step.context === activeContext);
-  if (exactContext) return exactContext;
-
-  const allContext = sqlSteps.find((step) => step.context === "all");
-  if (allContext) return allContext;
-
-  return sqlSteps[0] ?? null;
+  return sqlSteps[0]?.step ?? null;
 }
 
 export function useSqlStepMeta(projectId: string | null, modelId: string | null, filePath: string | null): SqlStepMetaResult {
@@ -80,7 +50,7 @@ export function useSqlStepMeta(projectId: string | null, modelId: string | null,
       };
     }
 
-    const sqlKey = parseSqlKeyFromPath(filePath);
+    const sqlKey = parseSqlFileKey(filePath);
     if (!sqlKey) {
       return {
         workflow,

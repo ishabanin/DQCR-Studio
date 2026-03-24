@@ -1,0 +1,250 @@
+<?xml version='1.0' encoding='windows-1251'?>
+<doc>
+  <params>
+    <param name="Title"><![CDATA[RF110RestTurnReg]]></param>
+    <param name="Description"><![CDATA[Заполнение реестра остатков и оборотов для формы 110 (для контекста default, для tool adb)]]></param>
+  </params>
+  <content>
+    <object type="SQL" name="get_entities">
+      <property name="Description"><![CDATA[Таблицы для логических сущностей]]></property>
+      <property name="SQL"><![CDATA[
+                SELECT 
+                    MAX(CASE WHEN entity_name = 'clientchr' AND module_name = 'dwh' THEN table_name END) AS table_dwh_clientchr,
+                    MAX(CASE WHEN entity_name = 'rf110restturnreg' AND module_name = 'rf110' THEN table_name END) AS table_rf110_rf110restturnreg,
+                    MAX(CASE WHEN entity_name = 'assetregistercor' AND module_name = 'assetreg' THEN table_name END) AS table_assetreg_assetregistercor,
+                    MAX(CASE WHEN entity_name = 'account' AND module_name = 'dwh' THEN table_name END) AS table_dwh_account,
+                    MAX(CASE WHEN entity_name = 'clientjurregister' AND module_name = 'clientjurreg' THEN table_name END) AS table_clientjurreg_clientjurregister,
+                    MAX(CASE WHEN entity_name = 'secdealrepo' AND module_name = 'dwh' THEN table_name END) AS table_dwh_secdealrepo,
+                    MAX(CASE WHEN entity_name = 'currency' AND module_name = 'dwh' THEN table_name END) AS table_dwh_currency,
+                    MAX(CASE WHEN entity_name = 'psregister' AND module_name = 'psreg' THEN table_name END) AS table_psreg_psregister
+                FROM md_entity2table
+                WHERE (entity_name = 'clientchr' AND module_name = 'dwh') OR (entity_name = 'rf110restturnreg' AND module_name = 'rf110') OR (entity_name = 'assetregistercor' AND module_name = 'assetreg') OR (entity_name = 'account' AND module_name = 'dwh') OR (entity_name = 'clientjurregister' AND module_name = 'clientjurreg') OR (entity_name = 'secdealrepo' AND module_name = 'dwh') OR (entity_name = 'currency' AND module_name = 'dwh') OR (entity_name = 'psregister' AND module_name = 'psreg')
+]]></property>
+      <property name="OUT"><![CDATA[table_dwh_clientchr;table_rf110_rf110restturnreg;table_assetreg_assetregistercor;table_dwh_account;table_clientjurreg_clientjurregister;table_dwh_secdealrepo;table_dwh_currency;table_psreg_psregister]]></property>
+    </object>
+
+
+    <object type="SQL" name="param_clientchr_sql_filter">
+      <property name="Description"><![CDATA[Фильтр на статус записи в Характерах клиента]]></property>
+      <property name="SQL"><![CDATA[
+                SELECT 'rowstatus = ''A''' as clientchr_sql_filter
+]]></property>
+      <property name="OUT"><![CDATA[clientchr_sql_filter]]></property>
+    </object>
+
+
+    <object type="SQL" name="param_date_end">
+      <property name="Description"><![CDATA[Дата расчета]]></property>
+      <property name="SQL"><![CDATA[
+                SELECT ':DATE_END:' as date_end
+]]></property>
+      <property name="OUT"><![CDATA[date_end]]></property>
+    </object>
+
+
+    <object type="SQL" name="001_RF110_Reg_Acc2">
+      <property name="Description"><![CDATA[Step: 001_Load__distr/001_RF110_Reg_Acc2_default/sql]]></property>
+      <property name="SQL"><![CDATA[
+                CREATE TABLE tmp_001_RF110_Reg_Acc2_:calc_id: AS
+                SELECT 
+                    RF110.get_base_calc_id() as CalcID,
+                    t.*
+                FROM (
+                    select distinct a2.ID, a2.AccountNumber
+                  from DWR_tRF110Settings s
+                       inner join :RFAccGroupEl: a
+                       inner join :Account2: a2
+                                  on a2.AccountNumber = a.AccountMask
+                                  and a2.DateBegin <= to_date(':date_end:','yyyymmdd')
+                                  and a2.DateEnd > to_date(':date_end:','yyyymmdd')
+                                  and a2.RowStatus = 'A'
+                  where s.RFFormProfileID = :rfprofile_f110:
+                  and s.Algorithm in ('F110_ALG_0','F110_ALG_4')
+                group by a2.ID, a2.AccountNumber
+                ) t
+]]></property>
+    </object>
+
+
+    <object type="SQL" name="sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_ClientChr1_34_default">
+      <property name="Description"><![CDATA[Step: 001_Load__distr/002_RF110RestTurnReg_ACCDEMAND_default/cte/ClientChr1_34]]></property>
+      <property name="SQL"><![CDATA[
+                CREATE TABLE tmp_sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_ClientChr1_34_default_:calc_id: AS
+                SELECT 
+                    RF110.get_base_calc_id() as CalcID,
+                    t.*
+                FROM (
+                    select distinct 
+                                                                        
+                                               ClientID as ClientID 
+                		                      from :table_dwh_clientchr:
+                                         where DateBegin <= to_date(':date_end:','yyyymmdd')
+                		                       and DateEnd > to_date(':date_end:','yyyymmdd')
+                                           and :clientchr_sql_filter:
+                		                       and ClientCharacter in (1,34) --адвокат/нотариус, арбитражный управляющий
+                ) t
+                DISTRIBUTED BY (clientid)
+]]></property>
+    </object>
+
+
+    <object type="SQL" name="002_RF110RestTurnReg_ACCDEMAND">
+      <property name="Description"><![CDATA[Step: 001_Load__distr/002_RF110RestTurnReg_ACCDEMAND_default/sql]]></property>
+      <property name="SQL"><![CDATA[
+                INSERT INTO RF110RestTurnReg (dealid, accountid, objectid, calcid, accountnumber, clientid, loanrepokind, somerequiredattribute)
+                SELECT dealid, accountid, objectid, calcid, accountnumber, clientid, loanrepokind, 'test' as somerequiredattribute
+                FROM (
+                                      select :table_rf110_rf110restturnreg: as ID,
+                                         :calc_id: as CalcID,
+                                         reg.BranchID as BranchID,
+                                         reg.ExternalClientID as ExternalClientID,
+                                         reg.RowStatus as RowStatus,
+                                         reg.VIP as VIP,
+                                         reg.AccountID as AccountID,
+                                         NVL(reg.ContractNumber, 'test') as ContractNumber,
+                                         reg.DealID as DealID,
+                                         reg.AccountNumber as AccountNumber,
+                                         reg.Account2ID as Account2ID,
+                                         reg.Account2Number as Account2Number,
+                                         reg.CorrectObjectID as ObjectID,
+                                         reg.SumType as SumType,
+                                         reg.CorrectObjectBrief as ObjectBrief,
+                                         reg.CorrectObjectID as CorrectObjectID,
+                                         reg.CurrencyID as CurrencyID,
+                                         null as SecCategory,
+                                         reg.ClientID as ClientID,
+                                         coalesce(cjr.ClientType,reg.ClientType) as ClientType,
+                                         reg.Resident as ClientIsResident,
+                                         cjr.OwnershipFormID as ClientOwnershipFormID,
+                                         cjr.Authority as ClientAuthority,
+                                         case
+                                           when chr.ClientID is not null
+                                             then 'CMN_BIN_YES'
+                                           else 'CMN_BIN_NO'
+                                         end as IsLawyerNotary,
+                                         cjr.OffshoreResident as MinusLevy,
+                                         case
+                                         when coalesce(cjr.IsFinancial,'CMN_BIN_NULL') = 'CMN_BIN_NULL'
+                                           then 'CMN_BIN_NO'
+                                             else cjr.IsFinancial
+                                         end as IsFinOrg,
+                                         cjr.IsClearingMember as IsClearingMember,
+                                         reg.PaymentDelay as PaymentDelay,
+                                         reg.PaymentSumRur as OutRestRub,
+                                         reg.PaymentSumVal as OutRestVal,
+                                         reg.AccountName as AccountName,
+                                         reg.ClientName as ClientName,
+                                         NULL as LinkAccountID,
+                                         NULL as LinkAccountNumber,
+                                         NULL as LinkAccount2Number,
+                                         NULL as LinkCurrencyCode,
+                                         reg.SecurityID as SecurityID,
+                                         enum2str(sdr.DealKind) as LoanREPOKind,
+                                         null as SecKind,
+                                         reg.SecPortfolioID as SecPortfolioID,
+                                         case 
+                                           when reg.ClientID != acc.ClientID then 'CMN_BIN_YES'
+                                           else 'CMN_BIN_NO'
+                                         end as IsLoanGuarantor,
+                                         cur.Type  as CurrencyType,
+                                         cur.Code as CurrencyCode,
+                                         enum2str(acc.openingreason) as AccountOpeningReason,
+                                         NULL as DepositKind,
+                                         DECODE(cjr.COUNTRYCODE, '996', 'CMN_BIN_YES', 'CMN_BIN_NO') as IsInternational290FZ,
+                                         reg.ParentDealID,
+                                         reg.ParentContractNumber,
+                                         reg.AccountRole as AccountRole
+                                    from :table_assetreg_assetregistercor: reg
+                                   inner join tmp_001_RF110_Reg_Acc2_:calc_id: a
+                                           on a.Account2Number = reg.Account2Number
+                                   inner join :table_dwh_account: acc
+                                           on acc.ID = reg.AccountID 
+                                          and acc.DateBegin <= to_date(':date_end:','yyyymmdd')
+                                          and acc.DateEnd > to_date(':date_end:','yyyymmdd')
+                                    left join :table_clientjurreg_clientjurregister: cjr
+                                           on cjr.CalcID = :calc_clientjurreg_id:
+                                          and cjr.ClientID = reg.ClientID 
+                                    left JOIN tmp_sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_ClientChr1_34_default_:calc_id: chr
+                                           on chr.ClientID = reg.ClientID
+                                    left join :table_dwh_secdealrepo: sdr
+                                           on sdr.DateBegin <= to_date(':date_end:','yyyymmdd')
+                                          and sdr.DateEnd > to_date(':date_end:','yyyymmdd')
+                                          and sdr.RowStatus = 'A'
+                                          and sdr.MainDealID = reg.DealID
+                                    left join :table_dwh_currency: cur 
+                                           on cur.ID = acc.CurrencyID
+                                   where reg.CalcID = :calc_astreg_id:
+                                     and reg.LevelGroup = 0
+                                     and reg.RowStatus = 'A'
+                                     and (substr(reg.Account2Number,1,3) = '706' or abs(reg.ParentAccountID) != 1 )
+                
+                ) t
+]]></property>
+    </object>
+
+
+    <object type="SQL" name="003_RF110RestTurnReg_ACCRSRV">
+      <property name="Description"><![CDATA[Step: 001_Load__distr/003_RF110RestTurnReg_ACCRSRV_default/sql]]></property>
+      <property name="SQL"><![CDATA[
+                with b as (
+                  select config_type from config_table where config_group = 'reports'
+                ),
+                a as (
+                  select max(config_type) as config_max_type
+                  from b
+                )
+                select 1 as test
+                from test_table t
+                    cross join a
+                where t.config_type in (select config_type from b)
+]]></property>
+    </object>
+
+
+    <object type="SQL" name="applySettings">
+      <property name="Description"><![CDATA[Step: 001_Load__distr/004_applySettings_iter/applySettings_default/sql]]></property>
+      <property name="SQL"><![CDATA[
+                select dealid, :sett.strnum:
+                from register
+                where account2 = :sett.account2:
+]]></property>
+    </object>
+
+
+    <object type="SQL" name="001_RF110RestTurnReg_QUALITY">
+      <property name="Description"><![CDATA[обновление категории качества]]></property>
+      <property name="SQL"><![CDATA[
+                UPDATE RF110RestTurnReg trg
+                SET datefrom = src.datefrom, fininstrcategory = src.fininstrcategory 
+                FROM (
+                        
+                
+                with b as (
+                    
+                    select 1 as t from tbl)
+                select r.DealID,
+                       r.FinInstrCategory,
+                       r.DateFrom
+                from :table_psreg_psregister: r
+                where r.CalcID = :calc_psregister_id:
+                and r.RowStatus = 'A'
+                and r.tt in (select 1 from b)
+                ) src
+                WHERE trg.calcid = :CALC_ID: AND trg.dealid = src.dealid
+]]></property>
+    </object>
+
+
+    <call type="MultiFunc" name="EXEC_default_adb" value="">
+      <step>get_entities</step>
+      <step>param_clientchr_sql_filter</step>
+      <step>param_date_end</step>
+      <step>001_RF110_Reg_Acc2</step>
+      <step>sql_001_Load_distr_002_RF110RestTurnReg_ACCDEMAND_ClientChr1_34_default</step>
+      <step>002_RF110RestTurnReg_ACCDEMAND</step>
+      <step>003_RF110RestTurnReg_ACCRSRV</step>
+      <step>applySettings</step>
+      <step>001_RF110RestTurnReg_QUALITY</step>
+    </call>
+  </content>
+</doc>

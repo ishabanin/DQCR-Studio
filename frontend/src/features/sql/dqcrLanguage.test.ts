@@ -95,6 +95,22 @@ describe("dqcrLanguage SQL autocomplete helpers", () => {
     expect(result.objectSuggestions.map((item) => item.name).slice(0, 2)).toEqual(["src", "_w.01_stage.001_main"]);
   });
 
+  it("prioritizes local CTEs in default context too", () => {
+    const { sql, offset } = withCursor(`
+      with src as (
+        select order_id as id
+        from dm.orders
+      )
+      select |
+      from src
+    `);
+
+    const result = resolveAutocompleteContext(sql, offset, baseData);
+
+    expect(result.mode).toBe("default");
+    expect(result.objectSuggestions[0]?.name).toBe("src");
+  });
+
   it("resolves local CTE columns for alias member completion", () => {
     const { sql, offset } = withCursor(`
       with src as (

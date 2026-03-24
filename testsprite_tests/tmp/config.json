@@ -1,0 +1,18 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://127.0.0.1:80",
+  "executionArgs": {
+    "projectName": "DQCR Studio",
+    "projectPath": "/Users/IgorShabanin/dev/DQCR Studio",
+    "testIds": [],
+    "additionalInstruction": "Focus on core user flows in the project hub, workspace navigation, SQL editor, lineage, validation, model editor, and build screens.",
+    "serverMode": "development",
+    "envs": {
+      "API_KEY": "sk-user-wos0lkrbt6sRe7c-lrqBv0Ne1gRJuQU1wejleUvQuYnvl4Z0qY1guPH-8zd3WSg2pqlqkJ3J9GzFfuuODoHhebWhyxTXN9DZItnUXFGJTazGBFamQCMvcy_3yk7DkVf5v_I"
+    }
+  },
+  "serverPort": 62402,
+  "proxy": "http://f78b42a0-7b1d-4d97-bbd2-7905b86b65fb:Qgyd9g1LlDLDqo5OMOh6SSsp5uBMurHP@tun.testsprite.com:8080"
+}

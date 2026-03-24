@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='windows-1251'?>
+<doc>
+  <params>
+    <param name="Title"><![CDATA[RF110RestTurnReg]]></param>
+    <param name="Description"><![CDATA[Заполнение реестра остатков и оборотов для формы 110]]></param>
+  </params>
+  <content>
+    <include name="RF110RestTurnReg_main" src="forms/f110/RF110RestTurnReg/RF110RestTurnReg_main.xml" exec="ON" callif="BP_RF110RestTurnReg"/>
+  </content>
+</doc>

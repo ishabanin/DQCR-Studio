@@ -1,0 +1,2161 @@
+[
+  {
+    "id": "TC001",
+    "title": "Create a new project from grid view and open it in the workbench",
+    "description": "Verifies a user can search, create a new project from the hub, see it listed, and open it into the workbench.",
+    "category": "Project Hub",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Projects\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Grid\" view toggle"
+      },
+      {
+        "type": "action",
+        "description": "Type \"e2e-grid\" into the \"Search\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Create New Project\""
+      },
+      {
+        "type": "action",
+        "description": "Type \"e2e-project-001\" into the \"Project ID\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Create\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"e2e-project-001\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Open a project from the hub into the workbench",
+    "description": "Verifies that opening any existing project from the hub transitions the UI into the workbench for that project.",
+    "category": "Project Hub",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Projects\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Grid\" view toggle"
+      },
+      {
+        "type": "action",
+        "description": "Click on the first visible \"Open\" button on a project card"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Workbench\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Project workspace header\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Switch to list mode and verify projects are displayed",
+    "description": "Verifies the user can switch to list mode and see projects displayed in a tabular/list layout.",
+    "category": "Project Hub",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Projects\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"List\" view toggle"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Projects list\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Project row\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Filter projects using search text and confirm list updates",
+    "description": "Verifies search filtering reduces the visible projects to those matching the entered text.",
+    "category": "Project Hub",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Projects\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"List\" view toggle"
+      },
+      {
+        "type": "action",
+        "description": "Type \"nonexistent-project-name-xyz\" into the \"Search\" field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"No projects\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Clear the \"Search\" field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Project row\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Cancel create project modal does not create a new project",
+    "description": "Verifies canceling out of the create modal closes it and does not add a new project to the list.",
+    "category": "Project Hub",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Projects\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Create New Project\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Create Project\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Cancel\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Create Project\" is not visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Projects\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Create new project requires Project ID validation before submission",
+    "description": "Verifies the create modal enforces required Project ID input and prevents creation when missing.",
+    "category": "Project Hub",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Projects\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Create New Project\""
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Create\" button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Project ID\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"required\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "View Project Info summary and project.yml preview for an opened project",
+    "description": "Verifies that a user can open a project and view the Project Info tab with aggregated summary information and a project.yml preview.",
+    "category": "Project Info",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Open\" on a project card"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"TabBar\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Project Info\" tab in the TabBar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Project Info\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"project.yml\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Project summary\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Edit project description metadata and save successfully",
+    "description": "Verifies that editing the Description field in Project Info can be saved and the UI reflects the updated description with a success toast.",
+    "category": "Project Info",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Project Info\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Edit metadata\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Edit metadata\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Type \"Updated project description for UI test\" into the \"Description\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Save\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Saved\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Saved description is reflected in Project Info summary after reopening the editor",
+    "description": "Verifies that after saving a new Description, the Project Info view continues to show the updated value when revisiting metadata editing.",
+    "category": "Project Info",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Project Info\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Edit metadata\""
+      },
+      {
+        "type": "action",
+        "description": "Type \"Description persisted check\" into the \"Description\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Save\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Saved\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Edit metadata\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Description persisted check\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Edit tags and visibility and save successfully",
+    "description": "Verifies that a user can modify project tags and visibility settings and save without errors.",
+    "category": "Project Info",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Project Info\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Edit metadata\""
+      },
+      {
+        "type": "action",
+        "description": "Type \"ui-test,metadata\" into the \"Tags\" field"
+      },
+      {
+        "type": "action",
+        "description": "Select \"Private\" from the \"Visibility\" dropdown"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Save\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Saved\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Invalid visibility value shows validation error and blocks saving",
+    "description": "Verifies that entering an invalid visibility value triggers a visible validation error and prevents a successful save.",
+    "category": "Project Info",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Project Info\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Edit metadata\""
+      },
+      {
+        "type": "action",
+        "description": "Type \"not-a-valid-visibility\" into the \"Visibility\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Save\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"validation\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Saved\" is not visible"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Project Info shows counts/tags/cache status sections in the aggregated summary",
+    "description": "Verifies that the aggregated project summary includes key sections such as counts, tags, and cache status indicators.",
+    "category": "Project Info",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Project Info\" tab in the TabBar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Counts\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Tags\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Cache\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Open Edit metadata and cancel/close without saving does not show success toast",
+    "description": "Verifies that exiting the Edit metadata UI without saving does not display a success toast.",
+    "category": "Project Info",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Project Info\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Edit metadata\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Save\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Cancel\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Saved\" is not visible"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Open a project and confirm Workbench top bar shows active project",
+    "description": "Verifies that opening a project from the hub loads the workbench and displays the selected project in the top bar.",
+    "category": "Project Workspace Navigation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Open\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open\" on a project card"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Workbench top bar\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Active project\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Switch active project from the TopBar dropdown",
+    "description": "Verifies that the active project can be changed from the top bar after a project is opened.",
+    "category": "Project Workspace Navigation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Active project\" dropdown in the workbench top bar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Project list\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on a different project name in the project list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the active project name in the top bar changes to the newly selected project"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Select context 'default' and open the Model tab",
+    "description": "Verifies selecting the 'default' context and switching to the Model tab loads the Model Editor for the active project.",
+    "category": "Project Workspace Navigation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Context\" selector in the workbench top bar"
+      },
+      {
+        "type": "action",
+        "description": "Click on context option \"default\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"default\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Model\" in the tab bar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Model Editor\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "Enable multi-context mode and select two contexts",
+    "description": "Verifies multi-context mode can be enabled and two contexts can be selected for the opened project.",
+    "category": "Project Workspace Navigation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click on the TopBar control to enable multi-context mode"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Multi-context selection\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Context\" selector in the workbench top bar"
+      },
+      {
+        "type": "action",
+        "description": "Click on one context option in the list"
+      },
+      {
+        "type": "action",
+        "description": "Click on a second context option in the list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"2\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "With two contexts selected, switch to SQL tab and verify editor readiness",
+    "description": "Verifies switching to the SQL tab works with multi-context selection and the SQL editor is ready with context metadata visible.",
+    "category": "Project Workspace Navigation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click on the TopBar control to enable multi-context mode"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Context\" selector in the workbench top bar"
+      },
+      {
+        "type": "action",
+        "description": "Click on one context option in the list"
+      },
+      {
+        "type": "action",
+        "description": "Click on a second context option in the list"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"SQL\" in the tab bar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"SQL editor\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC019",
+    "title": "Attempt to select a non-existent context and verify error toast",
+    "description": "Verifies that choosing an unavailable context shows a 'Context unavailable' toast and does not change the current context.",
+    "category": "Project Workspace Navigation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Context\" selector in the workbench top bar"
+      },
+      {
+        "type": "action",
+        "description": "Type \"non-existent-context\" into the context selector search field"
+      },
+      {
+        "type": "action",
+        "description": "Press Enter"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Context unavailable\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the previously selected context value is still visible in the top bar"
+      }
+    ]
+  },
+  {
+    "id": "TC020",
+    "title": "Switch between tabs (Model to SQL) and confirm each screen loads",
+    "description": "Verifies tab switching works end-to-end by moving between Model and SQL views within an opened project.",
+    "category": "Project Workspace Navigation",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Model\" in the tab bar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Model Editor\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"SQL\" in the tab bar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"SQL editor\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC021",
+    "title": "Toggle theme control and verify visible UI change indicator",
+    "description": "Verifies theme can be toggled from the workbench controls and a visible indicator reflects the change.",
+    "category": "Project Workspace Navigation",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Theme\" control in the workbench top bar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Dark\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Theme\" control in the workbench top bar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Light\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC022",
+    "title": "Toggle user role control and verify role label changes",
+    "description": "Verifies the user role control can be changed and the visible role indicator updates accordingly.",
+    "category": "Project Workspace Navigation",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open\" on a project card"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Role\" control in the workbench top bar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Role options\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on a different role option"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the role label in the top bar reflects the newly selected role"
+      }
+    ]
+  },
+  {
+    "id": "TC023",
+    "title": "Open SQL file, edit, save, and view rendered SQL",
+    "description": "Verifies a SQL file can be opened from the project tree, edited, saved successfully, and switched to rendered preview.",
+    "category": "SQL Editor",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"SQL\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click to open the file tree in the left Sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Click the SQL file \"001_main.sql\" in the file tree"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"SQL editor\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Type \"\\n-- e2e edit\" into the SQL editor"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button in the SQL editor toolbar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Saved\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC024",
+    "title": "Switch between prepared and rendered views after opening a SQL file",
+    "description": "Verifies the user can toggle from prepared to rendered view and see the rendered SQL preview panel.",
+    "category": "SQL Editor",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"SQL\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click to open the file tree in the left Sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Click the SQL file \"001_main.sql\" in the file tree"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Prepared\" view toggle (if present) to ensure prepared mode is active"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Render\" view"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Rendered SQL preview\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC025",
+    "title": "Metadata panel shows Priority Chain for an opened SQL file",
+    "description": "Verifies the right-side metadata panel can be opened and displays a Priority Chain section for the selected SQL file.",
+    "category": "SQL Editor",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"SQL\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click to open the file tree in the left Sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Click the SQL file \"001_main.sql\" in the file tree"
+      },
+      {
+        "type": "action",
+        "description": "Click to open the right-side \"Metadata\" (or \"Info\") panel"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Priority Chain\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC026",
+    "title": "Clicking an object in Priority Chain highlights reference in the editor",
+    "description": "Verifies selecting an item from the metadata Priority Chain causes a visible highlight/selection in the SQL editor.",
+    "category": "SQL Editor",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"SQL\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click to open the file tree in the left Sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Click the SQL file \"001_main.sql\" in the file tree"
+      },
+      {
+        "type": "action",
+        "description": "Click to open the right-side \"Metadata\" (or \"Info\") panel"
+      },
+      {
+        "type": "action",
+        "description": "Click the first clickable object listed under \"Priority Chain\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Highlighted SQL reference\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC027",
+    "title": "Empty-content SQL file shows placeholder state",
+    "description": "Verifies a SQL file with empty content renders an empty placeholder in the editor instead of failing silently.",
+    "category": "SQL Editor",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"SQL\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click to open the file tree in the left Sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Click the SQL file that is known to load with empty content"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"No content\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"SQL editor\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC028",
+    "title": "Saving an empty-content SQL file shows error toast and retains unsaved changes",
+    "description": "Verifies that a failed save shows an error message and the editor still contains the user’s unsaved edits.",
+    "category": "SQL Editor",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"SQL\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click to open the file tree in the left Sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Click the SQL file that is known to load with empty content"
+      },
+      {
+        "type": "action",
+        "description": "Type \"SELECT 1;\" into the SQL editor"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button in the SQL editor toolbar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Failed to save file\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC029",
+    "title": "After save failure, editor shows unsaved/error indicator",
+    "description": "Verifies the UI indicates the file is still dirty or in an error state after a failed save attempt.",
+    "category": "SQL Editor",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"SQL\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click to open the file tree in the left Sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Click the SQL file that is known to load with empty content"
+      },
+      {
+        "type": "action",
+        "description": "Type \"-- change that should remain\" into the SQL editor"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Save\" button in the SQL editor toolbar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Unsaved changes indicator\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC030",
+    "title": "Opening a different SQL file changes the editor content",
+    "description": "Verifies switching files via the sidebar updates the editor to the newly selected file’s content.",
+    "category": "SQL Editor",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"SQL\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click to open the file tree in the left Sidebar"
+      },
+      {
+        "type": "action",
+        "description": "Click the SQL file \"001_main.sql\" in the file tree"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"001_main.sql\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click a different SQL file in the file tree"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"SQL editor\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC031",
+    "title": "Visual mode: edit target table, add field, import from catalog, and save successfully",
+    "description": "Verifies a user can modify a model in Visual mode (target_table, add field, import catalog fields) and save with a success toast.",
+    "category": "Model Editor",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on the project card or button that opens a project in the workspace (for example, \"Open project\")."
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Model\" tab in the TabBar."
+      },
+      {
+        "type": "action",
+        "description": "Select model \"Sales\" from the model selector."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Visual\" mode."
+      },
+      {
+        "type": "action",
+        "description": "Fill \"sales\" into the target table name field."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Add Field\"."
+      },
+      {
+        "type": "action",
+        "description": "Fill \"customer_id\" into the new field name input."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Import fields from catalog\"."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Import from catalog\" modal is visible."
+      },
+      {
+        "type": "action",
+        "description": "Select an entity from the entity selector/list in the import modal."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Confirm\" (or \"Import\") in the import modal."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Save\"."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Saved\" is visible."
+      }
+    ]
+  },
+  {
+    "id": "TC032",
+    "title": "Visual mode: cancel catalog import does not change the model",
+    "description": "Verifies dismissing the catalog import modal does not apply imported fields and does not show a save success toast.",
+    "category": "Model Editor",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on the project card or button that opens a project in the workspace (for example, \"Open project\")."
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Model\" tab in the TabBar."
+      },
+      {
+        "type": "action",
+        "description": "Select model \"Sales\" from the model selector."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Import fields from catalog\"."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Import from catalog\" modal is visible."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Cancel\" (or close icon) in the import modal."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Import from catalog\" modal is not visible."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Saved\" is not visible."
+      }
+    ]
+  },
+  {
+    "id": "TC033",
+    "title": "Visual mode: save after adding a new field shows success",
+    "description": "Verifies adding a single field in Visual mode and saving results in a visible success toast.",
+    "category": "Model Editor",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on the project card or button that opens a project in the workspace (for example, \"Open project\")."
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Model\" tab in the TabBar."
+      },
+      {
+        "type": "action",
+        "description": "Select model \"Sales\" from the model selector."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Visual\" mode."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Add Field\"."
+      },
+      {
+        "type": "action",
+        "description": "Fill \"customer_id\" into the new field name input."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Save\"."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Saved\" is visible."
+      }
+    ]
+  },
+  {
+    "id": "TC034",
+    "title": "YAML mode: edit YAML and save; visual representation updates accordingly",
+    "description": "Verifies YAML edits can be saved and that the visual mode reflects the YAML changes after save.",
+    "category": "Model Editor",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on the project card or button that opens a project in the workspace (for example, \"Open project\")."
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Model\" tab in the TabBar."
+      },
+      {
+        "type": "action",
+        "description": "Select model \"Sales\" from the model selector."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"YAML\" mode."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"model.yml\" editor is visible."
+      },
+      {
+        "type": "action",
+        "description": "Type \"# e2e change\" into the YAML editor."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Save\"."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Saved\" is visible."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Visual\" mode."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Visual\" mode panel is visible."
+      }
+    ]
+  },
+  {
+    "id": "TC035",
+    "title": "YAML mode: malformed YAML blocks save and shows validation error",
+    "description": "Verifies invalid YAML prevents saving and a visible validation error is shown.",
+    "category": "Model Editor",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on the project card or button that opens a project in the workspace (for example, \"Open project\")."
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Model\" tab in the TabBar."
+      },
+      {
+        "type": "action",
+        "description": "Select model \"Sales\" from the model selector."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"YAML\" mode."
+      },
+      {
+        "type": "action",
+        "description": "Type \"target_table: [\" into the YAML editor."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Save\"."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"YAML\" is visible."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"error\" is visible."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Saved\" is not visible."
+      }
+    ]
+  },
+  {
+    "id": "TC036",
+    "title": "YAML mode: after validation error, switching to Visual keeps prior state (no applied changes)",
+    "description": "Verifies that when YAML save fails, switching to Visual mode does not reflect the invalid YAML changes.",
+    "category": "Model Editor",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on the project card or button that opens a project in the workspace (for example, \"Open project\")."
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Model\" tab in the TabBar."
+      },
+      {
+        "type": "action",
+        "description": "Select model \"Sales\" from the model selector."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"YAML\" mode."
+      },
+      {
+        "type": "action",
+        "description": "Type \"fields: [\" into the YAML editor."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Save\"."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"error\" is visible."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Visual\" mode."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Visual\" mode panel is visible."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Saved\" is not visible."
+      }
+    ]
+  },
+  {
+    "id": "TC037",
+    "title": "Mode switching: Visual to YAML to Visual preserves the selected model context",
+    "description": "Verifies switching between modes does not lose the currently selected model and the model editor remains open.",
+    "category": "Model Editor",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on the project card or button that opens a project in the workspace (for example, \"Open project\")."
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Model\" tab in the TabBar."
+      },
+      {
+        "type": "action",
+        "description": "Select model \"Sales\" from the model selector."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Sales\" is visible."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"YAML\" mode."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"model.yml\" editor is visible."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Visual\" mode."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Sales\" is visible."
+      }
+    ]
+  },
+  {
+    "id": "TC038",
+    "title": "Save action availability: saving with no edits does not show an error",
+    "description": "Verifies clicking Save without making edits does not present a visible error and remains on the model editor screen.",
+    "category": "Model Editor",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on the project card or button that opens a project in the workspace (for example, \"Open project\")."
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Model\" tab in the TabBar."
+      },
+      {
+        "type": "action",
+        "description": "Select model \"Sales\" from the model selector."
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Save\"."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"error\" is not visible."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Model\" editor content is visible."
+      }
+    ]
+  },
+  {
+    "id": "TC039",
+    "title": "Open Lineage tab and view graph layout with summary counters for model Sales",
+    "description": "Verifies that the Lineage tab loads a DAG graph and shows summary counters after selecting the Sales model.",
+    "category": "Lineage View",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Lineage\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click on model \"Sales\" in the model selector/list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Lineage graph\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Summary counters\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC040",
+    "title": "Open node detail panel from lineage graph and open related SQL",
+    "description": "Verifies that clicking a lineage node opens the detail panel and that 'Open related SQL' navigates to the SQL editor for the related file.",
+    "category": "Lineage View",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Lineage\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click on model \"Sales\" in the model selector/list"
+      },
+      {
+        "type": "action",
+        "description": "Click on node \"stage_01\" in the lineage graph"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Detail panel\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open related SQL\" in the detail panel"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"SQL\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC041",
+    "title": "Use lineage search to find a node and open its detail panel",
+    "description": "Verifies the lineage node search can locate a node by name and selecting the result opens the node detail panel.",
+    "category": "Lineage View",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Lineage\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Type \"stage_01\" into the \"Search nodes\" field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"stage_01\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on search result \"stage_01\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Detail panel\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC042",
+    "title": "Navigate from lineage node detail to its target asset via Navigate to asset",
+    "description": "Verifies that the 'Navigate to asset' action from the node detail panel opens the target asset in an editor/model screen.",
+    "category": "Lineage View",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Lineage\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Type \"stage_01\" into the \"Search nodes\" field"
+      },
+      {
+        "type": "action",
+        "description": "Click on search result \"stage_01\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Navigate to asset\" in the detail panel"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Editor\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC043",
+    "title": "Workflow cache missing state shows badge and rebuild error is surfaced",
+    "description": "Verifies the UI displays the workflow cache missing badge and surfaces rebuild failure via status and toast message.",
+    "category": "Lineage View",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Lineage\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click on a model that shows a \"workflow cache missing\" state in the model selector/list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"workflow cache missing\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Rebuild workflow\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"framework CLI failed\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"error\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC044",
+    "title": "Detail panel shows expected metadata when selecting a lineage node",
+    "description": "Verifies that selecting a node displays node metadata in the detail panel.",
+    "category": "Lineage View",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Lineage\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Click on model \"Sales\" in the model selector/list"
+      },
+      {
+        "type": "action",
+        "description": "Click on node \"stage_01\" in the lineage graph"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Metadata\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"stage_01\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC045",
+    "title": "Lineage graph handles no visible node match from search",
+    "description": "Verifies that searching for a non-existent node shows an appropriate empty/no-results state without opening the detail panel.",
+    "category": "Lineage View",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to \"/\""
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Open project\" in the Project Hub"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Lineage\" tab in the TabBar"
+      },
+      {
+        "type": "action",
+        "description": "Type \"definitely_not_a_real_node_123\" into the \"Search nodes\" field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"No results\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"Detail panel\" is not visible"
+      }
+    ]
+  },
+  {
+    "id": "TC046",
+    "title": "Run validation with filters and view grouped results",
+    "description": "Verifies a user can run validation, apply severity/category filters, and see results grouped by severity.",
+    "category": "Validation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on an available project in the Project Hub to open it"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Validate\" button in the top bar"
+      },
+      {
+        "type": "action",
+        "description": "Select a severity filter option (for example, \"Error\")"
+      },
+      {
+        "type": "action",
+        "description": "Select a rule category filter option (choose any available category)"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Run Validation\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a validation progress indicator is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation results grouped by severity are visible"
+      }
+    ]
+  },
+  {
+    "id": "TC047",
+    "title": "Inspect an issue and open QuickFix Preview modal",
+    "description": "Verifies a user can open an issue from validation results and see the QuickFix Preview modal.",
+    "category": "Validation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on an available project in the Project Hub to open it"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Validate\" button in the top bar"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Run Validation\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation results grouped by severity are visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on an issue item from the results list (choose any visible error or warning)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify element \"QuickFix Preview\" modal is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC048",
+    "title": "Apply quick fix add_field and confirm editor and results update",
+    "description": "Verifies applying the 'add_field' quick fix updates the editor content and the validation results reflect the change.",
+    "category": "Validation",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on an available project in the Project Hub to open it"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Validate\" button in the top bar"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Run Validation\""
+      },
+      {
+        "type": "action",
+        "description": "Click on an issue item that shows a suggested quick fix (choose one that lists \"add_field\")"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"add_field\" is visible in the QuickFix Preview modal"
+      },
+      {
+        "type": "action",
+        "description": "Click \"Apply\" in the QuickFix Preview modal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Applied\" or \"Fix applied\" is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC049",
+    "title": "Open Validate tab and view validation history list",
+    "description": "Verifies a user can open the Validate tab and see validation history entries.",
+    "category": "Validation",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on an available project in the Project Hub to open it"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Validate\" tab in the tab bar"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"History\" or \"Validation history\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a list of previous validation runs is visible"
+      },
+      {
+        "type": "action",
+        "description": "Scroll to the bottom of the history list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify at least one history entry remains visible after scrolling"
+      }
+    ]
+  },
+  {
+    "id": "TC050",
+    "title": "Open a previous validation run from history and view run details with file links",
+    "description": "Verifies a user can open a historical run and see run details including linked file locations.",
+    "category": "Validation",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on an available project in the Project Hub to open it"
+      },
+      {
+        "type": "action",
+        "description": "Click the \"Validate\" tab in the tab bar"
+      },
+      {
+        "type": "action",
+        "description": "Click a previous validation run entry from the history list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Run details\" or \"Details\" is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an issue list for the selected run is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a linked file location reference is visible (for example, a filename or a \"Go to\" link)"
+      }
+    ]
+  },
+  {
+    "id": "TC051",
+    "title": "Run dqcr build with default context and view completion artifacts list",
+    "description": "Verifies a user can run a dqcr build with the default context and see progress, logs, and a generated artifacts list on completion.",
+    "category": "Build Workflow",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on an available project in the Project Hub to open it"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Build\" tab in the tab bar"
+      },
+      {
+        "type": "action",
+        "description": "Select \"dqcr\" as the workflow engine"
+      },
+      {
+        "type": "action",
+        "description": "Select \"default\" as the build context"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Run Build\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an element \"Build in progress\" (or equivalent progress indicator) is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Generated artifacts\" (or equivalent artifacts section label) is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC052",
+    "title": "Verify streamed build logs appear during an active build run",
+    "description": "Verifies that running a build shows streaming log output while the build is in progress.",
+    "category": "Build Workflow",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on an available project in the Project Hub to open it"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Build\" tab in the tab bar"
+      },
+      {
+        "type": "action",
+        "description": "Select \"dqcr\" as the workflow engine"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Run Build\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an element \"Logs\" (or a log panel/section header) is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Build\" (or similar log line prefix) is visible in the logs area"
+      }
+    ]
+  },
+  {
+    "id": "TC053",
+    "title": "Switch engine to airflow and run a build",
+    "description": "Verifies the user can select the airflow engine and start a build run, observing the in-progress state.",
+    "category": "Build Workflow",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on an available project in the Project Hub to open it"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Build\" tab in the tab bar"
+      },
+      {
+        "type": "action",
+        "description": "Select \"airflow\" as the workflow engine"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Run Build\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an element \"Build in progress\" (or equivalent progress indicator) is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an element \"Build history\" (or equivalent history section) is visible"
+      }
+    ]
+  },
+  {
+    "id": "TC054",
+    "title": "Attempt to run build without selecting required options shows validation feedback",
+    "description": "Verifies the UI prevents running a build when required selections (engine/context) are missing and displays visible validation messaging.",
+    "category": "Build Workflow",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on an available project in the Project Hub to open it"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Build\" tab in the tab bar"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Run Build\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Select engine\" (or equivalent validation message) is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an element \"Build in progress\" (or equivalent progress indicator) is not visible"
+      }
+    ]
+  },
+  {
+    "id": "TC055",
+    "title": "Build failure shows failure toast and exposes error logs in bottom panel",
+    "description": "Verifies that when a build run fails, the UI shows a visible failure notification and the logs panel displays error output.",
+    "category": "Build Workflow",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click on an available project in the Project Hub to open it"
+      },
+      {
+        "type": "action",
+        "description": "Click on the \"Build\" tab in the tab bar"
+      },
+      {
+        "type": "action",
+        "description": "Select \"dqcr\" as the workflow engine"
+      },
+      {
+        "type": "action",
+        "description": "Click on \"Run Build\""
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Build failed\" is visible"
+      },
+      {
+        "type": "action",
+        "description": "Click on the bottom panel \"Logs\" (or \"Console\") to open it"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify text \"Error\" (or equivalent error output) is visible in the logs panel"
+      }
+    ]
+  }
+]

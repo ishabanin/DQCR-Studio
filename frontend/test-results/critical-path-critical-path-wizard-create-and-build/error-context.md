@@ -1,0 +1,236 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]: DQCR
+    - generic [ref=e6]: Студия
+    - button "⊟ Все проекты" [ref=e7] [cursor=pointer]
+    - generic [ref=e8]:
+      - combobox "Выбор проекта" [ref=e9]:
+        - option "Demo Project" [selected]
+        - option "autoe2e"
+      - combobox "Выбор контекста" [ref=e10]:
+        - option "default" [selected]
+      - button "Проверить" [ref=e11]
+      - button "Сборка" [ref=e12]
+      - button "Админ" [disabled] [ref=e13]
+      - combobox "Роль" [ref=e14]:
+        - option "роль:пользователь" [selected]
+        - option "роль:админ"
+        - option "роль:наблюдатель"
+      - button "Тёмная" [ref=e15]
+      - generic "Переключить режим одного или нескольких контекстов" [ref=e16]:
+        - button "Несколько контекстов" [ref=e17]
+  - generic [ref=e18]:
+    - complementary [ref=e19]:
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e22]: Проводник проекта
+          - strong [ref=e23]: Проводник проекта
+        - generic [ref=e24]:
+          - generic "Новый файл" [ref=e25]:
+            - button "Новый файл" [ref=e26] [cursor=pointer]:
+              - img [ref=e27]
+          - generic "Новая папка" [ref=e31]:
+            - button "Новая папка" [ref=e32] [cursor=pointer]:
+              - img [ref=e33]
+          - generic "Новая модель" [ref=e36]:
+            - button "Новая модель" [ref=e37] [cursor=pointer]:
+              - img [ref=e38]
+          - generic "Показать системные папки" [ref=e41]:
+            - button "Показать системные папки" [ref=e42] [cursor=pointer]:
+              - img [ref=e43]
+          - generic "Свернуть всё" [ref=e46]:
+            - button "Свернуть всё" [ref=e47] [cursor=pointer]:
+              - img [ref=e48]
+          - generic "Показать активный файл" [ref=e51]:
+            - button "Показать активный файл" [ref=e52] [cursor=pointer]:
+              - img [ref=e53]
+          - generic "Свернуть боковую панель" [ref=e56]:
+            - button "Свернуть боковую панель" [ref=e57] [cursor=pointer]:
+              - img [ref=e58]
+      - list [ref=e61]:
+        - listitem [ref=e62]:
+          - generic [ref=e63]:
+            - button "Проводник проекта" [ref=e64] [cursor=pointer]:
+              - img [ref=e66]
+              - img [ref=e69]
+              - generic [ref=e72]: Проводник проекта
+            - generic [ref=e73]:
+              - generic "Новый файл" [ref=e74]:
+                - button "Новый файл" [ref=e75] [cursor=pointer]:
+                  - img [ref=e76]
+              - generic "Новая папка" [ref=e80]:
+                - button "Новая папка" [ref=e81] [cursor=pointer]:
+                  - img [ref=e82]
+              - generic "Новая модель" [ref=e85]:
+                - button "Новая модель" [ref=e86] [cursor=pointer]:
+                  - img [ref=e87]
+          - list [ref=e90]:
+            - listitem [ref=e91]:
+              - generic [ref=e92]:
+                - button "model" [ref=e93] [cursor=pointer]:
+                  - img [ref=e95]
+                  - img [ref=e98]
+                  - generic [ref=e102]: model
+                - generic [ref=e103]:
+                  - generic "Новый файл" [ref=e104]:
+                    - button "Новый файл" [ref=e105] [cursor=pointer]:
+                      - img [ref=e106]
+                  - generic "Новая папка" [ref=e110]:
+                    - button "Новая папка" [ref=e111] [cursor=pointer]:
+                      - img [ref=e112]
+                  - generic "Новая модель" [ref=e115]:
+                    - button "Новая модель" [ref=e116] [cursor=pointer]:
+                      - img [ref=e117]
+                  - generic "Переименовать" [ref=e120]:
+                    - button "Переименовать" [ref=e121] [cursor=pointer]:
+                      - img [ref=e122]
+                  - generic "Удалить" [ref=e125]:
+                    - button "Удалить" [ref=e126] [cursor=pointer]:
+                      - img [ref=e127]
+              - list [ref=e129]:
+                - listitem [ref=e130]:
+                  - generic [ref=e131]:
+                    - button "SampleModel" [ref=e132] [cursor=pointer]:
+                      - img [ref=e134]
+                      - img [ref=e137]
+                      - generic [ref=e141]: SampleModel
+                    - generic [ref=e142]:
+                      - generic "Новый файл" [ref=e143]:
+                        - button "Новый файл" [ref=e144] [cursor=pointer]:
+                          - img [ref=e145]
+                      - generic "Новая папка" [ref=e149]:
+                        - button "Новая папка" [ref=e150] [cursor=pointer]:
+                          - img [ref=e151]
+                      - generic "Переименовать" [ref=e154]:
+                        - button "Переименовать" [ref=e155] [cursor=pointer]:
+                          - img [ref=e156]
+                      - generic "Удалить" [ref=e159]:
+                        - button "Удалить" [ref=e160] [cursor=pointer]:
+                          - img [ref=e161]
+            - listitem [ref=e163]:
+              - generic [ref=e164]:
+                - button "project.yml" [ref=e165] [cursor=pointer]:
+                  - img [ref=e168]
+                  - generic [ref=e172]: project.yml
+                - generic [ref=e173]:
+                  - generic "Переименовать" [ref=e174]:
+                    - button "Переименовать" [ref=e175] [cursor=pointer]:
+                      - img [ref=e176]
+                  - generic "Удалить" [ref=e179]:
+                    - button "Удалить" [ref=e180] [cursor=pointer]:
+                      - img [ref=e181]
+      - separator "Изменить размер боковой панели" [ref=e183]
+    - generic [ref=e184]:
+      - navigation [ref=e185]:
+        - button "◈ Проект" [ref=e186] [cursor=pointer]
+        - button "⬡ Линейность" [ref=e187] [cursor=pointer]
+        - button "⊞ Редактор модели" [ref=e188] [cursor=pointer]
+        - 'button "{} Редактор SQL" [ref=e189] [cursor=pointer]'
+        - button "⊕ Параметры" [ref=e190] [cursor=pointer]
+        - button "✓ Проверка" [ref=e191] [cursor=pointer]
+        - button "⚙ Сборка" [ref=e192] [cursor=pointer]
+        - button "Админ" [ref=e193] [cursor=pointer]
+      - generic [ref=e194]:
+        - generic [ref=e195]:
+          - generic [ref=e196]:
+            - generic [ref=e197]: D
+            - generic [ref=e198]:
+              - heading "Demo Project" [level=1] [ref=e199]
+              - generic [ref=e200]:
+                - generic [ref=e201]: "template: flx"
+                - generic [ref=e202]: ·
+                - generic [ref=e203]: internal
+                - generic [ref=e204]: ·
+                - generic [ref=e205]: /projects/demo
+          - button "Open in terminal" [ref=e207] [cursor=pointer]
+        - generic [ref=e208]:
+          - generic [ref=e209]:
+            - generic [ref=e210]: "1"
+            - generic [ref=e211]: Models
+          - generic [ref=e212]:
+            - generic [ref=e213]: "1"
+            - generic [ref=e214]: SQL folders
+          - generic [ref=e215]:
+            - generic [ref=e216]: "1"
+            - generic [ref=e217]: SQL files
+          - generic [ref=e218]:
+            - generic [ref=e219]: "1"
+            - generic [ref=e220]: Contexts
+        - generic [ref=e221]:
+          - generic [ref=e222]:
+            - generic [ref=e223]:
+              - generic [ref=e224]: Project settings
+              - generic [ref=e225]: project.yml
+            - generic [ref=e226]:
+              - generic [ref=e227]: Name
+              - textbox [ref=e229]: Demo Project
+            - generic [ref=e230]:
+              - generic [ref=e231]: Description
+              - textbox [ref=e233]: demo
+            - generic [ref=e234]:
+              - generic [ref=e235]: Template
+              - combobox [ref=e237] [cursor=pointer]:
+                - option "flx" [selected]
+                - option "dwh_mart"
+                - option "dq_control"
+            - generic [ref=e238]:
+              - generic [ref=e239]: Version
+              - textbox [ref=e241]: v1
+            - generic [ref=e242]:
+              - generic [ref=e243]: Owner
+              - textbox [ref=e245]: test
+          - generic [ref=e246]:
+            - generic [ref=e247]:
+              - generic [ref=e248]: Custom properties
+              - button "＋ Add" [ref=e249] [cursor=pointer]
+            - button "＋ Add property" [ref=e250] [cursor=pointer]
+        - generic [ref=e251]:
+          - generic [ref=e252]:
+            - generic [ref=e253]: Models
+            - generic [ref=e254]:
+              - generic [ref=e255]: 1 models · 1 folders · 1 SQL files
+              - button "Новая модель" [ref=e256] [cursor=pointer]
+          - button "SampleModel ⬡ Lineage → Folders 1 SQL files 1 Parameters 0 cache ready flx" [ref=e258] [cursor=pointer]:
+            - generic [ref=e259]:
+              - generic [ref=e260]: SampleModel
+              - generic [ref=e261]: ⬡ Lineage →
+            - generic [ref=e262]:
+              - generic [ref=e263]:
+                - generic [ref=e265]: Folders
+                - generic [ref=e266]: "1"
+              - generic [ref=e267]:
+                - generic [ref=e269]: SQL files
+                - generic [ref=e270]: "1"
+              - generic [ref=e271]:
+                - generic [ref=e273]: Parameters
+                - generic [ref=e274]: "0"
+            - generic [ref=e275]:
+              - generic [ref=e277]: cache ready
+              - generic [ref=e278]: flx
+        - generic [ref=e279]:
+          - generic [ref=e280]:
+            - generic [ref=e281]:
+              - generic [ref=e282]: Contexts
+              - button "＋ Add context" [ref=e283] [cursor=pointer]
+            - generic [ref=e284]:
+              - generic [ref=e285]: default
+              - generic [ref=e287]: "default: ✓"
+          - generic [ref=e289]:
+            - generic [ref=e290]: Global parameters
+            - button "View all →" [ref=e291] [cursor=pointer]
+      - generic [ref=e293]:
+        - generic [ref=e294]:
+          - button "Терминал" [ref=e295]
+          - button "Логи" [ref=e296]
+          - button "Вывод" [ref=e297]
+        - button "Развернуть" [ref=e298]
+  - contentinfo [ref=e299]:
+    - generic [ref=e300]: "Проект: demo"
+    - generic [ref=e301]: "Контекст: default"
+    - button "✓ workflow готов" [ref=e302] [cursor=pointer]
+    - generic [ref=e303]: "Источник модели: project_workflow"
+    - generic [ref=e304]: "Workflow обновлён: —"
+```

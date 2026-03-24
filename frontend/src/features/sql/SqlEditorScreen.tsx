@@ -151,6 +151,7 @@ export default function SqlEditorScreen() {
   const sqlStepMeta = useSqlStepMeta(currentProjectId, modelId, activeFilePath);
   const pendingCloseTab = useMemo(() => sqlTabs.find((tab) => tab.id === pendingCloseTabId) ?? null, [pendingCloseTabId, sqlTabs]);
   const prevFullscreenRef = useRef(false);
+  const prevSqlFilePathRef = useRef<string | null>(null);
   const { isFullscreen, enter: enterFullscreen, exit: exitFullscreen } = useSqlFullscreen({
     enabled: Boolean(activeFilePath),
     onEnter: () => setIsEditorExpanded(false),
@@ -260,6 +261,15 @@ export default function SqlEditorScreen() {
   const editorContent = mode === "source" ? draft : renderedSql ?? "";
 
   useEffect(() => {
+    if (prevSqlFilePathRef.current !== activeFilePath) {
+      prevSqlFilePathRef.current = activeFilePath;
+      if (mode !== "source") {
+        setMode("source");
+      }
+    }
+  }, [activeFilePath, mode, setMode]);
+
+  useEffect(() => {
     if (!autocompleteQuery.data) return;
     setDqcrAutocompleteData({
       parameters: autocompleteQuery.data.parameters.map((item) => item.name),
@@ -271,11 +281,10 @@ export default function SqlEditorScreen() {
   }, [autocompleteQuery.data, modelId]);
 
   useEffect(() => {
-    if (contentQuery.data !== undefined) {
-      setDraft(contentQuery.data);
-      if (activeSqlTab) setSqlTabDirty(activeSqlTab.id, false);
-    }
-  }, [activeSqlTab, contentQuery.data, setSqlTabDirty]);
+    if (contentQuery.data === undefined) return;
+    if (activeSqlTab?.isDirty) return;
+    setDraft(contentQuery.data);
+  }, [activeSqlTab?.id, activeSqlTab?.isDirty, contentQuery.data]);
 
   useEffect(() => {
     setActiveFile(activeFilePath);
@@ -435,12 +444,17 @@ export default function SqlEditorScreen() {
   }, [activeFilePath, currentProjectId, draft, latestValidationRun]);
 
   const saveMutation = useMutation({
-    mutationFn: () => saveFileContent(currentProjectId as string, activeFilePath as string, draft),
-    onSuccess: async () => {
+    mutationFn: (content: string) => saveFileContent(currentProjectId as string, activeFilePath as string, content),
+    onSuccess: async (_, savedContent) => {
+      if (currentProjectId && activeFilePath) {
+        queryClient.setQueryData(["fileContent", currentProjectId, activeFilePath], savedContent);
+      }
+      setDraft(savedContent);
       if (activeSqlTab) setSqlTabDirty(activeSqlTab.id, false);
       const savedAt = new Date();
       setLastSavedAt(savedAt);
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["fileContent", currentProjectId, activeFilePath] }),
         queryClient.invalidateQueries({ queryKey: ["autocomplete", currentProjectId] }),
         queryClient.invalidateQueries({ queryKey: ["lineage", currentProjectId, modelId] }),
         queryClient.invalidateQueries({ queryKey: ["projectParameters", currentProjectId] }),
@@ -613,7 +627,7 @@ export default function SqlEditorScreen() {
 
       if (isSave && activeFilePath && mode === "source") {
         event.preventDefault();
-        saveMutation.mutate();
+        saveMutation.mutate(draft);
         return;
       }
       if (isFindReplace) {
@@ -864,6 +878,7 @@ export default function SqlEditorScreen() {
           </div>
           <div className={isFullscreen ? "sql-editor-canvas sql-editor--fullscreen" : "sql-editor-canvas"}>
             <Editor
+              key={`${activeFilePath}:${mode}`}
               height={isFullscreen ? "100vh" : isEditorExpanded ? "76vh" : "420px"}
               beforeMount={configureDqcrMonaco}
               onMount={(editor, monaco) => {
@@ -875,6 +890,7 @@ export default function SqlEditorScreen() {
                   updateSqlTabScroll(currentTabId, editor.getScrollTop());
                 });
               }}
+              path={`${activeFilePath}::${mode}`}
               language={editorLanguage}
               theme={getDqcrTheme(theme)}
               value={editorContent}
@@ -912,7 +928,7 @@ export default function SqlEditorScreen() {
                 onToolChange={setSelectedTool}
                 onSave={() => {
                   if (mode !== "source") return;
-                  saveMutation.mutate();
+                  saveMutation.mutate(draft);
                 }}
                 onFormat={() => {
                   if (mode !== "source") return;
@@ -949,7 +965,7 @@ export default function SqlEditorScreen() {
       </div>
       {mode === "source" ? (
         <div className="sql-actions">
-          <button type="button" className="action-btn action-btn-primary" onClick={() => saveMutation.mutate()}>
+          <button type="button" className="action-btn action-btn-primary" onClick={() => saveMutation.mutate(draft)}>
             Save (Ctrl+S)
           </button>
           <button type="button" className="action-btn" onClick={applyFormatting}>
@@ -982,7 +998,7 @@ export default function SqlEditorScreen() {
                     addToast("Сначала сохраните файл из активной вкладки", "error");
                     return;
                   }
-                  saveMutation.mutate(undefined, {
+                  saveMutation.mutate(draft, {
                     onSuccess: () => {
                       closeSqlTab(pendingCloseTab.id);
                       setPendingCloseTabId(null);

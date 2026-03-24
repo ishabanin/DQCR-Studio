@@ -1,0 +1,98 @@
+[
+  {
+    "build_id": "bld-20260324082930",
+    "timestamp": "2026-03-24T08:29:31.128638+00:00",
+    "project": "rf110new",
+    "model": "RF110RestTurnReg",
+    "engine": "dqcr",
+    "context": "default",
+    "dry_run": false,
+    "output_path": ".dqcr_builds/bld-20260324082930",
+    "files_count": 6,
+    "files": [
+      {
+        "path": "f110/main_f110.xml",
+        "source_path": null,
+        "size_bytes": 456
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_default_adb.xml",
+        "source_path": null,
+        "size_bytes": 14851
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_default_oracle.xml",
+        "source_path": null,
+        "size_bytes": 14493
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_default_postgresql.xml",
+        "source_path": null,
+        "size_bytes": 15156
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_main.xml",
+        "source_path": null,
+        "size_bytes": 999
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_vtb_adb.xml",
+        "source_path": null,
+        "size_bytes": 2616
+      }
+    ],
+    "execution_mode": "framework_cli",
+    "workflow_updated_at": "2026-03-24T08:29:28.239952+00:00",
+    "workflow_status": "ready",
+    "workflow_source": "framework_cli",
+    "workflow_attached": true
+  },
+  {
+    "build_id": "bld-20260323232307",
+    "timestamp": "2026-03-23T23:23:08.101126+00:00",
+    "project": "rf110new",
+    "model": "RF110RestTurnReg",
+    "engine": "dqcr",
+    "context": "default",
+    "dry_run": false,
+    "output_path": ".dqcr_builds/bld-20260323232307",
+    "files_count": 6,
+    "files": [
+      {
+        "path": "f110/main_f110.xml",
+        "source_path": null,
+        "size_bytes": 456
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_default_adb.xml",
+        "source_path": null,
+        "size_bytes": 14851
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_default_oracle.xml",
+        "source_path": null,
+        "size_bytes": 14493
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_default_postgresql.xml",
+        "source_path": null,
+        "size_bytes": 15156
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_main.xml",
+        "source_path": null,
+        "size_bytes": 999
+      },
+      {
+        "path": "f110/RF110RestTurnReg/RF110RestTurnReg_vtb_adb.xml",
+        "source_path": null,
+        "size_bytes": 2616
+      }
+    ],
+    "execution_mode": "framework_cli",
+    "workflow_updated_at": "2026-03-23T21:54:05.084146+00:00",
+    "workflow_status": "ready",
+    "workflow_source": "framework_cli",
+    "workflow_attached": true
+  }
+]

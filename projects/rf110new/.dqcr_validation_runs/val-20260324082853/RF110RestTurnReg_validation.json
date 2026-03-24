@@ -1,0 +1,176 @@
+{
+  "project_name": "RF110",
+  "model_name": "RF110RestTurnReg",
+  "template_name": "flx",
+  "validation_categories": [
+    "general",
+    "sql",
+    "descriptions",
+    "adb"
+  ],
+  "timestamp": "2026-03-24T08:28:54.084047",
+  "summary": {
+    "total": 15,
+    "errors": 5,
+    "warnings": 1,
+    "info": 9
+  },
+  "issues": [
+    {
+      "level": "info",
+      "rule": "missing_step_description",
+      "category": "descriptions",
+      "message": "Step description is missing",
+      "location": "001_Load__distr/001_RF110_Reg_Acc2_default/sql",
+      "details": {
+        "step_type": "sql"
+      }
+    },
+    {
+      "level": "info",
+      "rule": "missing_step_description",
+      "category": "descriptions",
+      "message": "Step description is missing",
+      "location": "001_Load__distr/002_RF110RestTurnReg_ACCDEMAND_default/cte/ClientChr1_34",
+      "details": {
+        "step_type": "sql"
+      }
+    },
+    {
+      "level": "info",
+      "rule": "missing_step_description",
+      "category": "descriptions",
+      "message": "Step description is missing",
+      "location": "001_Load__distr/002_RF110RestTurnReg_ACCDEMAND_default/sql",
+      "details": {
+        "step_type": "sql"
+      }
+    },
+    {
+      "level": "info",
+      "rule": "missing_step_description",
+      "category": "descriptions",
+      "message": "Step description is missing",
+      "location": "001_Load__distr/003_RF110RestTurnReg_ACCRSRV_default/cte/b",
+      "details": {
+        "step_type": "sql"
+      }
+    },
+    {
+      "level": "info",
+      "rule": "missing_step_description",
+      "category": "descriptions",
+      "message": "Step description is missing",
+      "location": "001_Load__distr/003_RF110RestTurnReg_ACCRSRV_default/sql",
+      "details": {
+        "step_type": "sql"
+      }
+    },
+    {
+      "level": "info",
+      "rule": "missing_step_description",
+      "category": "descriptions",
+      "message": "Step description is missing",
+      "location": "001_Load__distr/004_applySettings_iter/applySettings_default/sql",
+      "details": {
+        "step_type": "sql"
+      }
+    },
+    {
+      "level": "info",
+      "rule": "missing_step_description",
+      "category": "descriptions",
+      "message": "Step description is missing",
+      "location": "001_Load__vtb/001_RF110RestTurnReg_ACCDEMAND_vtb_vtb/sql",
+      "details": {
+        "step_type": "sql"
+      }
+    },
+    {
+      "level": "info",
+      "rule": "missing_step_description",
+      "category": "descriptions",
+      "message": "Step description is missing",
+      "location": "001_Load__vtb/002_RF110RestTurnReg_ACCRSRV_vtb_vtb/sql",
+      "details": {
+        "step_type": "sql"
+      }
+    },
+    {
+      "level": "info",
+      "rule": "missing_step_description",
+      "category": "descriptions",
+      "message": "Step description is missing",
+      "location": "002_Update/001_RF110RestTurnReg_QUALITY_vtb/cte/b",
+      "details": {
+        "step_type": "sql"
+      }
+    },
+    {
+      "level": "warning",
+      "rule": "missing_target_table_description",
+      "category": "descriptions",
+      "message": "Target table description is missing",
+      "location": "target_table:RF110RestTurnReg",
+      "details": {
+        "table_name": "RF110RestTurnReg"
+      }
+    },
+    {
+      "level": "error",
+      "rule": "adb_distribution_key",
+      "category": "adb",
+      "message": "No distribution_key defined for ADB insert_fc materialization",
+      "location": "001_Load__distr/002_RF110RestTurnReg_ACCDEMAND_default/sql",
+      "details": {
+        "materialization": "insert_fc",
+        "tool": "adb"
+      }
+    },
+    {
+      "level": "error",
+      "rule": "adb_distribution_key",
+      "category": "adb",
+      "message": "No distribution_key defined for ADB insert_fc materialization",
+      "location": "001_Load__distr/003_RF110RestTurnReg_ACCRSRV_default/sql",
+      "details": {
+        "materialization": "insert_fc",
+        "tool": "adb"
+      }
+    },
+    {
+      "level": "error",
+      "rule": "adb_distribution_key",
+      "category": "adb",
+      "message": "No distribution_key defined for ADB insert_fc materialization",
+      "location": "001_Load__distr/004_applySettings_iter/applySettings_default/sql",
+      "details": {
+        "materialization": "insert_fc",
+        "tool": "adb"
+      }
+    },
+    {
+      "level": "error",
+      "rule": "adb_distribution_key",
+      "category": "adb",
+      "message": "No distribution_key defined for ADB insert_fc materialization",
+      "location": "001_Load__vtb/001_RF110RestTurnReg_ACCDEMAND_vtb_vtb/sql",
+      "details": {
+        "materialization": "insert_fc",
+        "tool": "adb"
+      }
+    },
+    {
+      "level": "error",
+      "rule": "adb_distribution_key",
+      "category": "adb",
+      "message": "No distribution_key defined for ADB insert_fc materialization",
+      "location": "001_Load__vtb/002_RF110RestTurnReg_ACCRSRV_vtb_vtb/sql",
+      "details": {
+        "materialization": "insert_fc",
+        "tool": "adb"
+      }
+    }
+  ],
+  "template_issues": []
+}

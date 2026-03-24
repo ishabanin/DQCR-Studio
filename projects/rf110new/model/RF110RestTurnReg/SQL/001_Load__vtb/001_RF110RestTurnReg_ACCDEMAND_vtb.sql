@@ -86,6 +86,8 @@
                           and sdr.MainDealID = reg.DealID
                     left join {{Currency}} cur 
                            on cur.ID = acc.CurrencyID
+                           left join _m.dwh.Loan Loan
+                           on cur.ID = _m.dwh.loan.ID
                    where reg.CalcID = {{calc_astreg_id}}
                      and reg.LevelGroup = 0
                      and reg.RowStatus = 'A'

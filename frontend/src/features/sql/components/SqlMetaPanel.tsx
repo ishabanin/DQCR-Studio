@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
+import { getStepFolder, getStepQueryName } from "../sqlStepUtils";
+
 interface SqlMetaPanelProps {
   filePath: string | null;
   modelId: string | null;
@@ -90,10 +92,8 @@ function getSqlMeta(step: Record<string, unknown> | null): {
     };
   });
 
-  const fullName = typeof step.full_name === "string" ? step.full_name : "";
-  const parts = fullName.split("/").filter(Boolean);
-  const folderName = parts[0] ?? null;
-  const queryName = parts[1] ?? null;
+  const folderName = getStepFolder(step) || null;
+  const queryName = getStepQueryName(step) || null;
 
   return { parameters, tables, dependencies, folderName, queryName };
 }

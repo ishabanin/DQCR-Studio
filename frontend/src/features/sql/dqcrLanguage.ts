@@ -530,6 +530,14 @@ function resolveObjectSuggestions(
   return result;
 }
 
+function resolveDefaultSuggestions(
+  localCtes: LocalCteDefinition[],
+  objects: DqcrAutocompleteObject[],
+  activeModelId: string | null,
+): DqcrAutocompleteObject[] {
+  return resolveObjectSuggestions(localCtes, objects, activeModelId);
+}
+
 export function resolveAutocompleteContext(
   sql: string,
   offset: number,
@@ -598,7 +606,7 @@ export function resolveAutocompleteContext(
 
   return {
     mode: "default",
-    objectSuggestions: sortObjects(objects, data.activeModelId ?? null),
+    objectSuggestions: resolveDefaultSuggestions(localCtes, objects, data.activeModelId ?? null),
     columnSuggestions: [],
     moduleSuggestions: [],
     localCtes,
@@ -660,11 +668,23 @@ function buildStaticSuggestions(monaco: typeof Monaco, range: Monaco.IRange): Mo
   const completionItems: Monaco.languages.CompletionItem[] = [];
 
   completionItems.push(
+    ...sqlKeywords.map((name) => ({
+      label: name.toUpperCase(),
+      kind: monaco.languages.CompletionItemKind.Keyword,
+      insertText: name.toUpperCase(),
+      detail: "SQL keyword",
+      sortText: `8000-${name}`,
+      range,
+    })),
+  );
+
+  completionItems.push(
     ...dynamicConfigKeys.map((name) => ({
       label: name,
       kind: monaco.languages.CompletionItemKind.Property,
       insertText: `${name}: `,
       detail: "@config key",
+      sortText: `9000-${name.toLowerCase()}`,
       range,
     })),
   );
@@ -674,6 +694,7 @@ function buildStaticSuggestions(monaco: typeof Monaco, range: Monaco.IRange): Mo
     insertText: "@config(\n  $0\n)",
     insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
     detail: "DQCR inline config block",
+    sortText: "9100-@config",
     range,
   });
   completionItems.push({
@@ -682,6 +703,7 @@ function buildStaticSuggestions(monaco: typeof Monaco, range: Monaco.IRange): Mo
     insertText: "{{$0}}",
     insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
     detail: "DQCR template expression",
+    sortText: "9200-{{}}",
     range,
   });
 

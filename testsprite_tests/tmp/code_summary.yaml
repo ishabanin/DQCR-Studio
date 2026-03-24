@@ -1,0 +1,149 @@
+version: "2"
+type: frontend
+tech_stack:
+  - TypeScript
+  - React
+  - Vite
+  - TanStack Query
+  - Zustand
+  - Axios
+routes:
+  - path: /
+    file: frontend/src/App.tsx
+    auth_required: false
+    description: Single-page DQCR Studio application with project hub and project workspace modes.
+features:
+  - name: Project Hub
+    description: Browse, filter, create, import, edit, delete, and open DQCR projects from the main hub.
+    files:
+      - frontend/src/App.tsx
+      - frontend/src/features/hub/ProjectsHub.tsx
+      - frontend/src/features/hub/hooks/useProjects.ts
+    entry_route: /
+    user_interactions:
+      - View all available projects in grid or list mode.
+      - Filter projects by search, visibility, type, and tags.
+      - Create a new project or import an existing project.
+      - Open a project card to enter the workspace.
+    api_calls:
+      - method: GET
+        endpoint: /api/v1/projects
+      - method: POST
+        endpoint: /api/v1/projects
+    auth_required: false
+  - name: Project Workspace Navigation
+    description: Switch between project information, lineage, model editor, SQL editor, parameters, validation, build, and admin views.
+    files:
+      - frontend/src/shared/components/TopBar.tsx
+      - frontend/src/shared/components/TabBar.tsx
+      - frontend/src/features/layout/Workbench.tsx
+    entry_route: /
+    user_interactions:
+      - Select an active project from the top bar.
+      - Choose one or more contexts for the opened project.
+      - Switch workspace tabs to move between core project tools.
+      - Toggle theme and user role controls.
+    api_calls:
+      - method: GET
+        endpoint: /api/v1/projects
+      - method: GET
+        endpoint: /api/v1/projects/{project_id}/contexts
+    auth_required: false
+  - name: SQL Editor
+    description: Open SQL files from the project tree, edit them, inspect metadata, and save changes.
+    files:
+      - frontend/src/features/sql/SqlEditorScreen.tsx
+      - frontend/src/features/sql/components/SqlMetaPanel.tsx
+      - frontend/src/features/sql/components/SqlTabBar.tsx
+    entry_route: /
+    user_interactions:
+      - Open SQL files from the sidebar tree.
+      - Edit SQL content in the Monaco-based editor.
+      - Save changes and switch between prepared and rendered views.
+      - Use metadata and dependency helpers from the side panel.
+    api_calls:
+      - method: GET
+        endpoint: /api/v1/projects/{project_id}/files/content
+      - method: PUT
+        endpoint: /api/v1/projects/{project_id}/files/content
+      - method: GET
+        endpoint: /api/v1/projects/{project_id}/autocomplete
+      - method: GET
+        endpoint: /api/v1/projects/{project_id}/models/{model_id}/config-chain
+    auth_required: false
+  - name: Model Editor
+    description: View and edit model structure in visual and YAML modes, including catalog-driven field import.
+    files:
+      - frontend/src/features/model/ModelEditorScreen.tsx
+      - frontend/src/features/model/yamlSync.ts
+      - frontend/src/features/model/syncEngine.ts
+    entry_route: /
+    user_interactions:
+      - Open the model editor for the active project.
+      - Switch between visual and YAML representations.
+      - Edit target table and fields.
+      - Import fields from the catalog into the model.
+    api_calls:
+      - method: GET
+        endpoint: /api/v1/projects/{project_id}/models/{model_id}
+      - method: PUT
+        endpoint: /api/v1/projects/{project_id}/models/{model_id}
+      - method: POST
+        endpoint: /api/v1/catalog/import
+    auth_required: false
+  - name: Lineage View
+    description: Inspect lineage nodes and edges for the active model and navigate from lineage to related SQL.
+    files:
+      - frontend/src/features/lineage/LineageScreen.tsx
+      - frontend/src/features/lineage/DagGraph.tsx
+      - frontend/src/features/lineage/components/DetailPanel.tsx
+    entry_route: /
+    user_interactions:
+      - Open the lineage tab for the selected project and model.
+      - View graph layout, summary counters, and node details.
+      - Select lineage nodes and navigate to related SQL assets.
+    api_calls:
+      - method: GET
+        endpoint: /api/v1/projects/{project_id}/models/{model_id}/lineage
+    auth_required: false
+  - name: Validation
+    description: Run validation for the active project, review grouped issues, and inspect quick fixes.
+    files:
+      - frontend/src/features/validate/ValidateScreen.tsx
+      - frontend/src/features/validate/QuickFixPreviewModal.tsx
+    entry_route: /
+    user_interactions:
+      - Start project validation from the top bar or validation screen.
+      - Filter validation results by severity and category.
+      - Inspect rule details and preview suggested fixes.
+    api_calls:
+      - method: POST
+        endpoint: /api/v1/projects/{project_id}/validate
+      - method: GET
+        endpoint: /api/v1/projects/{project_id}/validate/history
+    auth_required: false
+  - name: Build Workflow
+    description: Run build generation for the active project and inspect generated artifacts and build history.
+    files:
+      - frontend/src/features/build/BuildScreen.tsx
+    entry_route: /
+    user_interactions:
+      - Open the build screen from the top bar or tab bar.
+      - Select workflow engine and launch build execution.
+      - Review build progress, history, and generated files.
+      - Download build artifacts.
+    api_calls:
+      - method: POST
+        endpoint: /api/v1/projects/{project_id}/build
+      - method: GET
+        endpoint: /api/v1/projects/{project_id}/build/history
+      - method: GET
+        endpoint: /api/v1/projects/{project_id}/build/{build_id}/files
+    auth_required: false
+known_limitations:
+  - issue: Frontend is a single-route SPA, so tool-based route discovery may miss tab-driven screens unless the workspace is opened and navigated manually.
+    location: frontend/src/App.tsx
+    impact: Automated planning tools need to treat tabs and modals as feature entry points instead of standalone routes.
+  - issue: Frontend API client assumes same-origin /api/v1 without a Vite dev proxy.
+    location: frontend/src/api/client.ts
+    impact: Running the frontend outside nginx or without matching origin can break live API calls during browser testing.
