@@ -69,7 +69,43 @@ make prod-health
 - View logs: `make prod-logs`
 - Stop: `make prod-down`
 - Rebuild only: `make prod-build`
+- Build portable bundle: `make prod-bundle`
 - Custom port example: `DQCR_PORT=8080 make prod-up`
+
+## Portable deploy without build on target machine
+
+If you want to deploy on another machine without rebuilding images there:
+
+1. On the source machine run:
+
+```bash
+make prod-bundle
+```
+
+2. This creates:
+
+- `dist/dqcr-studio-bundle-<timestamp>/`
+- `dist/dqcr-studio-bundle-<timestamp>.tar.gz`
+
+3. Copy the `.tar.gz` archive to the target machine and run:
+
+```bash
+tar -xzf dqcr-studio-bundle-*.tar.gz
+cd dqcr-studio-bundle-*
+./bin/install.sh
+```
+
+What the bundle already contains:
+
+- prebuilt Docker images
+- `backend.env`
+- `projects/`
+- `catalog/`
+- scripts for start, stop, logs, and health checks
+
+Detailed Russian guide:
+
+- `Docs/DEPLOYMENT_PRODUCTION_RU.md`
 
 Detailed Russian guide:
 

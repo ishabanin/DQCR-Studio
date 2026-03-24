@@ -1,0 +1,39 @@
+name: dqcr-studio
+
+services:
+  backend:
+    image: dqcr-studio-backend:prod
+    container_name: dqcr-studio-backend
+    restart: unless-stopped
+    pull_policy: never
+    env_file:
+      - ./backend.env
+    environment:
+      PROJECTS_PATH: /app/projects
+      CATALOG_PATH: /app/catalog
+    volumes:
+      - ./projects:/app/projects
+      - ./catalog:/app/catalog
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()\"",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  frontend:
+    image: dqcr-studio-frontend:prod
+    container_name: dqcr-studio-frontend
+    restart: unless-stopped
+    pull_policy: never
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${DQCR_PORT:-80}:80"

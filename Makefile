@@ -1,4 +1,4 @@
-.PHONY: dev build test deploy down prod-build prod-up prod-down prod-logs prod-health
+.PHONY: dev build test deploy down prod-build prod-up prod-down prod-logs prod-health prod-bundle
 
 dev:
 	docker compose -f infra/docker/docker-compose.yml up --build
@@ -31,3 +31,6 @@ prod-logs:
 
 prod-health:
 	./scripts/prod-health.sh
+
+prod-bundle:
+	./scripts/prod-bundle.sh
