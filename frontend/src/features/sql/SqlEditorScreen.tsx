@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
@@ -170,7 +170,7 @@ export default function SqlEditorScreen() {
     prevFullscreenRef.current = isFullscreen;
   }, [isFullscreen]);
 
-  const openPathInSql = (path: string) => {
+  const openPathInSql = useCallback((path: string) => {
     const result = openSqlTab(path);
     if (!result.ok && result.reason === "limit") {
       addToast("Достигнут лимит открытых файлов (20). Закройте ненужные вкладки.", "error");
@@ -179,7 +179,7 @@ export default function SqlEditorScreen() {
     openFile(path);
     setActiveTab("sql");
     return true;
-  };
+  }, [addToast, openFile, openSqlTab, setActiveTab]);
 
   const contentQuery = useQuery({
     queryKey: ["fileContent", currentProjectId, activeFilePath],
@@ -704,13 +704,9 @@ export default function SqlEditorScreen() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [
-    activeTab,
     activeFilePath,
     saveMutation,
     draft,
-    findQuery,
-    findRegex,
-    replaceQuery,
     parametersByName,
     macroNames,
     quickOpenVisible,

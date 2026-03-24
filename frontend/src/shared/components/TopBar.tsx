@@ -27,7 +27,7 @@ export default function TopBar({ hubMode = false }: TopBarProps) {
   const toggleContextInMultiMode = useContextStore((state) => state.toggleContextInMultiMode);
   const { theme, toggleTheme } = useTheme();
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
-  const userRole = useUiStore((state) => state.userRole);
+  const userRole = useUiStore((state) => state.role);
   const setUserRole = useUiStore((state) => state.setUserRole);
   const userEmail = useUiStore((state) => state.userEmail);
   const addToast = useUiStore((state) => state.addToast);

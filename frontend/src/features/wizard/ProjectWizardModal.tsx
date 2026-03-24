@@ -191,29 +191,40 @@ function collectUploadRelativePaths(files: File[]): string[] {
   return rawPaths;
 }
 
-async function collectFilesFromDirectoryHandle(handle: any): Promise<{ files: File[]; relativePaths: string[] }> {
+type DirectoryPickerWindow = Window & {
+  showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;
+};
+type DirectoryHandleIterable = {
+  name?: string;
+  values: () => AsyncIterable<FileSystemHandle>;
+};
+
+async function collectFilesFromDirectoryHandle(
+  handle: FileSystemDirectoryHandle,
+): Promise<{ files: File[]; relativePaths: string[] }> {
   const files: File[] = [];
   const relativePaths: string[] = [];
 
-  const walk = async (node: any, prefix: string) => {
-    if (!node.values) return;
+  const walk = async (node: DirectoryHandleIterable, prefix: string) => {
     for await (const entry of node.values()) {
-      if (entry.kind === "file" && entry.getFile) {
-        const file = await entry.getFile();
-        const fileName = entry.name ?? file.name;
+      if (entry.kind === "file") {
+        const fileHandle = entry as FileSystemFileHandle;
+        const file = await fileHandle.getFile();
+        const fileName = fileHandle.name ?? file.name;
         const relative = prefix ? `${prefix}/${fileName}` : fileName;
         files.push(file);
         relativePaths.push(relative);
         continue;
       }
       if (entry.kind === "directory") {
-        const nextPrefix = prefix ? `${prefix}/${entry.name ?? "folder"}` : entry.name ?? "folder";
-        await walk(entry, nextPrefix);
+        const directoryHandle = entry as FileSystemDirectoryHandle & DirectoryHandleIterable;
+        const nextPrefix = prefix ? `${prefix}/${directoryHandle.name ?? "folder"}` : directoryHandle.name ?? "folder";
+        await walk(directoryHandle, nextPrefix);
       }
     }
   };
 
-  await walk(handle, "");
+  await walk(handle as FileSystemDirectoryHandle & DirectoryHandleIterable, "");
   return { files, relativePaths };
 }
 
@@ -338,16 +349,17 @@ export default function ProjectWizardModal() {
   };
 
   const handleFolderDialog = async () => {
-    const picker = (window as Window & { showDirectoryPicker?: () => Promise<{ name?: string; path?: string }> }).showDirectoryPicker;
+    const picker = (window as DirectoryPickerWindow).showDirectoryPicker;
     if (picker) {
       try {
         const handle = await picker();
-        const candidatePath = typeof handle?.path === "string" ? handle.path : "";
+        const handleWithPath = handle as FileSystemDirectoryHandle & { path?: string };
+        const candidatePath = typeof handleWithPath.path === "string" ? handleWithPath.path : "";
         const collected = await collectFilesFromDirectoryHandle(handle);
         if (collected.files.length > 0) {
           setUploadFiles(collected.files);
           setUploadRelativePaths(collected.relativePaths);
-          setSourceState((prev) => ({ ...prev, sourcePath: candidatePath || handle?.name || prev.sourcePath }));
+          setSourceState((prev) => ({ ...prev, sourcePath: candidatePath || handle.name || prev.sourcePath }));
           addToast(`Selected ${collected.files.length} files from folder`, "success");
           return;
         }

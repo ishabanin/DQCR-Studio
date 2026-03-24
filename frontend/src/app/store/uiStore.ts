@@ -27,7 +27,6 @@ interface UiStore {
   toasts: ToastItem[];
   apiLogs: string[];
   projectWizardOpen: boolean;
-  userRole: UserRole;
   role: UserRole;
   userEmail: string;
   validationAutoRun: boolean;
@@ -74,7 +73,6 @@ export const useUiStore = create<UiStore>((set) => ({
   toasts: [],
   apiLogs: [],
   projectWizardOpen: false,
-  userRole: (window.localStorage.getItem("dqcr_role") as UserRole) || "user",
   role: (window.localStorage.getItem("dqcr_role") as UserRole) || "user",
   userEmail: window.localStorage.getItem("dqcr_user_email") || "admin@corp.ru",
   validationAutoRun: false,
@@ -100,7 +98,7 @@ export const useUiStore = create<UiStore>((set) => ({
   setProjectWizardOpen: (open) => set({ projectWizardOpen: open }),
   setUserRole: (role) => {
     window.localStorage.setItem("dqcr_role", role);
-    set({ userRole: role, role });
+    set({ role });
   },
   setValidationAutoRun: (enabled) => set({ validationAutoRun: enabled }),
   setCacheStatus: (status) => set({ cacheStatus: status }),

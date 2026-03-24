@@ -1,12 +1,16 @@
+import { Suspense, lazy } from "react";
 import { useEditorStore } from "../../app/store/editorStore";
-import AdminScreen from "../admin/AdminScreen";
-import BuildScreen from "../build/BuildScreen";
-import LineageScreen from "../lineage/LineageScreen";
-import ModelEditorScreen from "../model/ModelEditorScreen";
-import ParametersScreen from "../parameters/ParametersScreen";
-import { ProjectInfoScreen } from "../project/ProjectInfoScreen";
-import SqlEditorScreen from "../sql/SqlEditorScreen";
-import ValidateScreen from "../validate/ValidateScreen";
+
+const AdminScreen = lazy(() => import("../admin/AdminScreen"));
+const BuildScreen = lazy(() => import("../build/BuildScreen"));
+const LineageScreen = lazy(() => import("../lineage/LineageScreen"));
+const ModelEditorScreen = lazy(() => import("../model/ModelEditorScreen"));
+const ParametersScreen = lazy(() => import("../parameters/ParametersScreen"));
+const ProjectInfoScreen = lazy(() =>
+  import("../project/ProjectInfoScreen").then((module) => ({ default: module.ProjectInfoScreen })),
+);
+const SqlEditorScreen = lazy(() => import("../sql/SqlEditorScreen"));
+const ValidateScreen = lazy(() => import("../validate/ValidateScreen"));
 
 const tabTitleMap: Record<string, string> = {
   project: "Информация о проекте",
@@ -23,36 +27,42 @@ export default function Workbench() {
   const activeTab = useEditorStore((state) => state.activeTab);
   const openFiles = useEditorStore((state) => state.openFiles);
 
+  let screen: JSX.Element | null = null;
+
   if (activeTab === "sql") {
-    return <SqlEditorScreen />;
-  }
-  if (activeTab === "project") {
-    return <ProjectInfoScreen />;
-  }
-  if (activeTab === "lineage") {
-    return <LineageScreen />;
-  }
-  if (activeTab === "validate") {
-    return <ValidateScreen />;
-  }
-  if (activeTab === "model") {
-    return <ModelEditorScreen />;
-  }
-  if (activeTab === "parameters") {
-    return <ParametersScreen />;
-  }
-  if (activeTab === "build") {
-    return <BuildScreen />;
-  }
-  if (activeTab === "admin") {
-    return <AdminScreen />;
+    screen = <SqlEditorScreen />;
+  } else if (activeTab === "project") {
+    screen = <ProjectInfoScreen />;
+  } else if (activeTab === "lineage") {
+    screen = <LineageScreen />;
+  } else if (activeTab === "validate") {
+    screen = <ValidateScreen />;
+  } else if (activeTab === "model") {
+    screen = <ModelEditorScreen />;
+  } else if (activeTab === "parameters") {
+    screen = <ParametersScreen />;
+  } else if (activeTab === "build") {
+    screen = <BuildScreen />;
+  } else if (activeTab === "admin") {
+    screen = <AdminScreen />;
   }
 
   return (
-    <section className="workbench">
-      <h1>{tabTitleMap[activeTab]}</h1>
-      <p>Текущий срез реализации: layout + навигация по проекту + дерево файлов.</p>
-      <p>Открытые файлы: {openFiles.length > 0 ? openFiles.join(", ") : "нет"}</p>
-    </section>
+    <Suspense
+      fallback={
+        <section className="workbench">
+          <h1>Загрузка…</h1>
+          <p>Подготавливаем раздел редактора.</p>
+        </section>
+      }
+    >
+      {screen ?? (
+        <section className="workbench">
+          <h1>{tabTitleMap[activeTab]}</h1>
+          <p>Текущий срез реализации: layout + навигация по проекту + дерево файлов.</p>
+          <p>Открытые файлы: {openFiles.length > 0 ? openFiles.join(", ") : "нет"}</p>
+        </section>
+      )}
+    </Suspense>
   );
 }

@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createProject,
   deleteProject,
-  fetchProjectWorkflowStatus,
   fetchProjects,
   patchProjectMetadata,
   uploadProjectFolder,
@@ -37,21 +36,7 @@ export function useProjects() {
 
   const projectsQuery = useQuery({
     queryKey: ["projects"],
-    queryFn: async (): Promise<ProjectListItem[]> => {
-      const raw = await fetchProjects();
-      const enriched = await Promise.allSettled(
-        raw.map(async (project) => {
-          if (project.cache_status) return mapProject(project);
-          try {
-            const status = await fetchProjectWorkflowStatus(project.id);
-            return mapProject({ ...project, cache_status: status.overall ?? status.status ?? "missing" });
-          } catch {
-            return mapProject({ ...project, cache_status: "missing" });
-          }
-        }),
-      );
-      return enriched.filter((item): item is PromiseFulfilledResult<ProjectListItem> => item.status === "fulfilled").map((item) => item.value);
-    },
+    queryFn: async (): Promise<ProjectListItem[]> => (await fetchProjects()).map(mapProject),
     staleTime: 30_000,
     refetchInterval: 60_000,
   });

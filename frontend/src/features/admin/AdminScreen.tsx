@@ -17,7 +17,7 @@ import CatalogPanel from "./CatalogPanel";
 type AdminTab = "templates" | "rules" | "macros";
 
 export default function AdminScreen() {
-  const userRole = useUiStore((state) => state.userRole);
+  const userRole = useUiStore((state) => state.role);
   const addToast = useUiStore((state) => state.addToast);
   const [tab, setTab] = useState<AdminTab>("templates");
   const [selectedTemplate, setSelectedTemplate] = useState("flx");

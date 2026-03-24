@@ -5,10 +5,10 @@ import { useProjectStore } from "./app/store/projectStore";
 import { useSqlTabsStore } from "./app/store/sqlTabsStore";
 import ProjectsHub from "./features/hub/ProjectsHub";
 import Workbench from "./features/layout/Workbench";
+import ProjectSidebar from "./features/project-sidebar/ProjectSidebar";
 import ProjectWizardModal from "./features/wizard/ProjectWizardModal";
 import { useUiStore } from "./app/store/uiStore";
 import BottomPanel from "./shared/components/BottomPanel";
-import Sidebar from "./shared/components/Sidebar";
 import StatusBar from "./shared/components/StatusBar";
 import TabBar from "./shared/components/TabBar";
 import ToastViewport from "./shared/components/ToastViewport";
@@ -58,7 +58,7 @@ export default function App() {
         >
           <TopBar />
           <div className="layout-main">
-            <Sidebar />
+            <ProjectSidebar />
             <div className="main-column">
               <TabBar />
               <Workbench />
