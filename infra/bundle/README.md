@@ -6,13 +6,16 @@
 - runtime-конфигурацию `backend.env`
 - папки `projects/` и `catalog/`
 - скрипты для запуска без локальной сборки
+- целевую архитектуру `linux/amd64` (x86_64)
 
 ## Требования на целевой машине
 
 - Docker Engine
 - Docker Compose plugin (`docker compose`)
 - `bash`, `gzip`, `tar`, `curl`
-- `lsof` optional, only for automatic preflight port check
+- `lsof` (опционально, для автоматической проверки занятости порта)
+
+Поддерживаемая ОС: **Astra Linux 1.8** (на `x86_64`).
 
 ## Быстрый запуск
 
@@ -28,6 +31,8 @@ cd dqcr-studio-bundle-*
 ```bash
 ./bin/install.sh
 ```
+
+Проверка checksum при загрузке образов отключена: используется прямой импорт из `images/dqcr-studio-images.tar.gz`.
 
 3. Откройте приложение:
 
@@ -66,7 +71,6 @@ DQCR_PORT=8080 ./bin/up.sh    # запуск на другом порту
 
 - `docker-compose.yml` — запуск только из готовых образов, без `build`
 - `images/dqcr-studio-images.tar.gz` — архив Docker-образов
-- `images/SHA256SUMS` — контрольная сумма архива образов
 - `backend.env` — backend-конфигурация
 - `projects/` — проекты
 - `catalog/` — каталог

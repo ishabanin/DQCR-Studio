@@ -3,6 +3,7 @@ name: dqcr-studio
 services:
   backend:
     image: dqcr-studio-backend:prod
+    platform: ${DQCR_TARGET_PLATFORM:-linux/amd64}
     container_name: dqcr-studio-backend
     restart: unless-stopped
     build:
@@ -34,6 +35,7 @@ services:
 
   frontend:
     image: dqcr-studio-frontend:prod
+    platform: ${DQCR_TARGET_PLATFORM:-linux/amd64}
     container_name: dqcr-studio-frontend
     restart: unless-stopped
     build:

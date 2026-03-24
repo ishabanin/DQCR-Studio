@@ -3,7 +3,13 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+ARG TARGETARCH
+RUN npm ci && \
+    case "${TARGETARCH:-amd64}" in \
+      amd64) npm install --no-save --no-audit --no-fund @rollup/rollup-linux-x64-musl ;; \
+      arm64) npm install --no-save --no-audit --no-fund @rollup/rollup-linux-arm64-musl ;; \
+      *) echo "Skipping explicit rollup native install for TARGETARCH=${TARGETARCH}" ;; \
+    esac
 
 COPY frontend/ ./
 RUN npm run build

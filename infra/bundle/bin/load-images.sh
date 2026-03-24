@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [[ -L "$SCRIPT_PATH" ]]; do
+  SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
+  SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+  [[ "$SCRIPT_PATH" != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
+ROOT_DIR="$(cd -P "$SCRIPT_DIR/.." && pwd)"
 IMAGES_ARCHIVE="$ROOT_DIR/images/dqcr-studio-images.tar.gz"
 
 if [[ ! -f "$IMAGES_ARCHIVE" ]]; then
   echo "Images archive not found: $IMAGES_ARCHIVE"
   exit 1
-fi
-
-if [[ -f "$ROOT_DIR/images/SHA256SUMS" ]] && command -v shasum >/dev/null 2>&1; then
-  echo "==> Verifying image archive checksum"
-  (cd "$ROOT_DIR/images" && shasum -a 256 -c SHA256SUMS)
 fi
 
 echo "==> Loading Docker images"

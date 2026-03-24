@@ -7,6 +7,16 @@
     "schema": "RF110",
     "attributes": [
       {
+        "name": "description",
+        "domain_type": "string",
+        "required": false,
+        "is_key": false,
+        "constraints": [],
+        "description": "",
+        "distribution_key": null,
+        "partition_key": null
+      },
+      {
         "name": "dealid",
         "domain_type": "number",
         "required": false,

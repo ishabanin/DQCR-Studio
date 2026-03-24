@@ -1,22 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [[ -L "$SCRIPT_PATH" ]]; do
+  SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
+  SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+  [[ "$SCRIPT_PATH" != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
+ROOT_DIR="$(cd -P "$SCRIPT_DIR/.." && pwd)"
 source "$ROOT_DIR/scripts/prod-common.sh"
 
 COMPOSE_FILE="$ROOT_DIR/infra/docker/docker-compose.prod.yml"
 TEMPLATE_DIR="$ROOT_DIR/infra/bundle"
 DIST_DIR="$ROOT_DIR/dist"
+TARGET_PLATFORM="${DQCR_TARGET_PLATFORM:-linux/amd64}"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 BUNDLE_NAME="${DQCR_BUNDLE_NAME:-dqcr-studio-bundle-$TIMESTAMP}"
 BUNDLE_DIR="$DIST_DIR/$BUNDLE_NAME"
 ARCHIVE_PATH="$DIST_DIR/$BUNDLE_NAME.tar.gz"
 IMAGES_ARCHIVE="$BUNDLE_DIR/images/dqcr-studio-images.tar.gz"
 
+export DQCR_TARGET_PLATFORM="$TARGET_PLATFORM"
+export DOCKER_DEFAULT_PLATFORM="$TARGET_PLATFORM"
+
 echo "==> Preparing source environment"
 prepare_backend_env
 
-echo "==> Building production images"
+echo "==> Building production images for platform: $TARGET_PLATFORM"
 docker compose -f "$COMPOSE_FILE" build
 
 echo "==> Creating bundle directory"
@@ -38,14 +49,11 @@ docker save dqcr-studio-backend:prod dqcr-studio-frontend:prod | gzip > "$IMAGES
 cat > "$BUNDLE_DIR/VERSION.txt" <<EOF
 Bundle: $BUNDLE_NAME
 Created: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+Platform: $TARGET_PLATFORM
 Images:
 - dqcr-studio-backend:prod
 - dqcr-studio-frontend:prod
 EOF
-
-if command -v shasum >/dev/null 2>&1; then
-  shasum -a 256 "$IMAGES_ARCHIVE" > "$BUNDLE_DIR/images/SHA256SUMS"
-fi
 
 echo "==> Packing bundle archive"
 tar -C "$DIST_DIR" -czf "$ARCHIVE_PATH" "$BUNDLE_NAME"

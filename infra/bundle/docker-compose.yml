@@ -3,6 +3,7 @@ name: dqcr-studio
 services:
   backend:
     image: dqcr-studio-backend:prod
+    platform: linux/amd64
     container_name: dqcr-studio-backend
     restart: unless-stopped
     pull_policy: never
@@ -29,6 +30,7 @@ services:
 
   frontend:
     image: dqcr-studio-frontend:prod
+    platform: linux/amd64
     container_name: dqcr-studio-frontend
     restart: unless-stopped
     pull_policy: never

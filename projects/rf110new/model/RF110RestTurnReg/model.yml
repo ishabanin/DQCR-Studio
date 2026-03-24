@@ -2,6 +2,9 @@ target_table:
   name: RF110RestTurnReg
   schema: RF110
   attributes:
+    - name: description
+      domain_type: string
+      required: false
     - name: dealid
       domain_type: number
       is_key: true
@@ -38,4 +41,4 @@ workflow:
   description: Заполнение реестра остатков и оборотов для формы 110
 
   post: 
-    prepost    
+    prepost
