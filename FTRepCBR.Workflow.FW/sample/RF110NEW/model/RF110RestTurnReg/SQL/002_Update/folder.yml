@@ -7,9 +7,7 @@
         001_RF110RestTurnReg_INN:
            attributes:
             - name: clientid
-              domain_type: number
-              is_key: true
-              constraints: [PRIMARY_KEY]
+              domain_type: number              
            enabled:
             conditions:
                calcinn: true        # флаг = значение  

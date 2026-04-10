@@ -136,7 +136,7 @@ function normalizeSqlName(value: string): string {
   return value
     .trim()
     .split(".")
-    .map((part) => part.trim().replace(/^["`\[]+|["`\]]+$/g, ""))
+    .map((part) => part.trim().replace(/^["`[]+|["`\]]+$/g, ""))
     .filter(Boolean)
     .join(".")
     .toLowerCase();
@@ -762,13 +762,13 @@ export function configureDqcrMonaco(monaco: typeof Monaco): void {
               "@default": "identifier",
             },
           }],
-          [/[-+\/%=<>!~|&^]+/, "operator"],
+          [/[-+/%=<>!~|&^]+/, "operator"],
         ],
 
         comment: [
-          [/[^\/*]+/, "comment"],
+          [/[^/*]+/, "comment"],
           [/\*\//, "comment", "@pop"],
-          [/[\/*]/, "comment"],
+          [/[/*]/, "comment"],
         ],
 
         macro: [

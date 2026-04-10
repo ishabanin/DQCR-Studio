@@ -8,12 +8,17 @@
           cte_queries:
             ClientChr1_34:
               cte_materialization:
-                 default: ephemeral
-                 by_tool:
-                   adb: stage_calcid
+                  default: ephemeral
+                  by_tool:
+                    adb: stage_calcid
         003_RF110RestTurnReg_ACCRSRV:
           cte_queries:
             b:
+              cte_materialization:
+                 default: ephemeral
+                 by_tool: 
+                   postgresql: stage_calcid                           
+            a:
               cte_materialization:
                  default: ephemeral
                  by_tool: 

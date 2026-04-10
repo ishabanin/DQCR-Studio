@@ -1,1 +1,0 @@
-"""ADB materialization macros package."""

@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { useEffect } from "react";
+import { shallow } from "zustand/shallow";
 import { fetchProject } from "./api/projects";
 import { useProjectStore } from "./app/store/projectStore";
 import { useSqlTabsStore } from "./app/store/sqlTabsStore";
@@ -16,11 +17,16 @@ import TopBar from "./shared/components/TopBar";
 
 export default function App() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
-  const projectWizardOpen = useUiStore((state) => state.projectWizardOpen);
-  const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
-  const sidebarWidth = useUiStore((state) => state.sidebarWidth);
-  const bottomPanelExpanded = useUiStore((state) => state.bottomPanelExpanded);
-  const bottomPanelHeight = useUiStore((state) => state.bottomPanelHeight);
+  const { projectWizardOpen, sidebarCollapsed, sidebarWidth, bottomPanelExpanded, bottomPanelHeight } = useUiStore(
+    (state) => ({
+      projectWizardOpen: state.projectWizardOpen,
+      sidebarCollapsed: state.sidebarCollapsed,
+      sidebarWidth: state.sidebarWidth,
+      bottomPanelExpanded: state.bottomPanelExpanded,
+      bottomPanelHeight: state.bottomPanelHeight,
+    }),
+    shallow,
+  );
   const isEditorFullscreen = useSqlTabsStore((state) => state.isFullscreen);
   const hasActiveProject = Boolean(currentProjectId);
 

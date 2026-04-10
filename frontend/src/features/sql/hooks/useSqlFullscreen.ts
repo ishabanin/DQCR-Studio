@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
 import { useSqlTabsStore } from "../../../app/store/sqlTabsStore";
 
@@ -13,16 +13,16 @@ export function useSqlFullscreen({ enabled, onEnter, onExit }: UseSqlFullscreenO
   const enterFullscreen = useSqlTabsStore((state) => state.enterFullscreen);
   const exitFullscreen = useSqlTabsStore((state) => state.exitFullscreen);
 
-  const enter = () => {
+  const enter = useCallback(() => {
     if (!enabled) return;
     enterFullscreen();
     onEnter?.();
-  };
+  }, [enabled, enterFullscreen, onEnter]);
 
-  const exit = () => {
+  const exit = useCallback(() => {
     exitFullscreen();
     onExit?.();
-  };
+  }, [exitFullscreen, onExit]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -44,7 +44,7 @@ export function useSqlFullscreen({ enabled, onEnter, onExit }: UseSqlFullscreenO
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [enabled, isFullscreen]);
+  }, [enabled, enter, exit, isFullscreen]);
 
   return {
     isFullscreen,

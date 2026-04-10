@@ -35,10 +35,10 @@ def get_context_names(project_path):
     return _get(project_path)
 
 
-def load_parameters(project_path, model_name=None):
+def load_parameters(project_path, model_path, local_params, global_params):
     """Загрузить параметры."""
     from FW.parsing.parameter_loader import load_parameters as _load
-    return _load(project_path, model_name)
+    return _load(project_path, model_path, local_params, global_params)
 
 
 def load_global_parameters(project_path):

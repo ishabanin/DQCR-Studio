@@ -7,7 +7,7 @@ const PROJECT_ICON_PALETTES = [
   { bg: "#EAF3DE", color: "#27500A" },
 ] as const;
 
-export function getProjectPalette(projectId: string) {
+function getProjectPalette(projectId: string) {
   const hash = projectId.split("").reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) & 0xffff, 0);
   return PROJECT_ICON_PALETTES[hash % PROJECT_ICON_PALETTES.length];
 }

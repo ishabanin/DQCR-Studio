@@ -12,7 +12,7 @@ import {
   type ModelObjectResponse,
 } from "../../api/projects";
 import { getCatalogStatus, type CatalogEntity } from "../../api/catalog";
-import { useTheme } from "../../app/providers/ThemeProvider";
+import { useTheme } from "../../app/providers/themeContext";
 import { useEditorStore } from "../../app/store/editorStore";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
@@ -789,7 +789,7 @@ export default function ModelEditorScreen() {
         value={createModelValue}
         availableModes={["new-model"]}
         onValueChange={setCreateModelValue}
-        onModeChange={(_mode) => undefined}
+        onModeChange={() => undefined}
         onCancel={() => setCreateModelState(null)}
         onConfirm={() => {
           const modelId = createModelValue.trim();

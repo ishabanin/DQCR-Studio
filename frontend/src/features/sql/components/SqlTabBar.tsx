@@ -14,8 +14,11 @@ export default function SqlTabBar({ tabs, activeTabId, onSelectTab, onRequestClo
         <div key={tab.id} className={tab.id === activeTabId ? "sql-tab sql-tab-active" : "sql-tab"}>
           <button
             type="button"
+            id={`sql-tab-${tab.id}`}
             role="tab"
+            aria-controls={`sql-panel-${tab.id}`}
             aria-selected={tab.id === activeTabId}
+            tabIndex={tab.id === activeTabId ? 0 : -1}
             className="sql-tab-main"
             onClick={() => onSelectTab(tab.id)}
           >

@@ -418,6 +418,65 @@ workflow:
 
 ---
 
+## Folder-Level Configuration (folder.yml)
+
+You can define configuration for specific folders in separate `folder.yml` files located inside each SQL folder. This allows you to keep folder-specific settings independent from the main `model.yml`.
+
+### Location
+```
+model/<model_name>/SQL/<folder_name>/folder.yml
+```
+
+### Example
+```yaml
+# SQL/001_Load__distr/folder.yml
+001_Load__distr:
+  enabled:
+    contexts: [default]
+  queries:
+    001_RF110_Reg_Acc2:
+      materialized: stage_calcid
+  pre:
+    - synch_iter
+```
+
+### Priority
+
+Folder-level config overrides `model.yml` settings for the corresponding folder:
+```
+folder.yml > model.yml > template defaults
+```
+
+### Supported Configuration Keys
+
+| Key | Description |
+|-----|-------------|
+| `enabled` | Enable/disable folder for specific contexts |
+| `materialized` | Default materialization for folder |
+| `queries.<query_name>.<key>` | Query-level settings |
+| `pre` | Pre-macros for folder |
+| `post` | Post-macros for folder |
+| `cte` | CTE materialization config |
+| `description` | Folder description |
+
+### Loading
+
+The framework loads `folder.yml` files automatically:
+1. Load `model.yml` first
+2. Scan `SQL/` directory for subfolders
+3. Load `folder.yml` from each subfolder
+4. Merge folder configs with model config (folder.yml takes precedence)
+
+### Functions
+
+```python
+# FW/parsing/model_config_loader.py
+load_folder_configs(model_path, sql_folder_name="SQL") -> Dict[str, FolderConfig]
+merge_workflow_configs(base_config, folder_configs) -> WorkflowConfig
+```
+
+---
+
 ## Model Attribute Utilities
 
 `FW/models/attribute_utils.py` - Central utilities:

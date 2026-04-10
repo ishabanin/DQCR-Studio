@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { fetchProjectContexts, fetchProjects, runProjectValidation } from "../../api/projects";
-import { useTheme } from "../../app/providers/ThemeProvider";
+import { useTheme } from "../../app/providers/themeContext";
 import { useContextStore } from "../../app/store/contextStore";
 import { useEditorStore } from "../../app/store/editorStore";
 import { useProjectStore } from "../../app/store/projectStore";

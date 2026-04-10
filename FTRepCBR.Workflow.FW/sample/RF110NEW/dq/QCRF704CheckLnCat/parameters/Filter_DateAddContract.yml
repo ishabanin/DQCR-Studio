@@ -1,0 +1,9 @@
+parameter:
+  name: Filter_DateAddContract
+  description: "Фильтр для RF704TotalReg.DateAddContract >= Filter_DateAddContract"
+  domain_type: date
+
+  values:
+    all:
+      type: static
+      value: "20191001"      

@@ -49,7 +49,7 @@
                          reg.PaymentSumVal as OutRestVal,
                          reg.AccountName as AccountName,
                          reg.ClientName as ClientName,
-                         NULL as LinkAccountID,
+                         cast(NULL as number) as LinkAccountID,
                          NULL as LinkAccountNumber,
                          NULL as LinkAccount2Number,
                          NULL as LinkCurrencyCode,

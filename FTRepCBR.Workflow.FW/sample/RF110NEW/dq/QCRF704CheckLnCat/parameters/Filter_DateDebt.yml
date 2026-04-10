@@ -1,0 +1,9 @@
+parameter:
+  name: Filter_DateDebt
+  description: "Фильтр для RF704TotalReg.DateDebt >= Filter_DateDebt"
+  domain_type: date
+
+  values:
+    all:
+      type: static
+      value: "20191001"

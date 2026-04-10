@@ -4,19 +4,15 @@ target_table:
   attributes:
     - name: dealid
       domain_type: number
-      is_key: true
       constraints: [PRIMARY_KEY]
     - name: accountid
       domain_type: number
-      is_key: true
       constraints: [PRIMARY_KEY]      
     - name: objectid
       domain_type: number
-      is_key: true
       constraints: [PRIMARY_KEY]            
     - name: calcid
       domain_type: number
-      is_key: true
       constraints: [PRIMARY_KEY]            
     - name: fininstrcategory
       domain_type: string  

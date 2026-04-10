@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
 import logging
+from pathlib import Path
+import shutil
 import time
 
 from fastapi import FastAPI, Request
@@ -19,10 +21,47 @@ setup_logging(settings.log_level)
 logger = logging.getLogger("dqcr.backend")
 
 
+def _check_writable_directory(path_value: str) -> dict[str, object]:
+    path = Path(path_value)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        probe = path / ".dqcr_readiness_probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink(missing_ok=True)
+        return {"ok": True, "path": str(path)}
+    except OSError as exc:
+        return {"ok": False, "path": str(path), "error": str(exc)}
+
+
+def _build_readiness_payload() -> dict[str, object]:
+    checks: dict[str, dict[str, object]] = {
+        "projects_path": _check_writable_directory(settings.projects_path),
+        "catalog_path": _check_writable_directory(settings.catalog_path),
+    }
+
+    if settings.fw_use_cli:
+        resolved_cli = shutil.which(settings.fw_cli_command)
+        checks["fw_cli"] = {
+            "ok": bool(resolved_cli),
+            "command": settings.fw_cli_command,
+            "resolved_path": resolved_cli,
+        }
+    else:
+        checks["fw_cli"] = {
+            "ok": True,
+            "command": settings.fw_cli_command,
+            "skipped": "fw_use_cli is disabled",
+        }
+
+    ready = all(bool(check.get("ok")) for check in checks.values())
+    return {"status": "ready" if ready else "not_ready", "checks": checks}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Placeholder boot hook. Will initialize FW service in next increments.
-    app.state.fw_ready = True
+    payload = _build_readiness_payload()
+    app.state.fw_ready = payload["status"] == "ready"
+    app.state.readiness = payload
     yield
 
 
@@ -59,10 +98,11 @@ def health() -> dict[str, str]:
 
 
 @app.get("/ready")
-def ready(request: Request) -> dict[str, str]:
-    if not getattr(request.app.state, "fw_ready", False):
-        return {"status": "not_ready"}
-    return {"status": "ready"}
+def ready(request: Request) -> JSONResponse:
+    payload = _build_readiness_payload()
+    request.app.state.fw_ready = payload["status"] == "ready"
+    request.app.state.readiness = payload
+    return JSONResponse(status_code=200 if request.app.state.fw_ready else 503, content=payload)
 
 
 app.include_router(projects_router, prefix=settings.api_prefix)
@@ -90,4 +130,5 @@ async def fw_error_handler(_: Request, exc: FWError) -> JSONResponse:
 
 @app.exception_handler(Exception)
 async def unhandled_error_handler(_: Request, exc: Exception) -> JSONResponse:
-    return JSONResponse(status_code=500, content={"detail": f"Internal server error: {exc}"})
+    logger.exception("Unhandled application error", exc_info=exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error."})

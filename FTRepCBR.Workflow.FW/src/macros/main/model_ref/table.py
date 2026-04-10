@@ -6,57 +6,40 @@
     _m.dwh.ClientChr -> "DWH"."CLIENT_CHR"
     _m.RF110.RF110RestTurnReg.seq -> "RF110"."RF110RESTTURNREG_SEQ"
 
-Также поддерживает расширенный режим с доступом к workflow и env:
-    def resolve_model_ref(path, tool, context, workflow=None, env=None) -> str:
-
-При наличии workflow и env создаёт параметр get_entities для динамического
-получения имён таблиц по логическим сущностям из md_entity2table.
+Работает с WorkflowNewModel через MacroEnv.
 """
 from typing import Optional, TYPE_CHECKING, List, Dict, Any
 
 from FW.logging_config import get_logger as _get_logger
 
 if TYPE_CHECKING:
-    from FW.models.workflow import WorkflowModel
-    from FW.macros.env import MacroEnv
-    from FW.models.step import WorkflowStepModel
+    from FW.models.workflow_new import WorkflowNewModel
+    from FW.macros.env import BaseMacroEnv
     from FW.models.parameter import ParameterModel
 
 logger = _get_logger("model_ref.table")
 
 
-def _create_get_entities_param_step() -> "WorkflowStepModel":
-    """Создать PARAM шаг для get_entities.
+def _create_get_entities_param() -> "ParameterModel":
+    """Создать параметр get_entities.
     
     Returns:
-        WorkflowStepModel с параметром get_entities
+        ParameterModel с параметром get_entities
     """
     from FW.models.parameter import ParameterModel, ParameterValue
-    from FW.models.step import WorkflowStepModel, StepType
     
-    param_model = ParameterModel(
+    param = ParameterModel(
         name="get_entities",
         domain_type="record",
         description="Таблицы для логических сущностей",
         attributes=[],
         values={
             "all": ParameterValue(type="dynamic", value="")
-        }
+        },
+        generated=True
     )
     
-    step = WorkflowStepModel(
-        step_id="get_entities",
-        name="get_entities",
-        folder="",
-        full_name="get_entities",
-        step_type=StepType.PARAM,
-        step_scope="pre",
-        param_model=param_model,
-        context="all",
-        is_ephemeral=False
-    )
-    
-    return step
+    return param
 
 
 def _get_existing_entities(param_model: "ParameterModel") -> List[tuple]:
@@ -94,30 +77,9 @@ def _build_select_clause(entities_list: List[tuple]) -> str:
     case_parts = []
     for module, entity in entities_list:
         case_parts.append(
-            f"    MAX(CASE WHEN entity_name = '{entity}' AND module_name = '{module}' THEN table_name END) AS table_{module}_{entity}"
+            f"    get_table_name('{entity}') AS table_{entity}"
         )
     return ",\n".join(case_parts)
-
-
-def _build_where_clause(entities_list: List[tuple]) -> str:
-    """Построить WHERE clause.
-    
-    Args:
-        entities_list: Список кортежей [(module, entity), ...] в порядке добавления
-        
-    Returns:
-        SQL для WHERE части
-    """
-    all_entities = []
-    for module, entity in entities_list:
-        all_entities.append(f"(entity_name = '{entity}' AND module_name = '{module}')")
-    
-    if not all_entities:
-        return "WHERE 1=0"
-    
-    where_parts = " OR ".join(all_entities)
-    return f"WHERE {where_parts}"
-
 
 def _update_param_sql(param_model: "ParameterModel", module: str, entity: str) -> None:
     """Обновить SQL запрос параметра с новой сущностью.
@@ -136,12 +98,9 @@ def _update_param_sql(param_model: "ParameterModel", module: str, entity: str) -
         existing_list.append(entity_key)
     
     select_clause = _build_select_clause(existing_list)
-    where_clause = _build_where_clause(existing_list)
     
     sql = f"""SELECT 
-{select_clause}
-FROM md_entity2table
-{where_clause}"""
+{select_clause}"""
     
     if "all" in param_model.values:
         param_model.values["all"].value = sql
@@ -155,30 +114,32 @@ def resolve_model_ref(
     path: str, 
     tool: Optional[str] = None, 
     context: Optional[str] = None,
-    workflow: "Optional[WorkflowModel]" = None,
-    env: "Optional[MacroEnv]" = None,
-    step: "Optional[WorkflowStepModel]" = None
+    workflow_new: "Optional[WorkflowNewModel]" = None,
+    env: "Optional[BaseMacroEnv]" = None,
+    obj_type: str = "sql_object",
+    obj_key: str = None,
 ) -> str:
     """Преобразовать _m.<path> в реальное имя таблицы.
     
-    При наличии workflow и env создаёт параметр get_entities с динамическим SQL
+    При наличии workflow_new и env создаёт параметр get_entities с динамическим SQL
     для получения table_name по entity_name и module_name из md_entity2table.
     
     Args:
         path: Путь после _m. (напр. dwh.ClientChr)
         tool: Целевой tool (oracle, adb, postgresql)
         context: Имя контекста
-        workflow: Модель workflow (опционально)
-        env: Окружение макроса (опционально)
-        step: Шаг workflow (опционально)
+        workflow_new: Модель workflow_new
+        env: Окружение макроса
+        obj_type: Тип объекта ("sql_object" или "parameter")
+        obj_key: Ключ объекта для которого вызван макрос
         
     Returns:
         Имя таблицы в формате schema.table или ссылка на параметр
     """
     parts = path.split('.')
     
-    if len(parts) >= 2 and env is not None:
-        return _resolve_entity_ref(path, tool, context, env, step)
+    if len(parts) >= 2 and env is not None and workflow_new is not None:
+        return _resolve_entity_ref(path, tool, context, workflow_new, env, obj_type, obj_key)
     
     if len(parts) == 1:
         schema = "PUBLIC"
@@ -197,8 +158,10 @@ def _resolve_entity_ref(
     path: str, 
     tool: Optional[str], 
     context: Optional[str],
-    env: "MacroEnv",
-    step: "Optional[WorkflowStepModel]" = None
+    workflow_new: "WorkflowNewModel",
+    env: "BaseMacroEnv",
+    obj_type: str = "sql_object",
+    obj_key: str = None,
 ) -> str:
     """Обработать ссылку вида _m.<module>.<entity>.
     
@@ -208,10 +171,13 @@ def _resolve_entity_ref(
         path: Путь (напр. dwh.ClientChr)
         tool: Целевой tool
         context: Имя контекста
+        workflow_new: WorkflowNewModel
         env: Окружение макроса
+        obj_type: Тип объекта ("sql_object" или "parameter")
+        obj_key: Ключ объекта для которого вызван макрос
         
     Returns:
-        Ссылка на атрибут параметра {{get_entities.table_<module>_<entity>}}
+        Ссылка на атрибут параметра {{get_entities.table_<entity>}}
     """
     parts = path.split('.')
     if len(parts) < 2:
@@ -219,29 +185,61 @@ def _resolve_entity_ref(
     
     module = parts[0].lower()
     entity = parts[1].lower()
-    attr_name = f"table_{module}_{entity}"
+    attr_name = f"table_{entity}"
     
-    prep_step = env.get_step_by_name("get_entities")
+    prep_param = env.get_parameter("get_entities")
     
-    if not prep_step:
-        prep_step = _create_get_entities_param_step()
-        env.add_step(prep_step)
-        logger.info(f"Created get_entities parameter step")
+    if not prep_param:
+        prep_param = _create_get_entities_param()
+        env.add_parameter(prep_param)
+        logger.info(f"Created get_entities parameter")
     
-    param_model = prep_step.param_model
+    source_obj = None
+    if obj_type == "sql_object" and obj_key:
+        source_obj = workflow_new.sql_objects.get(obj_key)
+    elif obj_type == "parameter" and obj_key:
+        source_obj = workflow_new.parameters.get(obj_key)
     
-    existing_attr_names = [a.get('name') for a in param_model.attributes if isinstance(a, dict)]
+    for ctx in workflow_new.contexts.keys():
+        if source_obj and ctx in source_obj.config:
+            ctx_config = source_obj.config[ctx]
+            ctx_tools = ctx_config.get("tools", []) if ctx_config else []
+        else:
+            ctx_obj = workflow_new.contexts.get(ctx)
+            ctx_tools = ctx_obj.tools if ctx_obj and ctx_obj.tools else workflow_new.tools
+        
+        prep_param.config[ctx] = {"tools": ctx_tools}
+        
+        for t in ctx_tools:
+            if not env.has_step_in_graph("get_entities", ctx, t):
+                env.add_step_to_graph("parameter", "get_entities", ctx, t, "param")
+    
+    existing_attr_names = [a.get('name') for a in prep_param.attributes if isinstance(a, dict)]
     
     if attr_name not in existing_attr_names:
-        param_model.attributes.append({
+        prep_param.attributes.append({
             'name': attr_name,
-            'type': 'sql.identifier'
+            'domain_type': 'sql.identifier'
         })
         
-        _update_param_sql(param_model, module, entity)
+        _update_param_sql(prep_param, module, entity)
         
         actual_context = context if context else "all"
-        env.regenerate_param(param_model, actual_context)
+        
+        for ctx in workflow_new.contexts.keys():
+            if source_obj and ctx in source_obj.config:
+                ctx_config = source_obj.config[ctx]
+                ctx_tools = ctx_config.get("tools", []) if ctx_config else []
+            else:
+                ctx_obj = workflow_new.contexts.get(ctx)
+                ctx_tools = ctx_obj.tools if ctx_obj and ctx_obj.tools else workflow_new.tools
+            
+            for t in ctx_tools:
+                value = prep_param.values.get("all", "").value if prep_param.values.get("all") else ""
+                if t == "oracle":
+                   value = value + "\nfrom dual"
+                env.update_compiled("parameter", "get_entities", ctx, t, "prepared_sql", value)
+                env.update_compiled("parameter", "get_entities", ctx, t, "model_refs", {})
         
         logger.info(f"Added entity '{module}.{entity}' to get_entities, attr: {attr_name}")
     

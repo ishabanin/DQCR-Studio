@@ -10,7 +10,7 @@ from FW.logging_config import get_logger
 logger = get_logger("parameter_loader")
 
 
-def load_global_parameters(project_path: Path) -> Dict[str, ParameterModel]:
+def load_global_parameters(project_path: Path, global_params) -> Dict[str, ParameterModel]:
     """Загрузить глобальные параметры из parameters/.
     
     Args:
@@ -19,7 +19,7 @@ def load_global_parameters(project_path: Path) -> Dict[str, ParameterModel]:
     Returns:
         Словарь {name: ParameterModel}
     """
-    params_dir = project_path / "parameters"
+    params_dir = project_path / global_params
     result = {}
     
     if not params_dir.exists():
@@ -43,7 +43,7 @@ def load_global_parameters(project_path: Path) -> Dict[str, ParameterModel]:
     return result
 
 
-def load_model_parameters(project_path: Path, model_name: str) -> Dict[str, ParameterModel]:
+def load_model_parameters(model_path, local_params) -> Dict[str, ParameterModel]:
     """Загрузить локальные параметры модели из model/{name}/parameters/.
     
     Args:
@@ -53,7 +53,7 @@ def load_model_parameters(project_path: Path, model_name: str) -> Dict[str, Para
     Returns:
         Словарь {name: ParameterModel}
     """
-    params_dir = project_path / "model" / model_name / "parameters"
+    params_dir = model_path / local_params
     result = {}
     
     if not params_dir.exists():
@@ -77,7 +77,7 @@ def load_model_parameters(project_path: Path, model_name: str) -> Dict[str, Para
     return result
 
 
-def load_parameters(project_path: Path, model_name: Optional[str] = None) -> Dict[str, ParameterModel]:
+def load_parameters(project_path, model_path, local_params, global_params) -> Dict[str, ParameterModel]:
     """Загрузить параметры с учетом приоритета (локальные переопределяют глобальные).
     
     Args:
@@ -89,11 +89,11 @@ def load_parameters(project_path: Path, model_name: Optional[str] = None) -> Dic
     """
     result = {}
     
-    global_params = load_global_parameters(project_path)
+    global_params = load_global_parameters(project_path, global_params)
     result.update(global_params)
     
-    if model_name:
-        model_params = load_model_parameters(project_path, model_name)
+    if model_path:
+        model_params = load_model_parameters(model_path, local_params)
         result.update(model_params)
         logger.info(f"Merged {len(global_params)} global + {len(model_params)} model parameters")
     else:

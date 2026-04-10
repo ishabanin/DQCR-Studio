@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, List, Optional, Type
 from FW.validation.models import ValidationIssue, ValidationLevel
 
 if TYPE_CHECKING:
-    from FW.models.workflow import WorkflowModel
+    from FW.models.workflow_new import WorkflowNewModel
 
 
 class BaseValidationRule(ABC):
@@ -35,7 +35,7 @@ class BaseValidationRule(ABC):
     description: str = ""
     
     @abstractmethod
-    def validate(self, workflow: "WorkflowModel") -> List[ValidationIssue]:
+    def validate(self, workflow: "WorkflowNewModel") -> List[ValidationIssue]:
         """Выполнить проверку правила.
         
         Args:

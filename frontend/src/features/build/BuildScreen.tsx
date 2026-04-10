@@ -17,7 +17,7 @@ import {
   type BuildRunResult,
   type FileNode,
 } from "../../api/projects";
-import { useTheme } from "../../app/providers/ThemeProvider";
+import { useTheme } from "../../app/providers/themeContext";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
 

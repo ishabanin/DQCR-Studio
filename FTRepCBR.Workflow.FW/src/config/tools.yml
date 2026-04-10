@@ -1,4 +1,82 @@
 tools:
-  - oracle
-  - adb
-  - postgresql
+  - oracle:
+      domain2basetype:
+        number: 
+          basetype: number
+          precision: 38
+          scale: 10
+        integer: 
+          basetype: number
+          precision: 38
+          scale: 0   
+        amount: 
+          basetype: number
+          precision: 38
+          scale: 2   
+        rate: 
+          basetype: number
+          precision: 38
+          scale: 4   
+        string: 
+          basetype: varchar2
+          length: 4000
+        text: 
+          basetype: clob
+        date: 
+          basetype: date
+        datetime: 
+          basetype: date
+  - adb:
+      domain2basetype:
+        number: 
+          basetype: numeric
+          precision: 38
+          scale: 10
+        integer: 
+          basetype: numeric
+          precision: 38
+          scale: 0   
+        amount: 
+          basetype: numeric
+          precision: 38
+          scale: 2   
+        rate: 
+          basetype: numeric
+          precision: 38
+          scale: 4        
+        string: 
+          basetype: varchar
+          length: 4000
+        text: 
+          basetype: text
+        date: 
+          basetype: date
+        datetime: 
+          basetype: timestamp
+  - postgresql:
+      domain2basetype:
+        number: 
+          basetype: numeric
+          precision: 38
+          scale: 10
+        integer: 
+          basetype: numeric
+          precision: 38
+          scale: 0   
+        amount: 
+          basetype: numeric
+          precision: 38
+          scale: 2   
+        rate: 
+          basetype: numeric
+          precision: 38
+          scale: 4
+        string: 
+          basetype: varchar
+          length: 4000
+        text: 
+          basetype: text
+        date: 
+          basetype: date
+        datetime: 
+          basetype: timestamp

@@ -1,335 +1,764 @@
-"""Macro environment - API для Python-макросов."""
+"""Macro environment для workflow_new."""
+
 from pathlib import Path
 from typing import List, Callable, Any, Optional, TYPE_CHECKING, Dict
 from jinja2 import Template
 
 from FW.logging_config import get_logger
 from FW.exceptions.base import BaseFWError
+import FW.config as cfg
 
 if TYPE_CHECKING:
     from FW.macros import MacroRegistry
-    from FW.models.step import WorkflowStepModel
-    from FW.models.workflow import WorkflowModel, FolderModel
-    from FW.models import ParameterModel
-    from FW.materialization.renderer import MaterializationRenderer
+    from FW.models.workflow_new import WorkflowNewModel
+    from FW.models.sql_object import SQLObjectModel
+    from FW.models.parameter import ParameterModel
 
 
 logger = get_logger("macro_env")
 
 
-class WorkflowMacroSecurityError(BaseFWError):
-    """Ошибка безопасности - попытка выхода за пределы target директории."""
+class MacroEnvError(BaseFWError):
+    """Ошибка работы с MacroEnv."""
+
     pass
 
 
 class BaseMacroEnv:
     """Базовый класс для макро-окружений.
-    
-    Содержит общие методы для доступа к workflow.
+
+    Содержит общие методы для доступа к workflow_new.
     """
-    
+
     def __init__(
         self,
-        workflow: "WorkflowModel",
+        workflow: "WorkflowNewModel",
         macro_registry: "MacroRegistry",
         tools: List[str],
-        **kwargs
     ):
         self._workflow = workflow
         self._macro_registry = macro_registry
         self.tools = tools
-    
+        t = cfg.ToolRegistry()        
+        self.toolsConfig = t.toolsConfig
+
     @property
-    def workflow(self) -> "WorkflowModel":
+    def workflow(self) -> "WorkflowNewModel":
         """Получить workflow модель."""
         return self._workflow
-    
-    def get_all_steps(self) -> List["WorkflowStepModel"]:
-        """Получить все шаги workflow.
-        
-        Returns:
-            Список всех шагов
-        """
-        if not self._workflow or not self._workflow.graph:
-            return []
-        return list(self._workflow.graph.get_all_nodes())
-    
-    def get_step_by_name(self, full_name: str) -> Optional["WorkflowStepModel"]:
-        """Найти шаг по полному имени.
-        
+
+    def get_sql_object(self, key: str) -> Optional["SQLObjectModel"]:
+        """Получить SQL объект по ключу.
+
         Args:
-            full_name: Полное имя шага (напр. "folder/subfolder/step_name")
-            
+            key: Ключ объекта (путь к SQL файлу)
+
         Returns:
-            WorkflowStepModel или None если не найден
+            SQLObjectModel или None
         """
-        if not self._workflow or not self._workflow.graph:
+        if not self._workflow:
             return None
-        
-        for step in self._workflow.graph.get_all_nodes():
-            if step.full_name == full_name:
-                return step
-        return None
-    
-    def get_steps_in_folder(self, folder: str) -> List["WorkflowStepModel"]:
-        """Получить все шаги в указанной папке.
-        
-        Args:
-            folder: Путь к папке (напр. "001_Load" или "root")
-            
+        return self._workflow.sql_objects.get(key)
+
+    def get_toolDataTypeByDomainType(self, tool, domain_type) -> str:
+        type = self.toolsConfig[tool].domain2basetype.get(domain_type)
+        if type:
+           return type.get("basetype")
+
+    def get_all_sql_objects(self) -> Dict[str, "SQLObjectModel"]:
+        """Получить все SQL объекты.
+
         Returns:
-            Список шагов в папке
+            Словарь SQLObjectModel
+        """
+        if not self._workflow:
+            return {}
+        return self._workflow.sql_objects
+
+    def get_parameter(self, name: str) -> Optional["ParameterModel"]:
+        """Получить параметр по имени.
+
+        Args:
+            name: Имя параметра
+
+        Returns:
+            ParameterModel или None
+        """
+        if not self._workflow:
+            return None
+        return self._workflow.parameters.get(name)
+
+    def get_all_parameters(self) -> Dict[str, "ParameterModel"]:
+        """Получить все параметры.
+
+        Returns:
+            Словарь ParameterModel
+        """
+        if not self._workflow:
+            return {}
+        return self._workflow.parameters
+
+    def add_parameter(self, param: "ParameterModel") -> None:
+        """Добавить параметр в workflow.
+
+        Args:
+            param: Параметр для добавления
+        """
+        if not self._workflow:
+            raise MacroEnvError("Workflow not set")
+
+        self._workflow.parameters[param.name] = param
+        logger.debug(f"Added parameter '{param.name}' to workflow")
+
+    def update_compiled(
+        self,
+        obj_type: str,
+        obj_key: str,
+        context: str,
+        tool: str,
+        field: str,
+        value: Any,
+    ) -> None:
+        """Обновить поле в compiled структуре объекта.
+
+        Args:
+            obj_type: Тип объекта ('sql_object' или 'parameter')
+            obj_key: Ключ объекта
+            context: Имя контекста
+            tool: Имя tool
+            field: Имя поля в compiled
+            value: Значение поля
+        """
+        if not self._workflow:
+            raise MacroEnvError("Workflow not set")
+
+        obj = None
+        if obj_type == "sql_object":
+            obj = self._workflow.sql_objects.get(obj_key)
+        elif obj_type == "parameter":
+            obj = self._workflow.parameters.get(obj_key)
+
+        if not obj:
+            logger.warning(f"Object not found: {obj_type}.{obj_key}")
+            return
+
+        if context not in obj.compiled:
+            obj.compiled[context] = {}
+        if tool not in obj.compiled[context]:
+            obj.compiled[context][tool] = {}
+
+        obj.compiled[context][tool][field] = value
+        logger.debug(
+            f"Updated compiled[{obj_type}.{obj_key}][{context}][{tool}].{field}"
+        )
+
+    def get_compiled(
+        self, obj_type: str, obj_key: str, context: str, tool: str
+    ) -> Optional[Dict[str, Any]]:
+        """Получить compiled данные для объекта.
+
+        Args:
+            obj_type: Тип объекта ('sql_object' или 'parameter')
+            obj_key: Ключ объекта
+            context: Имя контекста
+            tool: Имя tool
+
+        Returns:
+            Словарь compiled или None
+        """
+        if not self._workflow:
+            return None
+
+        obj = None
+        if obj_type == "sql_object":
+            obj = self._workflow.sql_objects.get(obj_key)
+        elif obj_type == "parameter":
+            obj = self._workflow.parameters.get(obj_key)
+
+        if not obj:
+            return None
+
+        return obj.compiled.get(context, {}).get(tool)
+
+    def has_step_in_graph(self, obj_key: str, context: str, tool: str) -> bool:
+        """Проверить, есть ли шаг в графе.
+
+        Args:
+            obj_key: Ключ объекта
+            context: Имя контекста
+            tool: Имя tool
+
+        Returns:
+            True если шаг существует
         """
         if not self._workflow or not self._workflow.graph:
-            return []
-        
-        folder_normalized = folder.rstrip("/")
-        result = []
-        for step in self._workflow.graph.get_all_nodes():
-            step_folder = step.folder.rstrip("/") if step.folder else "root"
-            if step_folder == folder_normalized:
-                result.append(step)
-        return result
-    
-    def get_project_prop(self, name: str, default: Any = None) -> Any:
-        """Получить значение свойства проекта.
-        
-        Args:
-            name: Имя свойства
-            default: Значение по умолчанию, если свойство не найдено
-            
-        Returns:
-            Значение свойства или default
-        """
-        if self._workflow and self._workflow.project_properties:
-            return self._workflow.project_properties.get(name, default)
-        return default
+            return False
 
+        graph_ctx = self._workflow.graph.get(context)
+        if not graph_ctx:
+            return False
 
-class MacroEnv(BaseMacroEnv):
-    """Окружение для выполнения Python-макросов.
-    
-    Предоставляет API для:
-    - Рендеринга jinja2 шаблонов
-    - Добавления шагов в workflow
-    """
-    
-    def __init__(
+        graph_tool = graph_ctx.get(tool)
+        if not graph_tool:
+            return False
+
+        return obj_key in graph_tool.get("steps", {})
+
+    def add_step_to_graph(
         self,
-        renderer: "MaterializationRenderer",
-        macro_registry: "MacroRegistry",
-        workflow: "WorkflowModel",
-        tools: List[str],
-        step: Optional["WorkflowStepModel"] = None,
-        param_model: Optional["ParameterModel"] = None,
-        folder_path: Optional[str] = None,
-        folder_steps: Optional[List["WorkflowStepModel"]] = None,
-        steps: Optional[List["WorkflowStepModel"]] = None,
-        context_name: Optional[str] = None,
-        flags: Optional[Dict[str, Any]] = None,
-        constants: Optional[Dict[str, Any]] = None,
-        folder: Optional["FolderModel"] = None
-    ):
-        super().__init__(workflow, macro_registry, tools)
-        self._renderer = renderer
-        self.step = step
-        self.param_model = param_model
-        self.folder_path = folder_path
-        self.folder_steps = folder_steps or []
-        self.steps = steps
-        self._context_name = context_name
-        self._flags = flags or {}
-        self._constants = constants or {}
-        self.folder = folder
-    
-    @property
-    def context_name(self) -> Optional[str]:
-        """Имя активного контекста."""
-        return self._context_name
-    
-    @property
-    def flags(self) -> Dict[str, Any]:
-        """Словарь флагов контекста."""
-        return self._flags
-    
-    @property
-    def constants(self) -> Dict[str, Any]:
-        """Словарь констант контекста."""
-        return self._constants
-    
-    def get_flag(self, key: str, default: Any = None) -> Any:
-        """Получить значение флага по ключу (поддержка вложенных через точку).
-        
+        obj_type: str,
+        obj_key: str,
+        context: str,
+        tool: str,
+        step_scope: Optional[str] = None,
+    ) -> None:
+        """Добавить шаг в граф workflow.
+
         Args:
-            key: Ключ (напр. 'overduecalcmethod.fifo')
-            default: Значение по умолчанию
-            
-        Returns:
-            Значение флага
+            obj_type: Тип объекта ('sql_object' или 'parameter')
+            obj_key: Ключ объекта
+            context: Имя контекста
+            tool: Имя tool
+            step_scope: Область шага (для параметров: 'param' или 'flag')
         """
-        parts = key.split(".")
-        value = self._flags
-        
-        for part in parts:
-            if isinstance(value, dict):
-                value = value.get(part)
-                if value is None:
-                    return default
-            else:
-                return default
-        
-        return value if value is not None else default
-    
-    def get_constant(self, key: str, default: Any = None) -> Any:
-        """Получить значение константы по ключу.
-        
-        Args:
-            key: Ключ константы
-            default: Значение по умолчанию
-            
-        Returns:
-            Значение константы
-        """
-        return self._constants.get(key, default)
-    
+        if not self._workflow or not self._workflow.graph:
+            raise MacroEnvError("Workflow graph not set")
+
+        if context not in self._workflow.graph:
+            self._workflow.graph[context] = {}
+        if tool not in self._workflow.graph[context]:
+            self._workflow.graph[context][tool] = {"steps": {}, "edges": []}
+
+        steps = self._workflow.graph[context][tool]["steps"]
+
+        if obj_key in steps:
+            logger.debug(f"Step {obj_key} already exists in graph")
+            return
+
+        if obj_type == "sql_object":
+            steps[obj_key] = {
+                "context": context,
+                "tool": tool,
+                "step_type": "sql",
+                "step_scope": "sql",
+                "object_id": obj_key,
+                "asynch": False,
+            }
+        elif obj_type == "parameter":
+            param = self._workflow.parameters.get(obj_key)
+            domain_type = param.domain_type if param else "string"
+            scope = step_scope or ("flag" if domain_type == "bool" else "param")
+            steps[obj_key] = {
+                "context": context,
+                "tool": tool,
+                "step_type": "param",
+                "step_scope": scope,
+                "object_id": obj_key,
+                "asynch": False,
+            }
+
+        logger.debug(f"Added step '{obj_key}' to graph [{context}][{tool}]")
+
     def render_template(self, template_name: str, tool: str, **kwargs) -> str:
         """Рендерит jinja2 шаблон для указанного tool.
-        
+
         Логика поиска:
         1. <tool>/<name>
-        2. <tool>/**/<name> (рекурсивно)
-        3. main/<name> (fallback)
-        
+        2. main/<name> (fallback)
+
         Args:
             template_name: Имя шаблона (напр. materialization/insert_fc_body)
             tool: Целевой tool (oracle/adb/postgresql)
             **kwargs: Переменные для подстановки в шаблон
-            
+
         Returns:
             Отрендеренный текст
         """
         try:
             content = self._macro_registry.get_macro_content(template_name, tool)
-            logger.debug(f"Got template content: {len(content)} chars for {template_name}@{tool}")
         except Exception as e:
             logger.debug(f"Failed to get {template_name}@{tool}: {e}, trying main")
             content = self._macro_registry.get_macro_content(template_name, None)
-        
-        template = Template(content, trim_blocks=True, lstrip_blocks=True)
-        
-        try:
-            params = dict(kwargs)
-            params["tool"] = tool
-            params["ctx"] = {
-                "flags": self._flags,
-                "constants": self._constants,
-                "context_name": self._context_name
-            }
-            result = template.render(params)
-            logger.debug(f"Template rendered: {len(result)} chars")
-            return result
-        except Exception as e:
-            logger.error(f"Template render error: {e}")
-            raise
-    
-    def add_step(self, step: "WorkflowStepModel"):
-        """Добавляет шаг в workflow.
-        
-        Приоритет:
-        1. self.steps (список) - если передан
-        2. self.workflow.graph - для совместимости
-        
-        Args:
-            step: Шаг для добавления
-        """
-        if self.steps is not None:
-            self.steps.append(step)
-            logger.debug(f"Added step '{step.step_id}' to steps list")
-        elif self.workflow.graph is not None:
-            self.workflow.graph.add_node(step)
-            logger.debug(f"Added step '{step.step_id}' to workflow graph")
-    
-    def add_steps(self, steps: List["WorkflowStepModel"]):
-        """Добавляет несколько шагов в workflow.
-        
-        Args:
-            steps: Список шагов для добавления
-        """
-        for step in steps:
-            self.add_step(step)
-    
-    def get_step_by_name(self, full_name: str) -> Optional["WorkflowStepModel"]:
-        """Найти шаг по полному имени.
-        
-        Приоритет поиска:
-        1. self.steps (список)
-        2. self.workflow.graph
-        
-        Args:
-            full_name: Полное имя шага (напр. "folder/subfolder/step_name")
-            
-        Returns:
-            WorkflowStepModel или None если не найден
-        """
-        # Сначала ищем в steps (списке)
-        if self.steps:
-            for step in self.steps:
-                if step.full_name == full_name:
-                    return step
-        
-        # Потом в graph
-        if self.workflow and self.workflow.graph:
-            for step in self.workflow.graph.get_all_nodes():
-                if step.full_name == full_name:
-                    return step
-        return None
-    
-    def regenerate_param(self, param_model: "ParameterModel", context: str = "all") -> None:
-        """Перегенерировать prepared_sql для параметра для всех tools.
-        
-        Args:
-            param_model: Модель параметра
-            context: Имя контекста
-        """
-        for tool in self.tools:
-            if param_model.is_dynamic(context):
-                source_sql = param_model.get_value(context) or ""
-                sql = self._renderer._replace_functions_from_sql(source_sql, tool)
-                param_model.prepared_sql[tool] = sql
-                param_model.rendered_sql[tool] = sql
-                logger.debug(f"Regenerated prepared_sql for param '{param_model.name}' tool '{tool}': {len(sql)} chars")
-    
-    def refresh_step_metadata(self, step: "WorkflowStepModel") -> None:
-        """Пересоздать metadata для шага на основе prepared_sql.
-        
-        Args:
-            step: Шаг workflow для обновления metadata
-        """
-        from FW.parsing.sql_metadata import SQLMetadata, SQLMetadataParser
-        
-        parser = SQLMetadataParser()
-        
-        if step.sql_model and step.sql_model.prepared_sql:
-            tool = list(step.sql_model.prepared_sql.keys())[0]
-            sql_content = step.sql_model.prepared_sql.get(tool, "")
-            
-            if sql_content:
-                metadata = step.sql_model.metadata
-                metadata.parameters = parser.extract_parameters(sql_content, set())
-                metadata.tables = parser.extract_tables(sql_content, set())
-                # model_refs не перезаписываем - там хранятся исходные ссылки из SQL
-                
-        elif step.param_model and step.param_model.prepared_sql:
-            tool = list(step.param_model.prepared_sql.keys())[0]
-            sql_content = step.param_model.prepared_sql.get(tool, "")
-            
-            if sql_content:
-                metadata = SQLMetadata()
-                metadata.parameters = parser.extract_parameters(sql_content, set())
-                step.param_model._dynamic_params = metadata.parameters
-        
-        logger.debug(f"Refreshed metadata for step '{step.name}'")
 
+        template = Template(content, trim_blocks=True, lstrip_blocks=True)
+
+        params = dict(kwargs)
+        params["tool"] = tool
+        result = template.render(params)
+
+        logger.debug(f"Template rendered: {len(result)} chars")
+        return result
+
+    def get_project_prop(self, name: str, default: Any = None) -> Any:
+        """Получить значение свойства проекта.
+
+        Args:
+            name: Имя свойства
+            default: Значение по умолчанию
+
+        Returns:
+            Значение свойства или default
+        """
+        if self._workflow and self._workflow.project:
+            return self._workflow.project.project_properties.get(name, default)
+        return default
+
+
+class WorkflowMacroManager:
+    """Менеджер для выполнения макросов workflow.
+
+    Обеспечивает:
+    - Поиск и выполнение Python-макросов
+    - Tool-specific приоритет (tool -> main)
+    - Model reference resolution
+    """
+
+    def __init__(self, macro_registry: "MacroRegistry"):
+        self._macro_registry = macro_registry
+
+    def run_model_ref(
+        self, workflow: "WorkflowNewModel", model_ref_macro_name: str
+    ) -> None:
+        """Выполнить model_ref макрос для всех объектов workflow.
+
+        Args:
+            workflow: WorkflowNewModel
+            model_ref_macro_name: Имя макроса (напр. 'table')
+        """
+        logger.info(f"Running model_ref macro: {model_ref_macro_name}")
+
+        env = BaseMacroEnv(
+            workflow=workflow, macro_registry=self._macro_registry, tools=workflow.tools
+        )
+
+        contexts = list(workflow.contexts.keys()) if workflow.contexts else ["default"]
+
+        for context in contexts:
+            context_config = workflow.contexts.get(context)
+            tools = (
+                context_config.tools
+                if context_config and context_config.tools
+                else workflow.tools
+                if workflow.tools
+                else ["adb"]
+            )
+
+            for tool in tools:
+                self._run_model_ref_for_context(
+                    env, model_ref_macro_name, context, tool
+                )
+
+        logger.info(f"Model_ref macro completed")
+
+    def _run_model_ref_for_context(
+        self, env: BaseMacroEnv, model_ref_macro_name: str, context: str, tool: str
+    ) -> None:
+        """Выполнить model_ref для конкретного контекста и tool.
+
+        Args:
+            env: MacroEnv
+            model_ref_macro_name: Имя макроса
+            context: Имя контекста
+            tool: Имя tool
+        """
+        try:
+            macro = self._macro_registry.get_model_ref_macro(model_ref_macro_name, tool)
+        except Exception as e:
+            logger.warning(
+                f"Model_ref macro '{model_ref_macro_name}' not found for tool '{tool}': {e}"
+            )
+            return
+
+        for sql_key, sql_obj in env.get_all_sql_objects().items():
+            ctx_config = sql_obj.config.get(context, {})
+            enabled = ctx_config.get("enabled")
+            is_enabled = True
+            if enabled is not None:
+                if hasattr(enabled, "value"):
+                    is_enabled = enabled.value
+                else:
+                    is_enabled = enabled
+
+            if not is_enabled:
+                continue
+
+            if context not in sql_obj.compiled or tool not in sql_obj.compiled.get(
+                context, {}
+            ):
+                continue
+
+            metadata = sql_obj.metadata
+            if not metadata or not metadata.model_refs:
+                continue
+
+            for ref_full, ref_info in metadata.model_refs.items():
+                try:
+                    path = ref_info.get("path", ref_full)
+                    replacement = macro(
+                        path,
+                        tool,
+                        context,
+                        env.workflow,
+                        env,
+                        obj_type="sql_object",
+                        obj_key=sql_key,
+                    )
+
+                    current_compiled = env.get_compiled(
+                        "sql_object", sql_key, context, tool
+                    )
+                    if current_compiled is None:
+                        env.update_compiled(
+                            "sql_object",
+                            sql_key,
+                            context,
+                            tool,
+                            "prepared_sql",
+                            sql_obj.source_sql,
+                        )
+                        current_compiled = env.get_compiled(
+                            "sql_object", sql_key, context, tool
+                        )
+
+                    prepared_sql = (
+                        current_compiled.get("prepared_sql", sql_obj.source_sql)
+                        if current_compiled
+                        else sql_obj.source_sql
+                    )
+                    prepared_sql = prepared_sql.replace(ref_full, replacement)
+
+                    env.update_compiled(
+                        "sql_object",
+                        sql_key,
+                        context,
+                        tool,
+                        "prepared_sql",
+                        prepared_sql,
+                    )
+
+                    model_refs = (
+                        current_compiled.get("model_refs", {})
+                        if current_compiled
+                        else {}
+                    )
+                    model_refs[ref_full] = replacement
+                    env.update_compiled(
+                        "sql_object", sql_key, context, tool, "model_refs", model_refs
+                    )
+
+                    logger.debug(f"Replaced {ref_full} -> {replacement} in {sql_key}")
+                except Exception as e:
+                    logger.error(
+                        f"Error resolving model_ref {ref_full} in {sql_key}: {e}"
+                    )
+
+        for param_name, param in env.get_all_parameters().items():
+            if context not in param.compiled or tool not in param.compiled.get(
+                context, {}
+            ):
+                continue
+
+            param_value = param.values.get(context)
+            if param_value is None and "all" in param.values:
+                param_value = param.values.get("all")
+
+            if param_value is None:
+                continue
+
+            metadata = param.metadata
+            if not metadata or not metadata.model_refs:
+                continue
+
+            for ref_full, ref_info in metadata.model_refs.items():
+                try:
+                    path = ref_info.get("path", ref_full)
+                    replacement = macro(
+                        path,
+                        tool,
+                        context,
+                        env.workflow,
+                        env,
+                        obj_type="parameter",
+                        obj_key=param_name,
+                    )
+
+                    current_compiled = env.get_compiled(
+                        "parameter", param_name, context, tool
+                    )
+                    if current_compiled is None:
+                        param_type = param_value.type if param_value else "static"
+                        source_sql = (
+                            param_value.value if param_type == "dynamic" else ""
+                        )
+                        env.update_compiled(
+                            "parameter",
+                            param_name,
+                            context,
+                            tool,
+                            "prepared_sql",
+                            source_sql,
+                        )
+                        current_compiled = env.get_compiled(
+                            "parameter", param_name, context, tool
+                        )
+
+                    prepared_sql = (
+                        current_compiled.get("prepared_sql", "")
+                        if current_compiled
+                        else ""
+                    )
+                    if prepared_sql:
+                        prepared_sql = prepared_sql.replace(ref_full, replacement)
+                        env.update_compiled(
+                            "parameter",
+                            param_name,
+                            context,
+                            tool,
+                            "prepared_sql",
+                            prepared_sql,
+                        )
+
+                    model_refs = (
+                        current_compiled.get("model_refs", {})
+                        if current_compiled
+                        else {}
+                    )
+                    model_refs[ref_full] = replacement
+                    env.update_compiled(
+                        "parameter", param_name, context, tool, "model_refs", model_refs
+                    )
+
+                    logger.debug(
+                        f"Replaced {ref_full} -> {replacement} in param {param_name}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Error resolving model_ref {ref_full} in param {param_name}: {e}"
+                    )
+
+    def run_parameter_macro(
+        self, workflow: "WorkflowNewModel", parameter_macro_name: str
+    ) -> None:
+        """Выполнить parameter_macro для всех параметров workflow.
+
+        Генерирует prepared_sql для каждого параметра на основе его типа.
+
+        Args:
+            workflow: WorkflowNewModel
+            parameter_macro_name: Имя макроса (напр. 'param')
+        """
+        logger.info(f"Running parameter_macro: {parameter_macro_name}")
+
+        env = BaseMacroEnv(
+            workflow=workflow, macro_registry=self._macro_registry, tools=workflow.tools
+        )
+
+        contexts = list(workflow.contexts.keys()) if workflow.contexts else ["default"]
+
+        for context in contexts:
+            context_config = workflow.contexts.get(context)
+            tools = (
+                context_config.tools
+                if context_config and context_config.tools
+                else workflow.tools
+                if workflow.tools
+                else ["adb"]
+            )
+
+            for tool in tools:
+                self._run_parameter_macro_for_context(
+                    env, parameter_macro_name, context, tool
+                )
+
+        logger.info(f"Parameter_macro completed")
+
+    def _run_parameter_macro_for_context(
+        self, env: BaseMacroEnv, parameter_macro_name: str, context: str, tool: str
+    ) -> None:
+        """Выполнить parameter_macro для конкретного контекста и tool.
+
+        Args:
+            env: MacroEnv
+            parameter_macro_name: Имя макроса
+            context: Имя контекста
+            tool: Имя tool
+        """
+        try:
+            macro = self._macro_registry.get_parameter_macro(parameter_macro_name, tool)
+        except Exception as e:
+            logger.warning(
+                f"Parameter macro '{parameter_macro_name}' not found for tool '{tool}': {e}"
+            )
+            return
+
+        for param_name, param in env.get_all_parameters().items():
+            if context not in param.compiled or tool not in param.compiled.get(
+                context, {}
+            ):
+                continue
+
+            param_value = param.values.get(context)
+            if param_value is None and "all" in param.values:
+                param_value = param.values.get("all")
+
+            if param_value is None:
+                continue
+
+            try:
+                prepared_sql = macro(
+                    param_model=param,
+                    tool=tool,
+                    context=context,
+                    workflow_new=env.workflow,
+                    env=env,
+                )
+
+                env.update_compiled(
+                    "parameter", param_name, context, tool, "prepared_sql", prepared_sql
+                )
+
+                logger.debug(
+                    f"Generated prepared_sql for param {param_name} [{context}][{tool}]: {len(prepared_sql)} chars"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error generating prepared_sql for param {param_name}: {e}"
+                )
+
+    def run_functions_macro(self, workflow: "WorkflowNewModel") -> None:
+        """Выполнить function macros для всех объектов workflow.
+
+        Применяет функции из macros/functions к SQL объектам и параметрам.
+
+        Args:
+            workflow: WorkflowNewModel
+        """
+        logger.info("Running functions_macro")
+
+        from FW.macros.main.functions.functions_macro import (
+            apply_all_functions_to_object,
+            apply_all_functions_to_parameter,
+        )
+
+        env = BaseMacroEnv(
+            workflow=workflow, macro_registry=self._macro_registry, tools=workflow.tools
+        )
+
+        contexts = list(workflow.contexts.keys()) if workflow.contexts else ["default"]
+
+        for context in contexts:
+            context_config = workflow.contexts.get(context)
+            tools = (
+                context_config.tools
+                if context_config and context_config.tools
+                else workflow.tools
+                if workflow.tools
+                else ["adb"]
+            )
+
+            for tool in tools:
+                self._run_functions_for_context(
+                    env,
+                    apply_all_functions_to_object,
+                    apply_all_functions_to_parameter,
+                    context,
+                    tool,
+                )
+
+        logger.info("Functions_macro completed")
+
+    def _run_functions_for_context(
+        self,
+        env: BaseMacroEnv,
+        apply_to_object_func,
+        apply_to_param_func,
+        context: str,
+        tool: str,
+    ) -> None:
+        """Выполнить function macros для конкретного контекста и tool.
+
+        Args:
+            env: MacroEnv
+            apply_to_object_func: Функция для применения к SQL объектам
+            apply_to_param_func: Функция для применения к параметрам
+            context: Имя контекста
+            tool: Имя tool
+        """
+        for sql_key, sql_obj in env.get_all_sql_objects().items():
+            ctx_config = sql_obj.config.get(context, {})
+            enabled = ctx_config.get("enabled")
+            is_enabled = True
+            if enabled is not None:
+                if hasattr(enabled, "value"):
+                    is_enabled = enabled.value
+                else:
+                    is_enabled = enabled
+
+            if not is_enabled:
+                continue
+
+            if context not in sql_obj.compiled or tool not in sql_obj.compiled.get(
+                context, {}
+            ):
+                continue
+
+            try:
+                prepared_sql = apply_to_object_func(
+                    sql_obj=sql_obj,
+                    tool=tool,
+                    context=context,
+                    workflow_new=env.workflow,
+                    env=env,
+                    obj_type="sql_object",
+                    obj_key=sql_key,
+                )
+
+                if prepared_sql:
+                    env.update_compiled(
+                        "sql_object",
+                        sql_key,
+                        context,
+                        tool,
+                        "prepared_sql",
+                        prepared_sql,
+                    )
+                    logger.debug(
+                        f"Applied functions to sql_object {sql_key} [{context}][{tool}]"
+                    )
+            except Exception as e:
+                logger.error(f"Error applying functions to sql_object {sql_key}: {e}")
+
+        for param_name, param in env.get_all_parameters().items():
+            if context not in param.compiled or tool not in param.compiled.get(
+                context, {}
+            ):
+                continue
+
+            try:
+                prepared_sql = apply_to_param_func(
+                    param_obj=param,
+                    tool=tool,
+                    context=context,
+                    workflow_new=env.workflow,
+                    env=env,
+                    obj_type="parameter",
+                    obj_key=param_name,
+                )
+
+                if prepared_sql:
+                    env.update_compiled(
+                        "parameter",
+                        param_name,
+                        context,
+                        tool,
+                        "prepared_sql",
+                        prepared_sql,
+                    )
+                    logger.debug(
+                        f"Applied functions to parameter {param_name} [{context}][{tool}]"
+                    )
+            except Exception as e:
+                logger.error(f"Error applying functions to parameter {param_name}: {e}")
 
 class WorkflowMacroEnv(BaseMacroEnv):
     """Окружение для генерации workflow файлов.

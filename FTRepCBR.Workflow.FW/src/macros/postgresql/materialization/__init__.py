@@ -1,1 +1,0 @@
-"""PostgreSQL materialization macros package."""

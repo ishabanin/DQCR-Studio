@@ -4,3 +4,16 @@ template: flx
 
 properties:
   repsysname: f110
+
+constants:
+  schema:
+    domain_type : string
+  dateMainDebt:
+    domain_type : date
+flags:
+  - calcinn
+  - enable_heavy_calc
+  - debug_mode
+  - overduecalcmethod:
+    - fifo
+    - lifo

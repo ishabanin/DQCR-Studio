@@ -3,8 +3,7 @@ import importlib
 from typing import Type, Dict, Optional, Any
 
 from FW.generation.base import BaseWorkflowBuilder
-from FW.generation.resolver_registry import create_resolver
-from FW.generation.dependency_resolver import DependencyResolver
+from FW.generation.dependency_resolvers.dependency_resolver import DependencyResolver
 from FW.logging_config import get_logger
 
 
@@ -12,8 +11,17 @@ logger = get_logger("builder_registry")
 
 BUILDER_REGISTRY: Dict[str, str] = {
     "default": "DefaultBuilder",
+    "default_builder_new": "DefaultBuilderNew",
     "graph": "GraphBuilder",
     "naming": "NamingConventionBuilder",
+    "graph_based": "GraphBasedResolver",
+    "naming_convention": "NamingConventionResolver",
+    "explicit": "ExplicitDependencyResolver",
+}
+
+BUILDER_MODULES: Dict[str, str] = {
+    "default": "DefaultBuilder",
+    "default_builder_new": "DefaultBuilderNew",
 }
 
 
@@ -34,7 +42,8 @@ def get_builder_class(name: str) -> Type[BaseWorkflowBuilder]:
         logger.warning(f"Builder '{name}' not found, using 'default'")
         class_name = "DefaultBuilder"
     
-    module_name = class_name.lower()
+    # Использовать BUILDER_MODULES для special cases
+    module_name = BUILDER_MODULES.get(name, class_name.lower())
     try:
         module = importlib.import_module(f"FW.generation.{module_name}")
         builder_class = getattr(module, class_name)
@@ -88,17 +97,3 @@ def list_builders() -> list:
         Список имён builders
     """
     return list(BUILDER_REGISTRY.keys())
-
-
-def get_or_create_resolver(resolver_name: str = None) -> Optional[DependencyResolver]:
-    """Получить или создать resolver по имени из конфига.
-    
-    Args:
-        resolver_name: имя resolver из конфига (naming_convention, graph_based, explicit)
-    
-    Returns:
-        Экземпляр resolver или None
-    """
-    if resolver_name:
-        return create_resolver(resolver_name)
-    return None

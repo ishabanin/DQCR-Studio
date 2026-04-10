@@ -1,0 +1,18 @@
+{#
+  insert_fc_body - Тело материализации INSERT INTO
+  
+  Parameters:
+    target_table: Имя целевой таблицы
+    sql: Подготовленный SQL-запрос
+    target_columns: Список колонок для INSERT INTO (target_table_attr_list)
+    select_columns: Список колонок для SELECT (attrs_for_insert)
+    tool: Целевой tool (oracle, adb, postgresql)
+#}
+{% set target_columns = target_columns or [] %}
+{% set select_columns = select_columns or [] %}
+{% set needs_alias = tool in ['adb', 'postgresql'] %}
+
+SELECT {{ select_columns|join(', ') }}
+FROM (
+    {{ sql }}
+){% if needs_alias %} t{% endif %}

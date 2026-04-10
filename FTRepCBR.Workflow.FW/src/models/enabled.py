@@ -106,3 +106,76 @@ class EnabledRule:
 def parse_enabled(data: Any) -> Optional[EnabledRule]:
     """Упрощенная функция парсинга enabled."""
     return EnabledRule.from_dict(data)
+
+
+def evaluate_condition(
+    conditions: Dict[str, Any],
+    context_flags: Dict[str, Any],
+    context_constants: Dict[str, Any]
+) -> tuple[bool, Optional[str]]:
+    """Проверить conditions с учетом flags и constants контекста.
+
+    Args:
+        conditions: словарь условий (как в enabled.conditions)
+        context_flags: флаги контекста {flag_name: value}
+        context_constants: константы контекста {const_name: value}
+
+    Returns:
+        (is_satisfied, reason_if_not) - кортеж (выполнено, причина_если_нет)
+    """
+    if not conditions:
+        return True, None
+
+    for key, expected_value in conditions.items():
+        if key == "any":
+            if not _evaluate_any_condition(expected_value, context_flags, context_constants):
+                return False, "condition not satisfied"
+        else:
+            actual_value = _get_value_by_key(key, context_flags, context_constants)
+            if actual_value is None:
+                return False, "condition not satisfied"
+            if actual_value != expected_value:
+                return False, "condition not satisfied"
+
+    return True, None
+
+
+def _get_value_by_key(
+    key: str,
+    flags: Dict[str, Any],
+    constants: Dict[str, Any]
+) -> Any:
+    """Получить значение по ключу (поддержка вложенных через точку)."""
+    parts = key.split(".")
+
+    if parts[0] in constants:
+        value = constants[parts[0]]
+        if len(parts) > 1 and isinstance(value, dict):
+            for p in parts[1:]:
+                value = value.get(p)
+        return value
+
+    if parts[0] in flags:
+        value = flags[parts[0]]
+        if len(parts) > 1 and isinstance(value, dict):
+            for p in parts[1:]:
+                value = value.get(p)
+        return value
+
+    return None
+
+
+def _evaluate_any_condition(
+    any_conditions: Dict[str, Any],
+    flags: Dict[str, Any],
+    constants: Dict[str, Any]
+) -> bool:
+    """Проверить блок any - хотя бы одно условие должно выполниться."""
+    if not any_conditions:
+        return True
+
+    for key, expected_value in any_conditions.items():
+        actual_value = _get_value_by_key(key, flags, constants)
+        if actual_value == expected_value:
+            return True
+    return False

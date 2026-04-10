@@ -19,6 +19,7 @@ class ToolConfig:
     name: str
     default_materialization: Optional[str] = None
     metadata: Dict = field(default_factory=dict)
+    domain2basetype: Dict = None
 
 
 class ToolRegistry:
@@ -45,12 +46,13 @@ class ToolRegistry:
                 config = yaml.safe_load(f) or {}
             
             tools_list = config.get('tools', [])
-            for tool_name in tools_list:
-                self._tools[tool_name] = ToolConfig(
-                    name=tool_name,
-                    default_materialization=config.get('default_materialization')
-                )
-            
+            for tool in tools_list:
+                for tool_name in tool:
+                   self._tools[tool_name] = ToolConfig(
+                       name=tool_name,
+                       default_materialization=config.get('default_materialization'),
+                       domain2basetype=tool[tool_name].get("domain2basetype")
+                   )        
             self._default_materialization = config.get('default_materialization')
             
             logger.info(f"Loaded {len(self._tools)} tools: {list(self._tools.keys())}")
@@ -65,7 +67,12 @@ class ToolRegistry:
     def tools(self) -> List[str]:
         """Список доступных tools."""
         return list(self._tools.keys())
-    
+
+    @property
+    def toolsConfig(self) -> List[str]:
+        """Список доступных tools."""
+        return self._tools
+        
     @property
     def default_materialization(self) -> Optional[str]:
         """Materialization по умолчанию."""

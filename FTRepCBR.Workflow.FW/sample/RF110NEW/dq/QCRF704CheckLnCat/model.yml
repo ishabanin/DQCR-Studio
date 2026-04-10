@@ -1,0 +1,156 @@
+target_table:
+  name: QCRF704CheckLnCat
+  schema: DWH # указать схему из контекста?
+  description: "Таблица хранения результата контроля QCRF704CheckLnCat по данным сущности RF704TotalReg"
+  attributes:
+    
+    - name: RecID
+      domain_type: number
+      description: "Идентификатор записи итогового реестра RF704TotalReg"
+      constraints: [PRIMARY_KEY]
+      visible: false # по дефолту true 
+      distribution_key: 1
+
+    - name: BranchID
+      domain_type: number
+      description: "Филиал"
+      visible: false
+
+    - name: DepartmentID
+      domain_type: number
+      description: "Подразделение для выгрузки результата контроля"
+      visible: false
+
+    - name: Description
+      domain_type: string
+      description: "Описание нарушения контроля"
+      visible: false
+
+    - name: RepCode
+      domain_type: string
+      description: "Код отчетной формы"
+      visible: false
+      
+    - name: IsError
+      domain_type: number
+      description: "Признак наличия нарушения контроля"
+      visible: false
+
+
+    # экспортируемые атрибуты:
+    #  - порядок задается через order_num
+    #  - параметры стилей в экспортируемых файла определяются через domain_type
+    - name: BranchCode
+      domain_type: string
+      description: "Код филиала"
+      visible: true
+      order_num: 1
+
+    - name: DealID
+      domain_type: number
+      description: "Сделка"
+      visible: true
+      order_num: 2
+
+    - name: ContractNumber
+      domain_type: string
+      description: "Номер договора"
+      visible: true
+      order_num: 3
+
+    - name: CurrencyCode
+      domain_type: string
+      description: "Код валюты"
+      visible: true
+      order_num: 4
+
+    - name: ClientID
+      domain_type: number
+      description: "Клиент"
+      visible: true
+      order_num: 5
+
+    - name: ClientName
+      domain_type: string
+      description: "Клиент наименование"
+      visible: true
+      order_num: 6
+
+    - name: DateDebt
+      domain_type: date
+      description: "Дата выдачи по договору"
+      visible: true
+      order_num: 7
+
+    - name: DateAddContract
+      domain_type: date
+      description: "Дата дополнительного соглашения"
+      visible: true
+      order_num: 8
+
+    - name: CodeLoanCategory
+      domain_type: string
+      description: "Код категории кредита"
+      visible: true
+      order_num: 9
+
+    - name: CodeAsset
+      domain_type: string
+      description: "Код актива по договору"
+      visible: true
+      order_num: 10
+
+    - name: Amount
+      domain_type: amount # amount - 2 знака после запятой, разделители тысяч
+      visible: true
+      order_num: 11
+
+    - name: AmountLong
+      domain_type: amount 
+      visible: true
+      order_num: 12
+
+    - name: MileageLess1000
+      domain_type: string
+      description: "Признак пробега до 1000 км"
+      visible: true
+      order_num: 13
+
+    - name: GoodsPayment
+      domain_type: string
+      description: "Оплата товаров и услуг"
+      visible: true
+      order_num: 14
+
+    - name: IndivCondLoan
+      domain_type: string
+      description: "Кредит с индивидуальными условиями"
+      visible: true
+      order_num: 15
+
+    - name: AcquirPropPledge
+      domain_type: string
+      description: "Залог приобретенного имущества"
+      visible: true
+      order_num: 16
+
+    - name: LimitExists
+      domain_type: string
+      description: "Признак наличия лимита"
+      visible: true
+      order_num: 17
+
+    - name: LoanTermDays
+      domain_type: number
+      description: "Срок кредита в днях первоначальный"
+      visible: true
+      order_num: 18
+
+    - name: LoanPurpose
+      domain_type: string
+      description: "Цель кредита"
+      visible: true
+      order_num: 19
+
+workflow:
+  description: "Заполнение таблицы результата контроля для QCRF704CheckLnCat по правилам проверки RF704TotalReg и экспорт результатов в файл"

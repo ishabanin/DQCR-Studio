@@ -8,12 +8,6 @@ from FW.logging_config import get_logger
 logger = get_logger("inline_config_parser")
 
 
-CONFIG_BLOCK_PATTERN = re.compile(
-    r'/\*\s*@config\s*\(\s*(\s*.*?)\s*\)\s*\*/',
-    re.DOTALL
-)
-
-
 @dataclass
 class InlineConfigBlock:
     """Блок inline конфига с позицией в SQL."""
@@ -23,25 +17,53 @@ class InlineConfigBlock:
     config_type: str  # 'query', 'cte', 'attribute'
 
 
+def _find_config_blocks(sql_content: str) -> List[InlineConfigBlock]:
+    """Найти все блоки @config(...) в SQL с балансированием скобок."""
+    blocks = []
+    
+    pattern = re.compile(r'/\*\s*@config\s*\(', re.DOTALL)
+    
+    for match in pattern.finditer(sql_content):
+        start_paren = match.end() - 1
+        depth = 1
+        pos = start_paren + 1
+        
+        while pos < len(sql_content) and depth > 0:
+            if sql_content[pos] == '(':
+                depth += 1
+            elif sql_content[pos] == ')':
+                depth -= 1
+            pos += 1
+        
+        if depth == 0:
+            end_paren = pos - 1
+            content_start = start_paren + 1
+            content_end = end_paren
+            
+            content = sql_content[content_start:content_end]
+            
+            blocks.append(InlineConfigBlock(
+                content=content,
+                start_pos=match.start(),
+                end_pos=pos,
+                config_type='unknown'
+            ))
+    
+    return blocks
+
+
+CONFIG_BLOCK_PATTERN = re.compile(
+    r'/\*\s*@config\s*\(\s*(\s*.*?)\s*\)\s*\*/',
+    re.DOTALL
+)
+
+
 @dataclass
 class InlineConfigResult:
     """Результат парсинга inline конфигов из SQL."""
     query_config: Optional[Dict[str, Any]] = None
     cte_configs: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     attr_configs: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-
-
-def _find_config_blocks(sql_content: str) -> List[InlineConfigBlock]:
-    """Найти все блоки @config(...) в SQL."""
-    blocks = []
-    for match in CONFIG_BLOCK_PATTERN.finditer(sql_content):
-        blocks.append(InlineConfigBlock(
-            content=match.group(1),
-            start_pos=match.start(),
-            end_pos=match.end(),
-            config_type='unknown'
-        ))
-    return blocks
 
 
 def _parse_yaml_content(yaml_str: str) -> Optional[Dict[str, Any]]:
@@ -166,19 +188,36 @@ def _determine_block_type(block: InlineConfigBlock, sql_content: str) -> str:
     return 'query'
 
 
-def _find_next_attribute_alias(sql_content: str, config_end_pos: int) -> Optional[str]:
-    """Найти alias следующего атрибута после позиции конфига."""
-    after_config = sql_content[config_end_pos:]
+def _find_attribute_alias_for_config(sql_content: str, config_start_pos: int) -> Optional[str]:
+    """Найти alias атрибута, к которому относится блок конфига.
     
-    match = re.search(
-        r'\bAS\s+([a-zA-Z_][a-zA-Z0-9_]*)',
-        after_config,
-        re.IGNORECASE
-    )
+    Логика:
+    1. Ищем alias ПЕРЕД блоком конфига (AS alias) - это приоритет
+    2. Если не найден, ищем колонку ПОСЛЕ конфига (таблица.колонка или просто колонка)
+    """
+    before_config = sql_content[:config_start_pos]
     
-    if match:
-        alias = match.group(1).strip()
+    # Ищем alias перед конфигом
+    matches = list(re.finditer(r'\bAS\s+([a-zA-Z_][a-zA-Z0-9_]*)', before_config, re.IGNORECASE))
+    if matches:
+        alias = matches[-1].group(1).strip()
         alias = alias.rstrip(',')
+        return alias
+    
+    # Ищем column перед конфигом (таблица.колонка)
+    dot_matches = list(re.finditer(r'\.([a-zA-Z_][a-zA-Z0-9_]*)\s*$', before_config, re.IGNORECASE))
+    if dot_matches:
+        alias = dot_matches[-1].group(1).strip()
+        alias = alias.rstrip(',')
+        return alias
+    
+    # Конфиг в начале SELECT - ищем колонку ПОСЛЕ конфига (это правильный атрибут!)
+    after_config = sql_content[config_start_pos:]
+    
+    # Ищем колонку после конфига (таблица.колонка или просто колонка перед запятой или переносом строки)
+    col_match = re.search(r'(?:[a-zA-Z_][a-zA-Z0-9_]*\.)?([a-zA-Z_][a-zA-Z0-9_]*)\s*[,)\n]', after_config, re.IGNORECASE)
+    if col_match:
+        alias = col_match.group(1).strip()
         return alias
     
     return None
@@ -250,7 +289,7 @@ def parse_inline_configs(sql_content: str) -> InlineConfigResult:
             result.cte_configs[cte_name] = config_data
             
         elif config_type == 'attribute':
-            alias = _find_next_attribute_alias(sql_content, block.end_pos)
+            alias = _find_attribute_alias_for_config(sql_content, block.start_pos)
             if alias:
                 result.attr_configs[alias.lower()] = config_data
     

@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
+import { shallow } from "zustand/shallow";
 
 import {
   fetchFileContent,
   fetchProjectAutocomplete,
   fetchProjectTree,
-  runProjectValidation,
-  saveFileContent,
 } from "../../api/projects";
-import { useTheme } from "../../app/providers/ThemeProvider";
+import { useTheme } from "../../app/providers/themeContext";
 import { useEditorStore } from "../../app/store/editorStore";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useSqlTabsStore } from "../../app/store/sqlTabsStore";
@@ -21,8 +20,11 @@ import SqlMetaPanel from "./components/SqlMetaPanel";
 import SqlFullscreenOverlay from "./components/SqlFullscreenOverlay";
 import SqlModeBar from "./components/SqlModeBar";
 import SqlTabBar from "./components/SqlTabBar";
+import { useSqlFindReplace } from "./hooks/useSqlFindReplace";
 import { useSqlFullscreen } from "./hooks/useSqlFullscreen";
+import { useSqlHotkeys } from "./hooks/useSqlHotkeys";
 import { useSqlRenderedContent } from "./hooks/useSqlRenderedContent";
+import { useSqlSaveFlow } from "./hooks/useSqlSaveFlow";
 import { useSqlStepMeta } from "./hooks/useSqlStepMeta";
 import { useSqlViewMode } from "./hooks/useSqlViewMode";
 
@@ -93,35 +95,62 @@ function resolveEditorLanguage(path: string | null): string {
   return "plaintext";
 }
 
-const DEFAULT_VALIDATE_CATEGORIES = ["general", "sql", "descriptions"];
-
 export default function SqlEditorScreen() {
   const currentProjectId = useProjectStore((state) => state.currentProjectId);
-  const activeTab = useEditorStore((state) => state.activeTab);
-  const setActiveFile = useEditorStore((state) => state.setActiveFile);
-  const openFile = useEditorStore((state) => state.openFile);
-  const setActiveTab = useEditorStore((state) => state.setActiveTab);
-  const cursorStateByFile = useEditorStore((state) => state.cursorStateByFile);
-  const setCursorState = useEditorStore((state) => state.setCursorState);
-  const navigateTo = useEditorStore((state) => state.navigateTo);
-  const setNavigateTo = useEditorStore((state) => state.setNavigateTo);
-  const setLineageTarget = useEditorStore((state) => state.setLineageTarget);
-  const sqlTabs = useSqlTabsStore((state) => state.tabs);
-  const activeSqlTabId = useSqlTabsStore((state) => state.activeTabId);
-  const setActiveSqlTab = useSqlTabsStore((state) => state.setActiveTab);
-  const closeSqlTab = useSqlTabsStore((state) => state.closeTab);
-  const openSqlTab = useSqlTabsStore((state) => state.openTab);
-  const setSqlTabDirty = useSqlTabsStore((state) => state.setTabDirty);
-  const updateSqlTabScroll = useSqlTabsStore((state) => state.updateTabScroll);
-  const addToast = useUiStore((state) => state.addToast);
-  const setLastSavedAt = useUiStore((state) => state.setLastSavedAt);
-  const userRole = useUiStore((state) => state.role);
-  const queryClient = useQueryClient();
-  const validationAutoRun = useUiStore((state) => state.validationAutoRun);
-  const setValidationAutoRun = useUiStore((state) => state.setValidationAutoRun);
-  const latestValidationRun = useValidationStore((state) => state.latestRun);
-  const setLatestValidationRun = useValidationStore((state) => state.setLatestRun);
-  const lastValidationCategories = useValidationStore((state) => state.lastCategories);
+  const {
+    activeTab,
+    setActiveFile,
+    openFile,
+    setActiveTab,
+    cursorStateByFile,
+    setCursorState,
+    navigateTo,
+    setNavigateTo,
+    setLineageTarget,
+  } = useEditorStore(
+    (state) => ({
+      activeTab: state.activeTab,
+      setActiveFile: state.setActiveFile,
+      openFile: state.openFile,
+      setActiveTab: state.setActiveTab,
+      cursorStateByFile: state.cursorStateByFile,
+      setCursorState: state.setCursorState,
+      navigateTo: state.navigateTo,
+      setNavigateTo: state.setNavigateTo,
+      setLineageTarget: state.setLineageTarget,
+    }),
+    shallow,
+  );
+  const { sqlTabs, activeSqlTabId, setActiveSqlTab, closeSqlTab, openSqlTab, setSqlTabDirty, updateSqlTabScroll } = useSqlTabsStore(
+    (state) => ({
+      sqlTabs: state.tabs,
+      activeSqlTabId: state.activeTabId,
+      setActiveSqlTab: state.setActiveTab,
+      closeSqlTab: state.closeTab,
+      openSqlTab: state.openTab,
+      setSqlTabDirty: state.setTabDirty,
+      updateSqlTabScroll: state.updateTabScroll,
+    }),
+    shallow,
+  );
+  const { addToast, setLastSavedAt, userRole, validationAutoRun, setValidationAutoRun } = useUiStore(
+    (state) => ({
+      addToast: state.addToast,
+      setLastSavedAt: state.setLastSavedAt,
+      userRole: state.role,
+      validationAutoRun: state.validationAutoRun,
+      setValidationAutoRun: state.setValidationAutoRun,
+    }),
+    shallow,
+  );
+  const { latestValidationRun, setLatestValidationRun, lastValidationCategories } = useValidationStore(
+    (state) => ({
+      latestValidationRun: state.latestRun,
+      setLatestValidationRun: state.setLatestRun,
+      lastValidationCategories: state.lastCategories,
+    }),
+    shallow,
+  );
   const { theme } = useTheme();
   const activeSqlTab = useMemo(() => sqlTabs.find((tab) => tab.id === activeSqlTabId) ?? null, [activeSqlTabId, sqlTabs]);
   const activeFilePath = activeSqlTab?.filePath ?? null;
@@ -315,8 +344,9 @@ export default function SqlEditorScreen() {
     const editor = editorRef.current;
     if (!editor || !activeFilePath) return;
     const key = `${activeFilePath}:${mode}`;
+    const modeViewState = modeViewStateRef.current;
     return () => {
-      modeViewStateRef.current[key] = editor.saveViewState();
+      modeViewState[key] = editor.saveViewState();
     };
   }, [activeFilePath, mode]);
 
@@ -443,135 +473,32 @@ export default function SqlEditorScreen() {
     monaco.editor.setModelMarkers(model, "validation", markers);
   }, [activeFilePath, currentProjectId, draft, latestValidationRun]);
 
-  const saveMutation = useMutation({
-    mutationFn: (content: string) => saveFileContent(currentProjectId as string, activeFilePath as string, content),
-    onSuccess: async (_, savedContent) => {
-      if (currentProjectId && activeFilePath) {
-        queryClient.setQueryData(["fileContent", currentProjectId, activeFilePath], savedContent);
-      }
-      setDraft(savedContent);
-      if (activeSqlTab) setSqlTabDirty(activeSqlTab.id, false);
-      const savedAt = new Date();
-      setLastSavedAt(savedAt);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["fileContent", currentProjectId, activeFilePath] }),
-        queryClient.invalidateQueries({ queryKey: ["autocomplete", currentProjectId] }),
-        queryClient.invalidateQueries({ queryKey: ["lineage", currentProjectId, modelId] }),
-        queryClient.invalidateQueries({ queryKey: ["projectParameters", currentProjectId] }),
-        queryClient.invalidateQueries({ queryKey: ["workflowStatus", currentProjectId] }),
-        queryClient.invalidateQueries({ queryKey: ["modelWorkflow", currentProjectId, modelId] }),
-      ]);
-      const validationTimestamp = latestValidationRun?.timestamp ? new Date(latestValidationRun.timestamp).getTime() : null;
-      const showValidateHint = userRole !== "viewer" && (validationTimestamp === null || validationTimestamp < savedAt.getTime());
-      if (showValidateHint && currentProjectId) {
-        addToast("✓ Сохранено", "success", {
-          description: "Рекомендуется запустить Validate перед Build",
-          autoCloseMs: 6000,
-          action: {
-            label: "Запустить →",
-            onClick: async () => {
-              setActiveTab("validate");
-              try {
-                const result = await runProjectValidation(currentProjectId, {
-                  model_id: modelId ?? undefined,
-                  categories: lastValidationCategories ?? DEFAULT_VALIDATE_CATEGORIES,
-                });
-                setLatestValidationRun(result);
-                addToast("Validation completed", result.summary.errors > 0 ? "error" : "success");
-              } catch {
-                addToast("Validation failed", "error");
-              }
-            },
-          },
-        });
-      } else {
-        addToast("✓ Сохранено", "success", { autoCloseMs: 2000 });
-      }
-      if (validationAutoRun && currentProjectId && modelId) {
-        try {
-          const result = await runProjectValidation(currentProjectId, { model_id: modelId });
-          setLatestValidationRun(result);
-          addToast(
-            `Auto validation: ${result.summary.errors} errors, ${result.summary.warnings} warnings, ${result.summary.passed} passed`,
-            result.summary.errors > 0 ? "error" : "success",
-          );
-        } catch {
-          addToast("Auto validation failed", "error");
-        }
-      }
-    },
-    onError: (error) => {
-      const message = error instanceof Error ? error.message : "Failed to save file";
-      addToast(message, "error");
-    },
+  const saveMutation = useSqlSaveFlow({
+    currentProjectId,
+    activeFilePath,
+    activeSqlTabId,
+    modelId,
+    latestValidationRun,
+    lastValidationCategories,
+    userRole,
+    validationAutoRun,
+    setDraft,
+    setSqlTabDirty,
+    setLastSavedAt,
+    setActiveTab,
+    setLatestValidationRun,
+    addToast,
   });
 
-  const findMatches = () => {
-    const editor = editorRef.current;
-    const model = editor?.getModel();
-    if (!editor || !model || !findQuery) return [];
-    return model.findMatches(findQuery, true, findRegex, false, null, false, 1000);
-  };
+  const { selectNextMatch, replaceOne, replaceAll } = useSqlFindReplace({
+    editorRef,
+    findQuery,
+    findRegex,
+    replaceQuery,
+    addToast,
+  });
 
-  const selectNextMatch = () => {
-    const editor = editorRef.current;
-    if (!editor) return false;
-    const matches = findMatches();
-    if (matches.length === 0) {
-      addToast("No matches found", "error");
-      return false;
-    }
-
-    const position = editor.getPosition();
-    const currentOffset = position ? editor.getModel()?.getOffsetAt(position) ?? 0 : 0;
-    const next = matches.find((item) => {
-      const start = editor.getModel()?.getOffsetAt(item.range.getStartPosition()) ?? 0;
-      return start > currentOffset;
-    });
-    const target = next ?? matches[0];
-    editor.setSelection(target.range);
-    editor.revealRangeInCenter(target.range);
-    editor.focus();
-    return true;
-  };
-
-  const replaceOne = () => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    const selection = editor.getSelection();
-    if (selection && !selection.isEmpty()) {
-      editor.executeEdits("replace-one", [{ range: selection, text: replaceQuery }]);
-      selectNextMatch();
-      return;
-    }
-    if (selectNextMatch()) {
-      const selected = editor.getSelection();
-      if (selected && !selected.isEmpty()) {
-        editor.executeEdits("replace-one", [{ range: selected, text: replaceQuery }]);
-      }
-    }
-  };
-
-  const replaceAll = () => {
-    const editor = editorRef.current;
-    const model = editor?.getModel();
-    if (!editor || !model) return;
-    const matches = findMatches();
-    if (matches.length === 0) {
-      addToast("No matches found", "error");
-      return;
-    }
-    editor.executeEdits(
-      "replace-all",
-      [...matches].reverse().map((match) => ({
-        range: match.range,
-        text: replaceQuery,
-      })),
-    );
-    addToast(`Replaced ${matches.length} matches`, "success");
-  };
-
-  const applyFormatting = async () => {
+  const applyFormatting = useCallback(async () => {
     let formatted = formatSqlBasic(draft);
     try {
       const prettier = await import("prettier/standalone");
@@ -590,9 +517,9 @@ export default function SqlEditorScreen() {
       setSqlTabDirty(activeSqlTab.id, formatted !== (contentQuery.data ?? ""));
     }
     addToast("SQL formatted", "success");
-  };
+  }, [activeSqlTab, addToast, contentQuery.data, draft, setSqlTabDirty]);
 
-  const handleGoToDefinition = () => {
+  const handleGoToDefinition = useCallback(() => {
     const editor = editorRef.current;
     const model = editor?.getModel();
     const position = editor?.getPosition();
@@ -615,109 +542,30 @@ export default function SqlEditorScreen() {
     }
 
     addToast(`Definition not found for '${word}'`, "error");
-  };
+  }, [addToast, macroNames, openPathInSql, parametersByName]);
 
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      const isSave = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s";
-      const isFindReplace = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "h";
-      const isQuickOpen = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p";
-      const isFormat = (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "f";
-      const isGotoDefinition = event.key === "F12";
-
-      if (isSave && activeFilePath && mode === "source") {
-        event.preventDefault();
-        saveMutation.mutate(draft);
-        return;
-      }
-      if (isFindReplace) {
-        event.preventDefault();
-        setFindVisible(true);
-        setTimeout(() => findInputRef.current?.focus(), 0);
-        return;
-      }
-      if (isQuickOpen) {
-        event.preventDefault();
-        setQuickOpenVisible(true);
-        setQuickOpenIndex(0);
-        setTimeout(() => quickOpenInputRef.current?.focus(), 0);
-        return;
-      }
-      if (isFormat && activeFilePath && mode === "source") {
-        event.preventDefault();
-        void applyFormatting();
-        return;
-      }
-      if (isGotoDefinition && activeFilePath) {
-        event.preventDefault();
-        handleGoToDefinition();
-      }
-
-      if (quickOpenVisible) {
-        if (event.key === "ArrowDown") {
-          event.preventDefault();
-          setQuickOpenIndex((prev) => Math.min(prev + 1, Math.max(quickOpenCandidates.length - 1, 0)));
-          return;
-        }
-        if (event.key === "ArrowUp") {
-          event.preventDefault();
-          setQuickOpenIndex((prev) => Math.max(prev - 1, 0));
-          return;
-        }
-        if (event.key === "Enter") {
-          event.preventDefault();
-          const selected = quickOpenCandidates[quickOpenIndex];
-          if (selected) {
-            openPathInSql(selected);
-            setQuickOpenVisible(false);
-            setQuickOpenQuery("");
-          }
-          return;
-        }
-        if (event.key === "Escape") {
-          event.preventDefault();
-          setQuickOpenVisible(false);
-          setQuickOpenQuery("");
-          return;
-        }
-      }
-
-      if (findVisible && event.key === "Escape") {
-        if (isFullscreen) return;
-        event.preventDefault();
-        setFindVisible(false);
-        return;
-      }
-
-      if (isEditorExpanded && event.key === "Escape") {
-        if (isFullscreen) return;
-        event.preventDefault();
-        setIsEditorExpanded(false);
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === ".") {
-        event.preventDefault();
-        setIsEditorExpanded((current) => !current);
-        return;
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [
+  useSqlHotkeys({
     activeFilePath,
-    saveMutation,
+    mode,
     draft,
-    parametersByName,
-    macroNames,
     quickOpenVisible,
     quickOpenCandidates,
     quickOpenIndex,
     findVisible,
     isFullscreen,
     isEditorExpanded,
-    mode,
-    openPathInSql,
-  ]);
+    setFindVisible,
+    setQuickOpenVisible,
+    setQuickOpenIndex,
+    setQuickOpenQuery,
+    setIsEditorExpanded,
+    findInputRef,
+    quickOpenInputRef,
+    onSave: (nextDraft) => saveMutation.mutate(nextDraft),
+    onFormat: applyFormatting,
+    onGoToDefinition: handleGoToDefinition,
+    onOpenPathInSql: openPathInSql,
+  });
 
   const title = useMemo(() => {
     if (!activeFilePath) return "No file selected";
@@ -734,7 +582,12 @@ export default function SqlEditorScreen() {
   }
 
   return (
-    <section className={isEditorExpanded ? "workbench workbench-editor-expanded" : "workbench"}>
+    <section
+      className={isEditorExpanded ? "workbench workbench-editor-expanded" : "workbench"}
+      role="tabpanel"
+      id={activeSqlTabId ? `sql-panel-${activeSqlTabId}` : undefined}
+      aria-labelledby={activeSqlTabId ? `sql-tab-${activeSqlTabId}` : undefined}
+    >
       <div className="workbench-head">
         <h1>SQL Editor: {title}</h1>
         <button

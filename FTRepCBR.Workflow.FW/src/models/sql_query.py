@@ -7,8 +7,7 @@ from FW.parsing.sql_metadata import SQLMetadata
 from FW.models.attribute import Attribute
 
 if TYPE_CHECKING:
-    from FW.models.workflow import CTEMaterializationConfig
-    from FW.models.target_table import TargetTableModel
+    from FW.models.workflow_new import CTEMaterializationConfig, TargetTableModelNew
 
 
 @dataclass
@@ -90,7 +89,7 @@ class SQLQueryModel:
         
         return get_query_attribute_names(self)
     
-    def get_key_attributes(self, target_table: Optional["TargetTableModel"]) -> List[str]:
+    def get_key_attributes(self, target_table: Optional["TargetTableModelNew"]) -> List[str]:
         """Получить ключевые атрибуты для материализации.
         
         Args:
@@ -105,7 +104,7 @@ class SQLQueryModel:
     
     def get_update_attributes(
         self,
-        target_table: Optional["TargetTableModel"],
+        target_table: Optional["TargetTableModelNew"],
         key_attrs: List[str]
     ) -> List[str]:
         """Получить атрибуты для UPDATE (неключевые).

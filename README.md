@@ -137,3 +137,15 @@ Detailed Russian guide:
 - Combined check: `make test`
 - Frontend E2E critical path: `pnpm --dir frontend test:e2e`
 - Load smoke (k6, 50 VUs): `k6 run backend/tests/load/epic13_smoke.js`
+
+## Lint and quality
+
+- Combined lint/format checks: `make lint`
+- Backend lint: `uv run --directory backend --with ruff ruff check app tests`
+- Frontend lint: `pnpm --dir frontend lint`
+- Frontend format check: `pnpm --dir frontend format:check`
+
+## Pre-commit
+
+- Install hooks once: `pre-commit install`
+- Run all hooks manually: `pre-commit run --all-files`

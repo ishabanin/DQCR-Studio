@@ -1,9 +1,9 @@
-"""Утилиты для работы с атрибутами SQLModel и TargetTableModel."""
+"""Утилиты для работы с атрибутами SQLModel и TargetTableModelNew."""
 from typing import TYPE_CHECKING, List, Optional, Set, Tuple, Dict
 
 if TYPE_CHECKING:
     from FW.models.sql_query import SQLQueryModel
-    from FW.models.target_table import TargetTableModel
+    from FW.models.workflow_new import TargetTableModelNew
     from FW.models.attribute import Attribute
 
 
@@ -37,12 +37,12 @@ def get_query_attribute_names(sql_model: "SQLQueryModel") -> Set[str]:
 
 def get_key_attributes(
     sql_model: "SQLQueryModel",
-    target_table: Optional["TargetTableModel"]
+    target_table: Optional["TargetTableModelNew"]
 ) -> List[str]:
     """Получить ключевые атрибуты для материализации.
     
     Приоритет:
-    1. Атрибуты запроса с is_key=True
+    1. Атрибуты запроса с constraints: ["PRIMARY_KEY"]
     2. Primary keys целевой таблицы, которые ЕСТЬ в запросе
     
     Args:
@@ -57,7 +57,7 @@ def get_key_attributes(
     
     if sql_model.attributes:
         for a in sql_model.attributes:
-            if a.is_key:
+            if a.is_primary_key():
                 key_attrs.append(a.name)
     
     if not key_attrs and target_table:
@@ -70,7 +70,7 @@ def get_key_attributes(
 
 def get_update_attributes(
     sql_model: "SQLQueryModel",
-    target_table: Optional["TargetTableModel"],
+    target_table: Optional["TargetTableModelNew"],
     key_attrs: List[str]
 ) -> List[str]:
     """Получить атрибуты для UPDATE (неключевые).
@@ -95,7 +95,7 @@ def get_update_attributes(
     for name in query_attrs:
         if name and name.lower() not in key_attrs_lower:
             if has_target_attrs:
-                if target_table.get_attribute(name):
+                if target_table and target_table.get_attribute(name):
                     result.append(name)
             else:
                 result.append(name)
@@ -105,7 +105,7 @@ def get_update_attributes(
 
 def get_required_attributes_not_in_query(
     sql_model: "SQLQueryModel",
-    target_table: Optional["TargetTableModel"]
+    target_table: Optional["TargetTableModelNew"]
 ) -> List[Tuple[str, Optional[str]]]:
     """Получить обязательные атрибуты целевой таблицы, которых нет в запросе.
     
@@ -129,7 +129,7 @@ def get_required_attributes_not_in_query(
     return result
 
 
-def format_attr_default_value(default_value: Optional[str], domain_type: str) -> Optional[str]:
+def format_attr_default_value(default_value: Optional[str], domain_type: Optional[str]) -> Optional[str]:
     """Форматировать значение по умолчанию с учётом типа.
     
     Args:
@@ -153,20 +153,16 @@ def format_attr_default_value(default_value: Optional[str], domain_type: str) ->
 def enrich_attributes_with_config(
     metadata_aliases: List[Dict],
     config_attributes: List["Attribute"],
-    inline_attr_configs: Optional[Dict[str, Dict]] = None
+    inline_attr_configs: Optional[Dict[str, Dict]] = None,
+    default_source: str = "model"
 ) -> List["Attribute"]:
     """Обогатить атрибуты из SQL метаданных свойствами из YAML конфига.
-    
-    Логика:
-    1. Базовые атрибуты из metadata.aliases
-    2. Для каждого - накладываем свойства из config_attributes по имени
-    3. Inline конфиги имеют наивысший приоритет и переопределяют все остальное
-    4. Атрибуты из конфига, которых нет в SQL - добавляем
     
     Args:
         metadata_aliases: Список алиасов из SQLMetadata.aliases
         config_attributes: Список атрибутов из YAML конфига
         inline_attr_configs: Словарь inline конфигов атрибутов {alias: config}
+        default_source: Источник по умолчанию (model, folder) - не используется
         
     Returns:
         Обогащенный список атрибутов
@@ -193,13 +189,13 @@ def enrich_attributes_with_config(
         alias_lower = alias_name.lower()
         sql_names_lower.add(alias_lower)
         
-        attr = Attribute(name=alias_name, domain_type="string")
+        attr = Attribute(name=alias_name)
         
         if alias_lower in config_attrs_map:
             cfg_attr = config_attrs_map[alias_lower]
+            
             attr.distribution_key = cfg_attr.distribution_key
             attr.partition_key = cfg_attr.partition_key
-            attr.is_key = cfg_attr.is_key
             attr.required = cfg_attr.required
             attr.constraints = cfg_attr.constraints
             attr.default_value = cfg_attr.default_value
@@ -207,10 +203,9 @@ def enrich_attributes_with_config(
         
         if alias_lower in inline_attr_configs:
             inline_cfg = inline_attr_configs[alias_lower]
+            
             if inline_cfg.get('domain_type'):
                 attr.domain_type = inline_cfg['domain_type']
-            if 'is_key' in inline_cfg:
-                attr.is_key = inline_cfg['is_key']
             if 'required' in inline_cfg:
                 attr.required = inline_cfg['required']
             if inline_cfg.get('constraints'):
@@ -218,13 +213,13 @@ def enrich_attributes_with_config(
             if 'distribution_key' in inline_cfg:
                 dk_val = inline_cfg['distribution_key']
                 try:
-                    attr.distribution_key = int(str(dk_val).rstrip(','))  # type: ignore
+                    attr.distribution_key = int(str(dk_val).rstrip(','))
                 except (ValueError, TypeError):
                     pass
             if 'partition_key' in inline_cfg:
                 pk_val = inline_cfg['partition_key']
                 try:
-                    attr.partition_key = int(str(pk_val).rstrip(','))  # type: ignore
+                    attr.partition_key = int(str(pk_val).rstrip(','))
                 except (ValueError, TypeError):
                     pass
             if inline_cfg.get('default_value') is not None:
@@ -239,33 +234,31 @@ def enrich_attributes_with_config(
             result.append(cfg_attr)
     
     for inline_attr_name, inline_cfg in inline_attr_configs.items():
-        if inline_attr_name not in sql_names_lower:
-            from FW.models.attribute import Attribute
-            attr = Attribute(name=inline_attr_name, domain_type="string")
-            if inline_cfg.get('domain_type'):
-                attr.domain_type = inline_cfg['domain_type']
-            if 'is_key' in inline_cfg:
-                attr.is_key = inline_cfg['is_key']
-            if 'required' in inline_cfg:
-                attr.required = inline_cfg['required']
-            if inline_cfg.get('constraints'):
-                attr.constraints = inline_cfg['constraints']
-            if 'distribution_key' in inline_cfg:
-                dk_val = inline_cfg['distribution_key']
-                try:
-                    attr.distribution_key = int(str(dk_val).rstrip(','))  # type: ignore
-                except (ValueError, TypeError):
-                    pass
-            if 'partition_key' in inline_cfg:
-                pk_val = inline_cfg['partition_key']
-                try:
-                    attr.partition_key = int(str(pk_val).rstrip(','))  # type: ignore[assignment]
-                except (ValueError, TypeError):
-                    pass
-            if inline_cfg.get('default_value') is not None:
-                attr.default_value = inline_cfg['default_value']
-            if inline_cfg.get('description'):
-                attr.description = inline_cfg['description']
-            result.append(attr)
+        if inline_attr_name not in sql_names_lower and inline_attr_name in config_attrs_map:
+            for attr in result:
+                if attr.name.lower() == inline_attr_name:
+                    if inline_cfg.get('domain_type'):
+                        attr.domain_type = inline_cfg['domain_type']
+                    if 'required' in inline_cfg:
+                        attr.required = inline_cfg['required']
+                    if inline_cfg.get('constraints'):
+                        attr.constraints = inline_cfg['constraints']
+                    if 'distribution_key' in inline_cfg:
+                        dk_val = inline_cfg['distribution_key']
+                        try:
+                            attr.distribution_key = int(str(dk_val).rstrip(','))
+                        except (ValueError, TypeError):
+                            pass
+                    if 'partition_key' in inline_cfg:
+                        pk_val = inline_cfg['partition_key']
+                        try:
+                            attr.partition_key = int(str(pk_val).rstrip(','))
+                        except (ValueError, TypeError):
+                            pass
+                    if inline_cfg.get('default_value') is not None:
+                        attr.default_value = inline_cfg['default_value']
+                    if inline_cfg.get('description'):
+                        attr.description = inline_cfg['description']
+                    break
     
     return result

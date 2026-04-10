@@ -258,13 +258,13 @@ function buildFrontendQuickFixPreview(options: {
       return {
         filePath: options.filePath,
         description: "добавить поле description",
-        diff: `${contextLine}\n+     description: \"\"`,
+        diff: `${contextLine}\n+     description: ""`,
       };
     }
     return {
       filePath: options.filePath,
       description: "добавить поле description",
-      diff: "+ description: \"\"",
+      diff: '+ description: ""',
     };
   }
 

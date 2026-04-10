@@ -1,0 +1,16 @@
+server:
+  host: "0.0.0.0"
+  port: 8000
+  reload: true
+
+graph:
+  default_filter_context: null
+  show_ephemeral: true
+  show_disabled: false
+
+editor:
+  sql_highlighting: "prism"
+  max_sql_lines: 1000
+
+recent_paths: []
+max_recent: 10

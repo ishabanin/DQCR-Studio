@@ -1,4 +1,4 @@
-import { Component, ErrorInfo, ReactNode } from "react";
+import { Component, ReactNode } from "react";
 
 import { useUiStore } from "../store/uiStore";
 
@@ -16,7 +16,7 @@ class ErrorBoundaryInner extends Component<{ children: ReactNode; onError: (mess
     return { hasError: true };
   }
 
-  componentDidCatch(error: Error, _: ErrorInfo): void {
+  componentDidCatch(error: Error): void {
     this.props.onError(`UI error: ${error.message}`);
   }
 
@@ -37,4 +37,3 @@ export default function ErrorBoundary({ children }: { children: ReactNode }) {
   const addToast = useUiStore((state) => state.addToast);
   return <ErrorBoundaryInner onError={(message) => addToast(message, "error")}>{children}</ErrorBoundaryInner>;
 }
-

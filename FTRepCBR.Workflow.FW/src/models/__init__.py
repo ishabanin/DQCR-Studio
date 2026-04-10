@@ -2,17 +2,17 @@
 from FW.parsing.sql_metadata import SQLMetadata, SQLMetadataParser
 from FW.models.sql_query import SQLQueryModel
 from FW.models.parameter import ParameterModel, ParameterValue
-from FW.models.step import WorkflowStepModel, StepType
-from FW.models.target_table import TargetTableModel
 from FW.models.attribute import Attribute
-from FW.models.workflow import (
-    WorkflowModel, WorkflowSettings, WorkflowGraph, 
-    WorkflowConfig, FolderConfig, QueryConfig,
-    CTEMaterializationConfig, FolderModel
-)
+
 from FW.models.context import ContextModel, ContextFlags, ContextConstants, ContextCollection
 from FW.models.project import ProjectModel
 from FW.models.enabled import EnabledRule
+from FW.models.configs import WorkflowConfig, FolderConfig, QueryConfig, CTEMaterializationConfig, FolderModel
+from FW.models.workflow_new import (
+    WorkflowNewModel,
+    TargetTableModelNew,
+    ProjectInfo,
+)
 from FW.models.project_template import (
     ProjectTemplate,
     ModelDefinition,
@@ -30,9 +30,6 @@ __all__ = [
     'SQLQueryModel',
     'ParameterModel',
     'ParameterValue',
-    'WorkflowStepModel',
-    'StepType',
-    'TargetTableModel',
     'Attribute',
     'WorkflowModel',
     'WorkflowSettings',
@@ -47,6 +44,7 @@ __all__ = [
     'ContextConstants',
     'ContextCollection',
     'ProjectModel',
+    'ProjectModelOrig',
     'EnabledRule',
     'ProjectTemplate',
     'ModelDefinition',
@@ -55,4 +53,7 @@ __all__ = [
     'ModelRules',
     'RuleDefinition',
     'ProjectConfig',
+    'WorkflowNewModel',
+    'TargetTableModelNew',
+    'ProjectInfo',
 ]

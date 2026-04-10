@@ -8,12 +8,12 @@
     "descriptions",
     "adb"
   ],
-  "timestamp": "2026-03-16T17:18:47.616685",
+  "timestamp": "2026-03-18T14:17:11.240017",
   "summary": {
-    "total": 10,
-    "errors": 3,
+    "total": 16,
+    "errors": 6,
     "warnings": 1,
-    "info": 6
+    "info": 9
   },
   "issues": [
     {
@@ -71,7 +71,37 @@
       "rule": "missing_step_description",
       "category": "descriptions",
       "message": "Step description is missing",
-      "location": "002_Update/001_RF110RestTurnReg_INN_default/sql",
+      "location": "001_Load__distr/004_applySettings_iter/applySettings_default/sql",
+      "details": {
+        "step_type": "sql"
+      }
+    },
+    {
+      "level": "info",
+      "rule": "missing_step_description",
+      "category": "descriptions",
+      "message": "Step description is missing",
+      "location": "001_Load__vtb/001_RF110RestTurnReg_ACCDEMAND_vtb_vtb/sql",
+      "details": {
+        "step_type": "sql"
+      }
+    },
+    {
+      "level": "info",
+      "rule": "missing_step_description",
+      "category": "descriptions",
+      "message": "Step description is missing",
+      "location": "001_Load__vtb/002_RF110RestTurnReg_ACCRSRV_vtb_vtb/sql",
+      "details": {
+        "step_type": "sql"
+      }
+    },
+    {
+      "level": "info",
+      "rule": "missing_step_description",
+      "category": "descriptions",
+      "message": "Step description is missing",
+      "location": "002_Update/001_RF110RestTurnReg_QUALITY_vtb/cte/b",
       "details": {
         "step_type": "sql"
       }
@@ -107,6 +137,39 @@
         "materialization": "insert_fc",
         "tool": "adb"
       }
+    },
+    {
+      "level": "error",
+      "rule": "adb_distribution_key",
+      "category": "adb",
+      "message": "No distribution_key defined for ADB insert_fc materialization",
+      "location": "001_Load__distr/004_applySettings_iter/applySettings_default/sql",
+      "details": {
+        "materialization": "insert_fc",
+        "tool": "adb"
+      }
+    },
+    {
+      "level": "error",
+      "rule": "adb_distribution_key",
+      "category": "adb",
+      "message": "No distribution_key defined for ADB insert_fc materialization",
+      "location": "001_Load__vtb/001_RF110RestTurnReg_ACCDEMAND_vtb_vtb/sql",
+      "details": {
+        "materialization": "insert_fc",
+        "tool": "adb"
+      }
+    },
+    {
+      "level": "error",
+      "rule": "adb_distribution_key",
+      "category": "adb",
+      "message": "No distribution_key defined for ADB insert_fc materialization",
+      "location": "001_Load__vtb/002_RF110RestTurnReg_ACCRSRV_vtb_vtb/sql",
+      "details": {
+        "materialization": "insert_fc",
+        "tool": "adb"
+      }
     }
   ],
   "template_issues": [
@@ -119,8 +182,10 @@
       "details": {
         "pattern": "root",
         "existing_folders": [
+          "001_Load__distr/004_applySettings_iter",
+          "001_Load__distr",
           "002_Update",
-          "001_Load__distr"
+          "001_Load__vtb"
         ]
       }
     }

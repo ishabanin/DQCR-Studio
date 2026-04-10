@@ -6,9 +6,10 @@ from FW.validation.models import ValidationIssue, ValidationReport, ValidationLe
 from FW.validation.rules.base import BaseValidationRule, get_validation_rule_registry
 
 from FW.logging_config import get_logger
+from FW.models.sql_object import SQLObjectModel
 
 if True:
-    from FW.models.workflow import WorkflowModel
+    from FW.models.workflow_new import WorkflowNewModel
 
 
 logger = get_logger("validation.runner")
@@ -30,7 +31,7 @@ class RuleRunner:
         self._registry = get_validation_rule_registry()
         self._categories = categories or []
     
-    def run(self, workflow: "WorkflowModel") -> List[ValidationIssue]:
+    def run(self, workflow: "WorkflowNewModel") -> List[ValidationIssue]:
         """Выполнить все правила для workflow.
         
         Args:
@@ -59,6 +60,23 @@ class RuleRunner:
         
         return issues
     
+    @staticmethod
+    def compute_file_path(sql_object: SQLObjectModel, workflow: "WorkflowNewModel") -> str:
+        """Вычислить относительный путь к файлу от корня проекта.
+        
+        Args:
+            sql_object: SQL объект
+            workflow: Модель workflow
+            
+        Returns:
+            Путь относительно корня проекта, напр. RF110NEW/model/RF110RestTurnReg/SQL/folder/query.sql
+        """
+        project_name = workflow.project.project_name if workflow.project else ""
+        model_name = workflow.model_name
+        sql_path = sql_object.path
+        
+        return f"{project_name}/{model_name}/{sql_path}"
+    
     def _get_effective_categories(self) -> List[str]:
         """Получить эффективный список категорий."""
         if self._categories:
@@ -73,7 +91,7 @@ class RuleRunner:
 
 
 def run_validation(
-    workflow: "WorkflowModel",
+    workflow: "WorkflowNewModel",
     categories: Optional[List[str]] = None
 ) -> ValidationReport:
     """Выполнить валидацию workflow.
@@ -92,7 +110,7 @@ def run_validation(
 
 
 def validate_workflow(
-    workflow: "WorkflowModel",
+    workflow: "WorkflowNewModel",
     categories: Optional[List[str]] = None
 ) -> ValidationReport:
     """Выполнить валидацию workflow и создать отчёт.
@@ -104,15 +122,20 @@ def validate_workflow(
     Returns:
         ValidationReport с результатами
     """
+    from datetime import datetime
+    
     runner = RuleRunner(categories)
     issues = runner.run(workflow)
     
+    project_name = workflow.project.project_name if workflow.project else ""
+    template_name = workflow.template.value if workflow.template else ""
+    
     report = ValidationReport(
-        project_name=workflow.project_name,
+        project_name=project_name,
         model_name=workflow.model_name,
-        template_name=getattr(workflow, "template_name", ""),
+        template_name=template_name,
         validation_categories=categories or runner.get_available_categories(),
-        timestamp=workflow.__dict__.get("_validation_timestamp", ""),
+        timestamp=datetime.now().isoformat(),
         issues=issues,
         template_issues=[]
     )

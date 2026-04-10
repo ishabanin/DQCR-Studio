@@ -1,10 +1,15 @@
-.PHONY: dev build test deploy down prod-build prod-up prod-down prod-logs prod-health prod-bundle
+.PHONY: dev build lint test deploy down prod-build prod-up prod-down prod-logs prod-health prod-bundle
 
 dev:
 	docker compose -f infra/docker/docker-compose.yml up --build
 
 build:
 	docker compose -f infra/docker/docker-compose.yml build
+
+lint:
+	uv run --directory backend --with ruff ruff check app tests
+	pnpm --dir frontend lint
+	pnpm --dir frontend format:check
 
 test:
 	python3 -m compileall backend/app

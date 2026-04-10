@@ -4,7 +4,17 @@ from FW.validation.models import ValidationIssue, ValidationLevel
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from FW.models.workflow import WorkflowModel
+    from FW.models.workflow_new import WorkflowNewModel
+    from FW.models.sql_object import SQLObjectModel
+
+
+def _get_file_path(sql_object: "SQLObjectModel", workflow: "WorkflowNewModel") -> str:
+    """Compute relative file path from project root."""
+    project_name = workflow.project.project_name if workflow.project else ""
+    model_group = workflow.models_root
+    model_name = workflow.model_name
+    sql_path = sql_object.path
+    return f"{project_name}/{model_group}/{model_name}/{sql_path}"
 
 
 class NoHintsRule(BaseValidationRule):
@@ -17,20 +27,34 @@ class NoHintsRule(BaseValidationRule):
     level = ValidationLevel.WARNING
     description = "Проверка отсутствия SQL hints"
     
-    def validate(self, workflow: "WorkflowModel") -> list[ValidationIssue]:
+    def validate(self, workflow: "WorkflowNewModel") -> list[ValidationIssue]:
         issues = []
-        for step in workflow.steps:
-            if step.sql_model and step.sql_model.source_sql:
-                source = step.sql_model.source_sql.upper()
-                if "/*+" in source or "/*+" in source:
+        
+        model_group = workflow.models_root
+        model_name = workflow.model_name
+        
+        if not workflow.sql_objects:
+            return issues
+        
+        for sql_object in workflow.sql_objects.values():
+            if sql_object.generated:
+                continue
+            
+            if sql_object.source_sql:
+                source = sql_object.source_sql.upper()
+                if "/*+" in source:
+                    file_path = _get_file_path(sql_object, workflow)
                     issues.append(ValidationIssue(
                         level=self.level,
                         rule=self.name,
                         category=self.category,
                         message="SQL hints found in query (/*+ ... */)",
-                        location=step.full_name,
+                        file_path=file_path,
+                        model_group=model_group,
+                        model_name=model_name,
                         details={"hint_detected": True}
                     ))
+        
         return issues
 
 
@@ -44,20 +68,34 @@ class NoDeleteStatementRule(BaseValidationRule):
     level = ValidationLevel.WARNING
     description = "Проверка отсутствия DELETE операторов"
     
-    def validate(self, workflow: "WorkflowModel") -> list[ValidationIssue]:
+    def validate(self, workflow: "WorkflowNewModel") -> list[ValidationIssue]:
         issues = []
-        for step in workflow.steps:
-            if step.sql_model and step.sql_model.source_sql:
-                source_upper = step.sql_model.source_sql.upper()
+        
+        model_group = workflow.models_root
+        model_name = workflow.model_name
+        
+        if not workflow.sql_objects:
+            return issues
+        
+        for sql_object in workflow.sql_objects.values():
+            if sql_object.generated:
+                continue
+            
+            if sql_object.source_sql:
+                source_upper = sql_object.source_sql.upper()
                 if "DELETE" in source_upper and "FROM" in source_upper:
+                    file_path = _get_file_path(sql_object, workflow)
                     issues.append(ValidationIssue(
                         level=self.level,
                         rule=self.name,
                         category=self.category,
                         message="DELETE statement found in query",
-                        location=step.full_name,
+                        file_path=file_path,
+                        model_group=model_group,
+                        model_name=model_name,
                         details={"delete_detected": True}
                     ))
+        
         return issues
 
 
@@ -71,20 +109,34 @@ class NoTruncateRule(BaseValidationRule):
     level = ValidationLevel.ERROR
     description = "Проверка отсутствия TRUNCATE операторов"
     
-    def validate(self, workflow: "WorkflowModel") -> list[ValidationIssue]:
+    def validate(self, workflow: "WorkflowNewModel") -> list[ValidationIssue]:
         issues = []
-        for step in workflow.steps:
-            if step.sql_model and step.sql_model.source_sql:
-                source_upper = step.sql_model.source_sql.upper()
+        
+        model_group = workflow.models_root
+        model_name = workflow.model_name
+        
+        if not workflow.sql_objects:
+            return issues
+        
+        for sql_object in workflow.sql_objects.values():
+            if sql_object.generated:
+                continue
+            
+            if sql_object.source_sql:
+                source_upper = sql_object.source_sql.upper()
                 if "TRUNCATE" in source_upper:
+                    file_path = _get_file_path(sql_object, workflow)
                     issues.append(ValidationIssue(
                         level=self.level,
                         rule=self.name,
                         category=self.category,
                         message="TRUNCATE statement found - extremely dangerous operation",
-                        location=step.full_name,
+                        file_path=file_path,
+                        model_group=model_group,
+                        model_name=model_name,
                         details={"truncate_detected": True}
                     ))
+        
         return issues
 
 
@@ -98,20 +150,34 @@ class NoSelectStarRule(BaseValidationRule):
     level = ValidationLevel.INFO
     description = "Проверка отсутствия SELECT *"
     
-    def validate(self, workflow: "WorkflowModel") -> list[ValidationIssue]:
+    def validate(self, workflow: "WorkflowNewModel") -> list[ValidationIssue]:
         import re
         issues = []
-        for step in workflow.steps:
-            if step.sql_model and step.sql_model.source_sql:
-                source = step.sql_model.source_sql.upper()
+        
+        model_group = workflow.models_root
+        model_name = workflow.model_name
+        
+        if not workflow.sql_objects:
+            return issues
+        
+        for sql_object in workflow.sql_objects.values():
+            if sql_object.generated:
+                continue
+            
+            if sql_object.source_sql:
+                source = sql_object.source_sql.upper()
                 select_star_pattern = r'SELECT\s+\*\s+FROM'
                 if re.search(select_star_pattern, source):
+                    file_path = _get_file_path(sql_object, workflow)
                     issues.append(ValidationIssue(
                         level=self.level,
                         rule=self.name,
                         category=self.category,
                         message="SELECT * found in query - avoid for better maintainability",
-                        location=step.full_name,
+                        file_path=file_path,
+                        model_group=model_group,
+                        model_name=model_name,
                         details={"select_star_detected": True}
                     ))
+        
         return issues

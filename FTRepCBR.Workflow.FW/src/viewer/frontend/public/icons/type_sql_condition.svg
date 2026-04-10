@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 24" fill="none" stroke="#f44336" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <text x="1" y="16" font-family="monospace" font-size="10" font-weight="bold" fill="#f44336" stroke="none">sql</text>
+  <path d="M18 6 L26 6 L22 10 L26 14 L18 14 L22 10 Z" stroke="#f44336" stroke-width="1.5" fill="none"/>
+  <line x1="19" y1="16" x2="19" y2="18" stroke="#f44336" stroke-width="1.5"/>
+  <line x1="25" y1="16" x2="25" y2="18" stroke="#f44336" stroke-width="1.5"/>
+</svg>

@@ -4,13 +4,15 @@
   Creates a temporary stage table filtered by CalcID.
   
   Parameters:
-    sql_model: SQLQueryModel
+    target_table: Имя временной таблицы
+    sql: Подготовленный SQL-запрос
+    calcid_f110: SQL выражение для получения CalcID
     tool: Database tool (oracle, adb, postgresql)
 #}
-CREATE TABLE {{ sql_model.target_table }} AS
+CREATE TABLE {{ target_table }} AS
 SELECT 
     {{ calcid_f110 }} as CalcID,
     t.*
 FROM (
-    {{ sql_model.get_prepared_sql_for_render(tool) }}
+    {{ sql }}
 ) t

@@ -20,6 +20,9 @@ class ValidationIssue:
     category: str
     message: str
     location: Optional[str] = None
+    file_path: Optional[str] = None
+    model_group: Optional[str] = None
+    model_name: Optional[str] = None
     details: Dict[str, Any] = field(default_factory=dict)
     
     def to_dict(self) -> dict:
@@ -29,6 +32,9 @@ class ValidationIssue:
             "category": self.category,
             "message": self.message,
             "location": self.location,
+            "file_path": self.file_path,
+            "model_group": self.model_group,
+            "model_name": self.model_name,
             "details": self.details,
         }
     
@@ -40,6 +46,9 @@ class ValidationIssue:
             category=data.get("category", ""),
             message=data.get("message", ""),
             location=data.get("location"),
+            file_path=data.get("file_path"),
+            model_group=data.get("model_group"),
+            model_name=data.get("model_name"),
             details=data.get("details", {}),
         )
 
@@ -52,6 +61,9 @@ class ValidationReport:
     template_name: str
     validation_categories: List[str]
     timestamp: str
+    model_group: Optional[str] = None
+    available_model_groups: List[str] = field(default_factory=list)
+    available_workflows: Dict[str, List[str]] = field(default_factory=dict)
     issues: List[ValidationIssue] = field(default_factory=list)
     template_issues: List[ValidationIssue] = field(default_factory=list)
     
@@ -78,6 +90,9 @@ class ValidationReport:
             "template_name": self.template_name,
             "validation_categories": self.validation_categories,
             "timestamp": self.timestamp,
+            "model_group": self.model_group,
+            "available_model_groups": self.available_model_groups,
+            "available_workflows": self.available_workflows,
             "summary": {
                 "total": self.total_issues,
                 "errors": self.error_count,
@@ -99,6 +114,9 @@ class ValidationReport:
             template_name=data.get("template_name", ""),
             validation_categories=data.get("validation_categories", []),
             timestamp=data.get("timestamp", ""),
+            model_group=data.get("model_group"),
+            available_model_groups=data.get("available_model_groups", []),
+            available_workflows=data.get("available_workflows", {}),
             issues=issues,
             template_issues=template_issues,
         )

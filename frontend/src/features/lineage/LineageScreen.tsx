@@ -200,9 +200,12 @@ export default function LineageScreen() {
     },
   });
 
-  const allNodes = lineageQuery.data?.nodes ?? [];
-  const allEdges = lineageQuery.data?.edges ?? [];
-  const selectedContexts = multiMode ? activeContexts : activeContext ? [activeContext] : [];
+  const allNodes = useMemo(() => lineageQuery.data?.nodes ?? [], [lineageQuery.data?.nodes]);
+  const allEdges = useMemo(() => lineageQuery.data?.edges ?? [], [lineageQuery.data?.edges]);
+  const selectedContexts = useMemo(
+    () => (multiMode ? activeContexts : activeContext ? [activeContext] : []),
+    [activeContext, activeContexts, multiMode],
+  );
 
   const enabledContextsMap = useMemo(
     () =>

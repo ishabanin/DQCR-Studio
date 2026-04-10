@@ -15,7 +15,7 @@ import {
   type ProjectParameterTestResponse,
   type ProjectParameterValueItem,
 } from "../../api/projects";
-import { useTheme } from "../../app/providers/ThemeProvider";
+import { useTheme } from "../../app/providers/themeContext";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
 import ExpandedFieldEditorModal from "../../shared/components/ExpandedFieldEditorModal";
@@ -108,7 +108,7 @@ export default function ParametersScreen() {
   });
 
   const modelScopeOptions = useMemo(() => collectModelIds(treeQuery.data ?? null), [treeQuery.data]);
-  const parameterItems = paramsQuery.data ?? [];
+  const parameterItems = useMemo(() => paramsQuery.data ?? [], [paramsQuery.data]);
   const selectedItem = useMemo(
     () => parameterItems.find((item) => parameterKey(item) === selectedKey) ?? null,
     [parameterItems, selectedKey],

@@ -3,10 +3,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from FW.models import WorkflowModel
-from FW.generation.dependency_resolver import DependencyResolver
-from FW.generation.resolver_registry import create_resolver
-
+from FW.models import WorkflowNewModel
+from FW.generation.dependency_resolvers.dependency_resolver import DependencyResolver
 
 class BaseWorkflowBuilder(ABC):
     """Базовый класс для построителей workflow."""
@@ -25,14 +23,9 @@ class BaseWorkflowBuilder(ABC):
         self.tool_registry = tool_registry
         self.macro_registry = macro_registry
         self.function_registry = function_registry
-        if dependency_resolver:
-            self.dependency_resolver = dependency_resolver
-        else:
-            self.dependency_resolver = create_resolver(resolver_name)
-        self.workflow_engine = workflow_engine
     
     @abstractmethod
-    def build(self, model_name: str) -> WorkflowModel:
+    def build(self, model_name: str) -> WorkflowNewModel:
         """Построить модель workflow для указанной модели.
         
         Args:
@@ -44,7 +37,7 @@ class BaseWorkflowBuilder(ABC):
         pass
     
     @abstractmethod
-    def build_all(self) -> Dict[str, WorkflowModel]:
+    def build_all(self) -> Dict[str, WorkflowNewModel]:
         """Построить модели workflow для всех моделей проекта.
         
         Returns:

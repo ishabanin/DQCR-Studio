@@ -22,8 +22,6 @@ type ModalState =
   | { type: "delete"; project: ProjectListItem }
   | null;
 
-type HubVisualTheme = "default" | "editorial" | "industrial";
-
 export default function ProjectsHub() {
   const setProject = useProjectStore((state) => state.setProject);
   const {
@@ -43,23 +41,12 @@ export default function ProjectsHub() {
   } = useProjects();
 
   const [view, setViewState] = useState<"grid" | "list">(() => (window.localStorage.getItem("dqcr_hub_view") as "grid" | "list") ?? "grid");
-  const [visualTheme, setVisualThemeState] = useState<HubVisualTheme>(() => {
-    const stored = window.localStorage.getItem("dqcr_hub_visual_theme");
-    if (stored === "editorial" || stored === "industrial" || stored === "default") {
-      return stored;
-    }
-    return "default";
-  });
   const [modal, setModal] = useState<ModalState>(null);
   const [catalogExpandSignal, setCatalogExpandSignal] = useState(0);
 
   const setView = (value: "grid" | "list") => {
     setViewState(value);
     window.localStorage.setItem("dqcr_hub_view", value);
-  };
-  const setVisualTheme = (value: HubVisualTheme) => {
-    setVisualThemeState(value);
-    window.localStorage.setItem("dqcr_hub_visual_theme", value);
   };
 
   const { filtered, filters, patchFilter, clearFilters, counts, allTags, sortBy, sortDir, toggleSort } = useProjectFilters(projects);
@@ -106,13 +93,25 @@ export default function ProjectsHub() {
     setModal(null);
   };
 
+  const getProjectById = (projectId: string) => projects.find((item) => item.project_id === projectId);
+
+  const handleEditProject = (projectId: string) => {
+    const target = getProjectById(projectId);
+    if (target) setModal({ type: "edit", project: target });
+  };
+
+  const handleDeleteProject = (projectId: string) => {
+    const target = getProjectById(projectId);
+    if (target) setModal({ type: "delete", project: target });
+  };
+
   return (
-    <div className={`hub-stage hub-visual-${visualTheme}`} style={{ display: "flex", height: "calc(100vh - var(--hub-topbar-h))" }}>
+    <div className="hub-stage hub-stage-layout">
       <div className="hub-sidebar-wrap">
         <HubSidebar counts={counts} filters={filters} onFilter={patchFilter} />
       </div>
 
-      <main style={{ flex: 1, minWidth: 0, padding: "var(--hub-page-py) var(--hub-page-px)", overflowY: "auto" }}>
+      <main className="hub-main">
         <section className="hub-hero">
           <div className="hub-hero-row">
             <div>
@@ -121,29 +120,12 @@ export default function ProjectsHub() {
                 <span>/</span>
                 <span className="hub-crumbs-current">Projects</span>
               </div>
-              <h1 style={{ fontSize: "var(--hub-text-xl)", fontWeight: "var(--hub-weight-medium)", color: "var(--color-text-primary)", marginBottom: 4 }}>All projects</h1>
-              <p style={{ fontSize: "var(--hub-text-sm)", color: "var(--color-text-secondary)" }}>
+              <h1 className="hub-title">All projects</h1>
+              <p className="hub-subtitle">
                 {hasActiveFilters ? `Showing ${filtered.length} of ${projects.length}` : "Manage and open DQCR projects"}
               </p>
             </div>
             <div className="hub-hero-actions">
-              <div className="hub-theme-switch" role="group" aria-label="Hub visual theme">
-                {(
-                  [
-                    { id: "default", label: "Base" },
-                    { id: "editorial", label: "Editorial" },
-                    { id: "industrial", label: "Industrial" },
-                  ] as const
-                ).map((item) => (
-                  <button
-                    key={item.id}
-                    className={visualTheme === item.id ? "hub-theme-switch-btn active" : "hub-theme-switch-btn"}
-                    onClick={() => setVisualTheme(item.id)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
               <button className="hub-btn-primary" onClick={() => setModal({ type: "create", mode: "create" })}>
                 + New project
               </button>
@@ -170,10 +152,10 @@ export default function ProjectsHub() {
         {isLoading && <StatsRowSkeleton />}
 
         {isError && (
-          <div style={{ textAlign: "center", padding: "48px 20px" }}>
-            <div style={{ fontSize: 28, marginBottom: 10, color: "var(--hub-danger-text)", opacity: 0.4 }}>⚠</div>
-            <h3 style={{ fontSize: 14, fontWeight: "var(--hub-weight-medium)", marginBottom: 6 }}>Failed to load projects</h3>
-            <p style={{ fontSize: "var(--hub-text-sm)", color: "var(--color-text-secondary)", marginBottom: 14 }}>{error?.message ?? "Unknown error"}</p>
+          <div className="hub-state hub-state-error">
+            <div className="hub-state-icon hub-state-icon-danger">⚠</div>
+            <h3 className="hub-state-title">Failed to load projects</h3>
+            <p className="hub-state-message">{error?.message ?? "Unknown error"}</p>
             <button className="hub-btn-secondary" onClick={() => void refetch()}>
               ↻ Retry
             </button>
@@ -181,7 +163,7 @@ export default function ProjectsHub() {
         )}
 
         {isLoading && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+          <div className="hub-grid">
             {Array.from({ length: 6 }).map((_, i) => (
               <ProjectCardSkeleton key={i} />
             ))}
@@ -189,13 +171,13 @@ export default function ProjectsHub() {
         )}
 
         {!isLoading && !isError && projects.length === 0 && (
-          <div style={{ textAlign: "center", padding: "80px 20px" }}>
-            <div style={{ fontSize: 36, marginBottom: 14, color: "var(--color-text-tertiary)", opacity: 0.3 }}>⊟</div>
-            <h3 style={{ fontSize: 16, fontWeight: "var(--hub-weight-medium)", marginBottom: 8 }}>No projects yet</h3>
-            <p style={{ fontSize: "var(--hub-text-sm)", color: "var(--color-text-secondary)", maxWidth: 320, margin: "0 auto 20px", lineHeight: 1.6 }}>
+          <div className="hub-state hub-state-empty">
+            <div className="hub-state-icon hub-state-icon-muted">⊟</div>
+            <h3 className="hub-state-title hub-state-title-lg">No projects yet</h3>
+            <p className="hub-state-message hub-state-message-narrow">
               Create your first DQCR project or import an existing one to get started.
             </p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <div className="hub-state-actions">
               <button className="hub-btn-primary" onClick={() => setModal({ type: "create", mode: "create" })}>
                 + New project
               </button>
@@ -207,10 +189,10 @@ export default function ProjectsHub() {
         )}
 
         {!isLoading && !isError && projects.length > 0 && filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: "48px 20px" }}>
-            <div style={{ fontSize: 28, marginBottom: 10, opacity: 0.25 }}>⊘</div>
-            <h3 style={{ fontSize: 14, fontWeight: "var(--hub-weight-medium)", marginBottom: 6, color: "var(--color-text-secondary)" }}>No projects match filters</h3>
-            <p style={{ fontSize: "var(--hub-text-sm)", color: "var(--color-text-tertiary)", marginBottom: 14 }}>Try changing the search query or removing filters.</p>
+          <div className="hub-state hub-state-empty">
+            <div className="hub-state-icon hub-state-icon-faded">⊘</div>
+            <h3 className="hub-state-title">No projects match filters</h3>
+            <p className="hub-state-message hub-state-message-muted">Try changing the search query or removing filters.</p>
             <button className="hub-btn-secondary" onClick={clearFilters}>
               Clear all filters
             </button>
@@ -226,14 +208,8 @@ export default function ProjectsHub() {
                     key={project.project_id}
                     project={project}
                     onOpen={openProject}
-                    onEdit={(projectId) => {
-                      const target = projects.find((item) => item.project_id === projectId);
-                      if (target) setModal({ type: "edit", project: target });
-                    }}
-                    onDelete={(projectId) => {
-                      const target = projects.find((item) => item.project_id === projectId);
-                      if (target) setModal({ type: "delete", project: target });
-                    }}
+                    onEdit={handleEditProject}
+                    onDelete={handleDeleteProject}
                     onTagClick={(tag) => patchFilter({ tag })}
                   />
                 ))}
@@ -245,14 +221,8 @@ export default function ProjectsHub() {
                 sortDir={sortDir}
                 onSort={toggleSort}
                 onOpen={openProject}
-                onEdit={(projectId) => {
-                  const target = projects.find((item) => item.project_id === projectId);
-                  if (target) setModal({ type: "edit", project: target });
-                }}
-                onDelete={(projectId) => {
-                  const target = projects.find((item) => item.project_id === projectId);
-                  if (target) setModal({ type: "delete", project: target });
-                }}
+                onEdit={handleEditProject}
+                onDelete={handleDeleteProject}
               />
             )}
           </>

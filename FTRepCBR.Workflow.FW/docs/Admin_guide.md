@@ -1006,7 +1006,51 @@ def generate_workflow(
 
 ## 10. Расширение функциональности
 
-### 9.1 Добавление нового инструмента
+### 10.1 Viewer
+
+FW Workflow Viewer — веб-приложение для визуализации и анализа проектов DQCR. Подробное руководство см. в отдельном документе `Viewer_guide.md`.
+
+#### Структура Viewer
+
+```
+FW/viewer/
+├── run_viewer.py           # Скрипт запуска
+├── backend/               # FastAPI backend
+│   ├── main.py
+│   ├── routes.py
+│   ├── services.py
+│   └── config.py
+└── frontend/               # React frontend
+    ├── src/
+    │   ├── components/    # Компоненты UI
+    │   ├── api.ts         # API клиент
+    │   └── types.ts       # TypeScript типы
+    └── package.json
+```
+
+#### Запуск Viewer
+
+```bash
+# Автоматический запуск (backend + frontend)
+python -m FW.viewer.run_viewer
+
+# Или раздельно
+# Backend
+python -m uvicorn FW.viewer.backend.main:app --port 9001
+
+# Frontend
+cd FW/viewer/frontend
+npm install
+npm run dev
+```
+
+#### Ports
+
+- Frontend: http://localhost:3000
+- Backend: http://localhost:9001
+- API Docs: http://localhost:9001/docs
+
+### 10.2 Добавление нового инструмента
 
 1. Добавить в `FW/config/tools.yml`:
 

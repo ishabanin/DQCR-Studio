@@ -1,0 +1,15 @@
+parameter:
+  name: CALC_ID
+  description: "Идентификатор расчета"
+  domain_type: number
+
+  values:
+    all:
+      type: dynamic
+      value: " select coalesce(clc.ID,0)
+               from dual
+                     left join DWR_tClcCalculationInfo clc
+                            on clc.RepSysName = _p.props.repsysname
+                           and clc.BranchID in ({{BRANCH_ID}})
+                           and clc.DateEnd = clc.DateBegin
+                           and clc.DateBegin = {{date_end}} "

@@ -195,6 +195,8 @@ export default function SqlMetaPanel({
                   key={parameter}
                   type="button"
                   className="sql-meta-chip sql-meta-chip-param"
+                  disabled={!resolvedPath}
+                  aria-disabled={!resolvedPath}
                   onClick={() => {
                     if (resolvedPath) onOpenFile(resolvedPath);
                   }}

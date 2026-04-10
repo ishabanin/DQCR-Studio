@@ -4,17 +4,18 @@
   Creates a temporary stage table filtered by CalcID with distribution key.
   
   Parameters:
-    sql_model: SQLQueryModel
-    tool: Database tool (adb, postgresql)
+    target_table: Имя временной таблицы
+    sql: Подготовленный SQL-запрос
     calcid_f110: CalcID function
     distribution_key: Distribution key column name (optional)
+    tool: Database tool (adb, postgresql)
 #}
-CREATE TABLE {{ sql_model.target_table }} AS
+CREATE TABLE {{ target_table }} AS
 SELECT 
     {{ calcid_f110 }} as CalcID,
     t.*
 FROM (
-    {{ sql_model.get_prepared_sql_for_render(tool) }}
+    {{ sql }}
 ) t
 {% if distribution_key %}
 DISTRIBUTED BY ({{ distribution_key }})

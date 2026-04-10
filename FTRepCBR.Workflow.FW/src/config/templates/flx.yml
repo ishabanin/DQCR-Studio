@@ -14,14 +14,17 @@ models:
       target: target/resources/forms/
 
     config:
-      builder: default
+      builder: default_builder_new
       dependency_resolver: naming_convention
       workflow_engine: dqcr
+      workflow_template: default
       default_materialization: insert_fc
       model_ref_macro: table
+      parameter_macro: param
       properties:
         repsysname:
           required: true
+          domain_type: string
 
     validation_categories:
       - general
@@ -32,7 +35,6 @@ models:
     rules:
       folders:
         root:
-          required: false
           pre: []
           post: []
         "*_iter*":
@@ -43,3 +45,46 @@ models:
         "*_Update*":
           required: false
           materialization: upsert_fc
+
+          
+  - name: dataQuality
+    paths:
+      models_root: dq
+      project_config: project.yml
+      model_config: model.yml
+      contexts: contexts
+      global_params: parameters
+      local_params: parameters
+      sql: SQL
+      target: target/resources/qualityControl/
+
+    config:
+      builder: default_builder_new
+      dependency_resolver: naming_convention
+      workflow_engine: dqcr
+      workflow_template: dqcrDataQuality
+      default_materialization: insert_qc
+      model_ref_macro: table
+      parameter_macro: param
+      properties:
+        repsysname:
+          required: true
+          domain_type: string
+
+    validation_categories:
+      - general
+      - sql
+      - descriptions
+      - adb
+
+    rules:
+      folders:
+        root:
+          pre: []
+          post: []
+        "*_stg*":
+          required: false
+          materialization: stage_calcid
+        "result":
+          required: true
+          materialization: insert_qc

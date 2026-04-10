@@ -6,6 +6,7 @@ tools:
 
 constants:
   schema: DEFAULT_SCHEMA
+  dateMainDebt: 20200101
 
 flags:
   enable_heavy_calc: true

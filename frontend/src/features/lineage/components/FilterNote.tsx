@@ -12,7 +12,7 @@ export function FilterNote({
   searchHidden,
   contextHidden,
   visibleCount,
-  onClearSearch: _onClearSearch,
+  onClearSearch,
   onClearAll,
 }: FilterNoteProps) {
   const hasSearch = searchTerm.length > 0;
@@ -30,6 +30,11 @@ export function FilterNote({
         Showing <strong>{visibleCount}</strong> folders
         {parts.length > 0 ? ` · ${parts.join(" · ")}` : ""}
       </span>
+      {hasSearch ? (
+        <button className="lg-filter-note-clear" onClick={onClearSearch} type="button">
+          Clear search
+        </button>
+      ) : null}
       <button className="lg-filter-note-clear" onClick={onClearAll} type="button">
         Clear all
       </button>

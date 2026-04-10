@@ -398,7 +398,7 @@ export function ProjectInfoScreen() {
         value={createModelValue}
         availableModes={["new-model"]}
         onValueChange={setCreateModelValue}
-        onModeChange={(_mode) => undefined}
+        onModeChange={() => undefined}
         onCancel={() => setCreateModelState(null)}
         onConfirm={handleCreateModel}
         pending={createModelMutation.isPending}

@@ -13,6 +13,7 @@ class DomainType(str, Enum):
     ARRAY = "array"
     SQL_CONDITION = "sql.condition"
     SQL_EXPRESSION = "sql.expression"
+    SQL_EXPRESSION_WHEN_LIST = "sql.expression.when.list"
     SQL_IDENTIFIER = "sql.identifier"
     UNDEFINED = "undefined"
 

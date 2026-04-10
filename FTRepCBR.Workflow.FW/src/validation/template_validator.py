@@ -5,11 +5,11 @@ from typing import List, Optional, Dict, Any
 from fnmatch import fnmatch
 
 from FW.validation.models import ValidationIssue, ValidationLevel
-from FW.models.project_template import ProjectTemplate, ModelDefinition, ModelRules
+from FW.models.project_template import ProjectTemplate, ModelRules
 from FW.logging_config import get_logger
 
 if True:
-    from FW.models.workflow import WorkflowModel
+    from FW.models.workflow_new import WorkflowNewModel
 
 
 logger = get_logger("validation.template")
@@ -33,7 +33,7 @@ class TemplateValidator:
         """
         self._template = template
     
-    def validate(self, workflow: "WorkflowModel") -> List[ValidationIssue]:
+    def validate(self, workflow: "WorkflowNewModel") -> List[ValidationIssue]:
         """Проверить workflow на соответствие шаблону.
         
         Args:
@@ -58,7 +58,7 @@ class TemplateValidator:
         
         return issues
     
-    def _get_model_name_from_workflow(self, workflow: "WorkflowModel") -> str:
+    def _get_model_name_from_workflow(self, workflow: "WorkflowNewModel") -> str:
         """Получить имя модели из workflow."""
         model_path = str(workflow.model_path)
         
@@ -72,16 +72,26 @@ class TemplateValidator:
     
     def _validate_folders(
         self, 
-        workflow: "WorkflowModel", 
+        workflow: "WorkflowNewModel", 
         rules: ModelRules
     ) -> List[ValidationIssue]:
         """Проверить папки на соответствие правилам."""
         issues = []
         
         existing_folders = set()
-        for step in workflow.steps:
-            if step.folder:
-                existing_folders.add(step.folder)
+        for sql_key in workflow.sql_objects.keys():
+            parts = sql_key.rsplit("/", 1)
+            if len(parts) > 1:
+                folder = parts[0]
+                if folder.startswith("SQL/"):
+                    folder = folder[4:]
+                existing_folders.add(folder)
+            elif "." in sql_key:
+                existing_folders.add("")
+        
+        model_group = workflow.models_root
+        model_name = workflow.model_name
+        project_name = workflow.project.project_name if workflow.project else ""
         
         if rules.folders:
             for pattern, rule_def in rules.folders.items():
@@ -93,12 +103,15 @@ class TemplateValidator:
                             break
                     
                     if not found:
+                        file_path = f"{project_name}/{model_group}/{model_name}/SQL/"
                         issues.append(ValidationIssue(
                             level=ValidationLevel.ERROR,
                             rule="required_folder",
                             category="template",
                             message=f"Required folder pattern '{pattern}' not found in workflow",
-                            location=f"folder:{pattern}",
+                            file_path=file_path,
+                            model_group=model_group,
+                            model_name=model_name,
                             details={"pattern": pattern, "existing_folders": list(existing_folders)}
                         ))
         
@@ -106,18 +119,31 @@ class TemplateValidator:
     
     def _validate_queries(
         self, 
-        workflow: "WorkflowModel", 
+        workflow: "WorkflowNewModel", 
         rules: ModelRules
     ) -> List[ValidationIssue]:
         """Проверить queries на соответствие правилам."""
         issues = []
         
         existing_queries = {}
-        for step in workflow.steps:
-            if step.folder and step.name:
-                if step.folder not in existing_queries:
-                    existing_queries[step.folder] = set()
-                existing_queries[step.folder].add(step.name)
+        for sql_key in workflow.sql_objects.keys():
+            parts = sql_key.rsplit("/", 1)
+            if len(parts) > 1:
+                folder = parts[0]
+                if folder.startswith("SQL/"):
+                    folder = folder[4:]
+                query_name = parts[1].replace(".sql", "")
+            else:
+                folder = ""
+                query_name = sql_key.replace(".sql", "")
+            
+            if folder not in existing_queries:
+                existing_queries[folder] = set()
+            existing_queries[folder].add(query_name)
+        
+        model_group = workflow.models_root
+        model_name = workflow.model_name
+        project_name = workflow.project.project_name if workflow.project else ""
         
         if rules.queries:
             for pattern, rule_def in rules.queries.items():
@@ -125,7 +151,7 @@ class TemplateValidator:
                     found = False
                     for folder, queries in existing_queries.items():
                         for query in queries:
-                            full_name = f"{folder}/{query}"
+                            full_name = f"{folder}/{query}" if folder else query
                             if self._match_pattern(query, pattern) or self._match_pattern(full_name, pattern):
                                 found = True
                                 break
@@ -133,12 +159,15 @@ class TemplateValidator:
                             break
                     
                     if not found:
+                        file_path = f"{project_name}/{model_group}/{model_name}/SQL/"
                         issues.append(ValidationIssue(
                             level=ValidationLevel.ERROR,
                             rule="required_query",
                             category="template",
                             message=f"Required query pattern '{pattern}' not found in workflow",
-                            location=f"query:{pattern}",
+                            file_path=file_path,
+                            model_group=model_group,
+                            model_name=model_name,
                             details={
                                 "pattern": pattern, 
                                 "existing_queries": {
@@ -167,7 +196,7 @@ class TemplateValidator:
 
 
 def validate_template(
-    workflow: "WorkflowModel",
+    workflow: "WorkflowNewModel",
     template: ProjectTemplate
 ) -> List[ValidationIssue]:
     """Упрощённая функция валидации по шаблону.

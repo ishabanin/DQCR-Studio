@@ -4,6 +4,7 @@ tools:
 
 constants:
   schema: VTB_SCHEMA
+  dateMainDebt: 20200101
 
 flags:
   calcinn : true

@@ -1,1 +1,0 @@
-"""Model reference macros package."""

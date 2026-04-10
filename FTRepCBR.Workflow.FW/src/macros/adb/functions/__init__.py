@@ -1,1 +1,0 @@
-"""ADB macro functions package."""

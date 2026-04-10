@@ -1,1 +1,35 @@
+## Build outputs
 dist/
+build/
+coverage/
+
+## Node / frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/playwright-report/
+frontend/test-results/
+frontend/tsconfig.tsbuildinfo
+package-lock.json
+frontend/package-lock.json
+
+## Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.venv/
+venv/
+backend/.venv/
+*.egg-info/
+
+## OS / editors
+.DS_Store
+.idea/
+.vscode/
