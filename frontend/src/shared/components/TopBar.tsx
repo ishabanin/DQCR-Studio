@@ -62,41 +62,20 @@ export default function TopBar({ hubMode = false }: TopBarProps) {
   });
 
   return (
-    <header
-      style={{
-        height: "var(--hub-topbar-h)",
-        background: "var(--hub-surface-card)",
-        borderBottom: "var(--hub-border-subtle)",
-        display: "flex",
-        alignItems: "center",
-        padding: "0 16px",
-        gap: 8,
-        flexShrink: 0,
-        zIndex: 100,
-      }}
-    >
-      <span
-        style={{
-          fontSize: "var(--hub-text-lg)",
-          fontWeight: "var(--hub-weight-medium)",
-          color: "var(--hub-accent-600)",
-          letterSpacing: "-0.2px",
-        }}
-      >
-        DQCR
-      </span>
-      <span style={{ fontSize: "var(--hub-text-lg)", color: "var(--color-text-secondary)" }}> Студия</span>
+    <header className="topbar-shad">
+      <span className="topbar-brand-accent">DQCR</span>
+      <span className="topbar-brand-rest">Студия</span>
 
       {!hubMode && (
-        <button className="hub-btn-secondary" style={{ marginLeft: 8, fontSize: 11, padding: "3px 10px" }} onClick={() => setProject(null)}>
+        <Button variant="secondary" className="topbar-back-btn" onClick={() => setProject(null)}>
           ⊟ Все проекты
-        </button>
+        </Button>
       )}
 
-      <div style={{ flex: 1 }} />
+      <div className="topbar-spacer" />
 
       {hubMode ? (
-        <span style={{ fontSize: 11, color: "var(--color-text-tertiary)" }}>{userEmail}</span>
+        <span className="topbar-user-email">{userEmail}</span>
       ) : (
         <div className="topbar-controls">
           <Select value={currentProjectId ?? ""} onChange={(event) => setProject(event.target.value || null)} aria-label="Выбор проекта">
@@ -130,13 +109,13 @@ export default function TopBar({ hubMode = false }: TopBarProps) {
             </div>
           )}
 
-          <Button disabled={!currentProjectId || validateMutation.isPending} onClick={() => validateMutation.mutate()} type="button">
+          <Button variant="secondary" disabled={!currentProjectId || validateMutation.isPending} onClick={() => validateMutation.mutate()} type="button">
             Проверить
           </Button>
-          <Button className="action-btn-primary action-btn-build" disabled={!currentProjectId} onClick={() => setActiveTab("build")} type="button">
+          <Button variant="default" className="action-btn-build" disabled={!currentProjectId} onClick={() => setActiveTab("build")} type="button">
             Сборка
           </Button>
-          <Button disabled={userRole !== "admin"} onClick={() => setActiveTab("admin")} type="button">
+          <Button variant="secondary" disabled={userRole !== "admin"} onClick={() => setActiveTab("admin")} type="button">
             Админ
           </Button>
           <Select value={userRole} onChange={(event) => setUserRole(event.target.value as "user" | "admin" | "viewer")} aria-label="Роль">
@@ -144,11 +123,11 @@ export default function TopBar({ hubMode = false }: TopBarProps) {
             <option value="admin">роль:админ</option>
             <option value="viewer">роль:наблюдатель</option>
           </Select>
-          <Button onClick={toggleTheme} type="button">
+          <Button variant="secondary" onClick={toggleTheme} type="button">
             {theme === "light" ? "Тёмная" : "Светлая"}
           </Button>
           <Tooltip text="Переключить режим одного или нескольких контекстов">
-            <Button onClick={toggleMultiMode} type="button">
+            <Button variant="secondary" onClick={toggleMultiMode} type="button">
               {multiMode ? "Один контекст" : "Несколько контекстов"}
             </Button>
           </Tooltip>

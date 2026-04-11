@@ -1,15 +1,4 @@
 002_Update:
-      enabled: true
-      
-      queries:
-        001_RF110RestTurnReg_QUALITY:
-          enabled: true
-        001_RF110RestTurnReg_INN:
-           attributes:
-            - name: clientid
-              domain_type: number
-              is_key: true
-              constraints: [PRIMARY_KEY]
-           enabled:
-            conditions:
-               calcinn: true        # флаг = значение  
+  enabled:
+    contexts: [default]
+  materialized: upsert_fc

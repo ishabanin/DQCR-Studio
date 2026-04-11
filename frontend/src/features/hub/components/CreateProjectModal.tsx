@@ -1,5 +1,10 @@
-import { useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
+import Button from "../../../shared/components/ui/Button";
+import Input from "../../../shared/components/ui/Input";
+import Select from "../../../shared/components/ui/Select";
+import { DialogBody, DialogFooter } from "../../../shared/components/ui/Dialog";
+import { Sheet, SheetBody, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "../../../shared/components/ui/Sheet";
 import type { CreateProjectPayload } from "../types";
 import { sanitizeTag } from "../utils";
 import { TagsInput } from "./TagsInput";
@@ -37,22 +42,27 @@ function collectUploadRelativePaths(files: File[]): string[] {
   return rawPaths;
 }
 
+function useIsMobileSheet() {
+  const [isMobile, setIsMobile] = useState<boolean>(() => window.matchMedia("(max-width: 767px)").matches);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px)");
+    const handler = () => setIsMobile(query.matches);
+    handler();
+    query.addEventListener("change", handler);
+    return () => query.removeEventListener("change", handler);
+  }, []);
+
+  return isMobile;
+}
+
 function FormRow({ label, hint, required, children }: { label: string; hint?: string; required?: boolean; children: ReactNode }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <label
-        style={{
-          fontSize: "var(--hub-text-sm)",
-          fontWeight: "var(--hub-weight-medium)",
-          color: "var(--color-text-primary)",
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-        }}
-      >
+    <div className="hub-form-row">
+      <label className="hub-form-label">
         {label}
-        {required && <span style={{ color: "var(--hub-danger-text)" }}>*</span>}
-        {hint && <span style={{ fontSize: "var(--hub-text-xs)", fontWeight: "var(--hub-weight-regular)", color: "var(--color-text-tertiary)" }}>{hint}</span>}
+        {required ? <span className="hub-form-required">*</span> : null}
+        {hint ? <span className="hub-form-hint">{hint}</span> : null}
       </label>
       {children}
     </div>
@@ -84,6 +94,7 @@ export function CreateProjectModal({
   onSubmitImport,
   isSubmitting,
 }: CreateProjectModalProps) {
+  const isMobileSheet = useIsMobileSheet();
   const [activeMode, setActiveMode] = useState<"create" | "import">(defaultMode);
   const [projectId, setProjectId] = useState("");
   const [name, setName] = useState("");
@@ -145,131 +156,101 @@ export function CreateProjectModal({
   const submitLabel = activeMode === "create" ? "Create project" : "Import";
 
   return (
-    <div className="hub-overlay" onClick={onClose}>
-      <div className="hub-modal" onClick={(event) => event.stopPropagation()}>
-        <div style={{ display: "flex", borderBottom: "var(--hub-border-subtle)" }}>
+    <Sheet open onOpenChange={(open) => (!open ? onClose() : undefined)}>
+      <SheetContent side={isMobileSheet ? "bottom" : "right"} className="hub-sheet">
+        <SheetHeader className="hub-sheet-header">
+          <SheetTitle>{modeTitle}</SheetTitle>
+          <Button variant="ghost" className="hub-dialog-close" onClick={onClose}>
+            ✕
+          </Button>
+        </SheetHeader>
+
+        <div className="hub-dialog-tabs">
           {MODES.map((mode) => (
             <button
               key={mode.id}
+              type="button"
               onClick={() => setActiveMode(mode.id)}
-              style={{
-                flex: 1,
-                padding: 10,
-                fontSize: "var(--hub-text-sm)",
-                textAlign: "center",
-                cursor: "pointer",
-                color: activeMode === mode.id ? "var(--hub-accent-600)" : "var(--color-text-secondary)",
-                background: activeMode === mode.id ? "rgba(29, 158, 117, 0.04)" : "none",
-                fontWeight: activeMode === mode.id ? "var(--hub-weight-medium)" : "var(--hub-weight-regular)",
-                fontFamily: "var(--hub-font-ui)",
-                border: "none",
-                borderBottom: `2px solid ${activeMode === mode.id ? "var(--hub-accent-400)" : "transparent"}`,
-                transition: "all var(--hub-transition-fast)",
-              }}
+              className={activeMode === mode.id ? "hub-dialog-tab hub-dialog-tab-active" : "hub-dialog-tab"}
             >
               {mode.label}
             </button>
           ))}
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 16,
-              color: "var(--color-text-tertiary)",
-              padding: "2px 10px",
-              borderRadius: 4,
-              fontFamily: "var(--hub-font-ui)",
-            }}
-          >
-            ✕
-          </button>
         </div>
 
-        <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ fontSize: 15, fontWeight: "var(--hub-weight-medium)" }}>{modeTitle}</div>
-
-          <FormRow label="Project ID" required>
-            <input
-              className="hub-input"
-              value={projectId}
-              onChange={(event) => setProjectId(event.target.value)}
-              onBlur={() => setIdTouched(true)}
-              style={{ borderColor: idTouched && idError ? "var(--hub-danger-text)" : undefined }}
-            />
-            {idTouched && idError && <span style={{ fontSize: "var(--hub-text-xs)", color: "var(--hub-danger-text)", marginTop: 2 }}>{idError}</span>}
-          </FormRow>
-
-          <FormRow label="Display name">
-            <input className="hub-input" value={name} onChange={(event) => setName(event.target.value)} />
-          </FormRow>
-
-          <FormRow label="Description">
-            <input className="hub-input" value={description} onChange={(event) => setDescription(event.target.value)} />
-          </FormRow>
-
-          {activeMode === "create" && (
-            <>
-              <FormRow label="Template">
-                <select className="hub-select" value={template} onChange={(event) => setTemplate(event.target.value as typeof template)}>
-                  <option value="flx">flx</option>
-                  <option value="dwh_mart">dwh_mart</option>
-                  <option value="dq_control">dq_control</option>
-                </select>
-              </FormRow>
-
-              <FormRow label="Visibility">
-                <VisibilitySelector value={visibility} onChange={setVisibility} />
-              </FormRow>
-
-              <FormRow label="Tags">
-                <TagsInput tags={tags} onChange={setTags} suggestions={tagSuggestions} />
-              </FormRow>
-            </>
-          )}
-
-          {activeMode === "import" && (
-            <FormRow label="Folder" required hint="Choose local project folder">
-              <input
-                ref={folderInputRef}
-                type="file"
-                multiple
-                style={{ display: "none" }}
-                onChange={handleFolderInputChange}
-                {...directoryInputProps}
+        <SheetBody className="hub-dialog-scroll">
+          <DialogBody className="hub-dialog-body">
+            <FormRow label="Project ID" required>
+              <Input
+                value={projectId}
+                onChange={(event) => setProjectId(event.target.value)}
+                onBlur={() => setIdTouched(true)}
+                className={idTouched && idError ? "hub-input-error" : ""}
               />
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <button className="hub-btn-secondary" type="button" onClick={() => folderInputRef.current?.click()}>
-                  Choose folder
-                </button>
-                <span style={{ fontSize: "var(--hub-text-xs)", color: "var(--color-text-secondary)" }}>
-                  {uploadFiles.length > 0 ? `${uploadFiles.length} files selected` : "No folder selected"}
-                </span>
-              </div>
-              {uploadError && <span style={{ fontSize: "var(--hub-text-xs)", color: "var(--hub-danger-text)", marginTop: 2 }}>{uploadError}</span>}
+              {idTouched && idError ? <span className="hub-form-error">{idError}</span> : null}
             </FormRow>
-          )}
-        </div>
 
-        <div
-          style={{
-            padding: "12px 20px",
-            borderTop: "var(--hub-border-subtle)",
-            background: "var(--hub-surface-panel)",
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-          }}
-        >
-          <button className="hub-btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="hub-btn-primary" onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Processing..." : submitLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+            <FormRow label="Display name">
+              <Input value={name} onChange={(event) => setName(event.target.value)} />
+            </FormRow>
+
+            <FormRow label="Description">
+              <Input value={description} onChange={(event) => setDescription(event.target.value)} />
+            </FormRow>
+
+            {activeMode === "create" ? (
+              <>
+                <FormRow label="Template">
+                  <Select value={template} onChange={(event) => setTemplate(event.target.value as typeof template)}>
+                    <option value="flx">flx</option>
+                    <option value="dwh_mart">dwh_mart</option>
+                    <option value="dq_control">dq_control</option>
+                  </Select>
+                </FormRow>
+
+                <FormRow label="Visibility">
+                  <VisibilitySelector value={visibility} onChange={setVisibility} />
+                </FormRow>
+
+                <FormRow label="Tags">
+                  <TagsInput tags={tags} onChange={setTags} suggestions={tagSuggestions} />
+                </FormRow>
+              </>
+            ) : (
+              <FormRow label="Folder" required hint="Choose local project folder">
+                <input
+                  ref={folderInputRef}
+                  type="file"
+                  multiple
+                  style={{ display: "none" }}
+                  onChange={handleFolderInputChange}
+                  {...directoryInputProps}
+                />
+                <div className="hub-import-row">
+                  <Button variant="secondary" onClick={() => folderInputRef.current?.click()}>
+                    Choose folder
+                  </Button>
+                  <span className="hub-import-caption">
+                    {uploadFiles.length > 0 ? `${uploadFiles.length} files selected` : "No folder selected"}
+                  </span>
+                </div>
+                {uploadError ? <span className="hub-form-error">{uploadError}</span> : null}
+              </FormRow>
+            )}
+          </DialogBody>
+        </SheetBody>
+
+        <SheetFooter>
+          <DialogFooter className="hub-dialog-footer">
+            <Button variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button variant="default" onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? "Processing..." : submitLabel}
+            </Button>
+          </DialogFooter>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

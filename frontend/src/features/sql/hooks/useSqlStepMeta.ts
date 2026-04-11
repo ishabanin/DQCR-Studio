@@ -40,7 +40,7 @@ export function useSqlStepMeta(projectId: string | null, modelId: string | null,
     const workflowRaw = workflowQuery.data?.workflow;
     const workflow = workflowRaw && typeof workflowRaw === "object" ? (workflowRaw as Record<string, unknown>) : null;
 
-    if (!workflow || workflowStatus !== "ready") {
+    if (!workflow) {
       return {
         workflow,
         step: null,

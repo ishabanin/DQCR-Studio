@@ -1,0 +1,9 @@
+parameter:
+  name: clientchr_sql_filter
+  description: "тестовый запрос"
+  domain_type: sql.condition
+  
+  values:
+    all:
+      type: dynamic
+      value: "select 'rowstatus = 'A'' from test_table"

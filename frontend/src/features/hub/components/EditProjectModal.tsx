@@ -1,5 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import Badge from "../../../shared/components/ui/Badge";
+import Button from "../../../shared/components/ui/Button";
+import Input from "../../../shared/components/ui/Input";
+import { DialogBody, DialogFooter } from "../../../shared/components/ui/Dialog";
+import { Sheet, SheetBody, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "../../../shared/components/ui/Sheet";
 import type { MetadataUpdatePayload, ProjectListItem } from "../types";
 import { TagsInput } from "./TagsInput";
 import { VisibilitySelector } from "./VisibilitySelector";
@@ -12,7 +17,22 @@ interface EditProjectModalProps {
   isSubmitting: boolean;
 }
 
+function useIsMobileSheet() {
+  const [isMobile, setIsMobile] = useState<boolean>(() => window.matchMedia("(max-width: 767px)").matches);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px)");
+    const handler = () => setIsMobile(query.matches);
+    handler();
+    query.addEventListener("change", handler);
+    return () => query.removeEventListener("change", handler);
+  }, []);
+
+  return isMobile;
+}
+
 export function EditProjectModal({ project, tagSuggestions, onClose, onSubmit, isSubmitting }: EditProjectModalProps) {
+  const isMobileSheet = useIsMobileSheet();
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
   const [visibility, setVisibility] = useState<"public" | "private">(project.visibility);
@@ -23,81 +43,60 @@ export function EditProjectModal({ project, tagSuggestions, onClose, onSubmit, i
   };
 
   return (
-    <div className="hub-overlay" onClick={onClose}>
-      <div className="hub-modal" onClick={(event) => event.stopPropagation()}>
-        <div style={{ padding: "16px 20px", borderBottom: "var(--hub-border-subtle)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 15, fontWeight: "var(--hub-weight-medium)" }}>Edit project</span>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--color-text-tertiary)", padding: "2px 6px" }}>
+    <Sheet open onOpenChange={(open) => (!open ? onClose() : undefined)}>
+      <SheetContent side={isMobileSheet ? "bottom" : "right"} className="hub-sheet">
+        <SheetHeader className="hub-sheet-header">
+          <SheetTitle>Edit project</SheetTitle>
+          <Button variant="ghost" className="hub-dialog-close" onClick={onClose}>
             ✕
-          </button>
-        </div>
+          </Button>
+        </SheetHeader>
 
-        <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-          <div>
-            <label style={{ fontSize: "var(--hub-text-sm)", fontWeight: "var(--hub-weight-medium)", color: "var(--color-text-primary)", display: "block", marginBottom: 4 }}>
-              Project ID
-            </label>
-            <div
-              style={{
-                padding: "7px 10px",
-                borderRadius: "var(--hub-radius-sm)",
-                border: "var(--hub-border-subtle)",
-                background: "var(--hub-surface-panel)",
-                fontSize: "var(--hub-text-base)",
-                fontFamily: "var(--hub-font-mono)",
-                color: "var(--color-text-secondary)",
-                cursor: "not-allowed",
-              }}
-            >
-              {project.project_id}
+        <SheetBody className="hub-dialog-scroll">
+          <DialogBody className="hub-dialog-body">
+            <div className="hub-form-row">
+              <label className="hub-form-label">Project ID</label>
+              <div className="hub-static-field">{project.project_id}</div>
             </div>
-          </div>
 
-          <div>
-            <label style={{ fontSize: "var(--hub-text-sm)", fontWeight: "var(--hub-weight-medium)", color: "var(--color-text-primary)", display: "block", marginBottom: 4 }}>
-              Type
-            </label>
-            <span className={`hub-badge hub-badge-${project.project_type}`}>{project.project_type}</span>
-          </div>
+            <div className="hub-form-row">
+              <label className="hub-form-label">Type</label>
+              <Badge className={`hub-badge-${project.project_type}`}>{project.project_type}</Badge>
+            </div>
 
-          <div>
-            <label style={{ fontSize: "var(--hub-text-sm)", fontWeight: "var(--hub-weight-medium)", color: "var(--color-text-primary)", display: "block", marginBottom: 4 }}>
-              Display name
-            </label>
-            <input className="hub-input" value={name} onChange={(event) => setName(event.target.value)} />
-          </div>
+            <div className="hub-form-row">
+              <label className="hub-form-label">Display name</label>
+              <Input value={name} onChange={(event) => setName(event.target.value)} />
+            </div>
 
-          <div>
-            <label style={{ fontSize: "var(--hub-text-sm)", fontWeight: "var(--hub-weight-medium)", color: "var(--color-text-primary)", display: "block", marginBottom: 4 }}>
-              Description
-            </label>
-            <input className="hub-input" value={description} onChange={(event) => setDescription(event.target.value)} />
-          </div>
+            <div className="hub-form-row">
+              <label className="hub-form-label">Description</label>
+              <Input value={description} onChange={(event) => setDescription(event.target.value)} />
+            </div>
 
-          <div>
-            <label style={{ fontSize: "var(--hub-text-sm)", fontWeight: "var(--hub-weight-medium)", color: "var(--color-text-primary)", display: "block", marginBottom: 4 }}>
-              Visibility
-            </label>
-            <VisibilitySelector value={visibility} onChange={setVisibility} />
-          </div>
+            <div className="hub-form-row">
+              <label className="hub-form-label">Visibility</label>
+              <VisibilitySelector value={visibility} onChange={setVisibility} />
+            </div>
 
-          <div>
-            <label style={{ fontSize: "var(--hub-text-sm)", fontWeight: "var(--hub-weight-medium)", color: "var(--color-text-primary)", display: "block", marginBottom: 4 }}>
-              Tags
-            </label>
-            <TagsInput tags={tags} onChange={setTags} suggestions={tagSuggestions} />
-          </div>
-        </div>
+            <div className="hub-form-row">
+              <label className="hub-form-label">Tags</label>
+              <TagsInput tags={tags} onChange={setTags} suggestions={tagSuggestions} />
+            </div>
+          </DialogBody>
+        </SheetBody>
 
-        <div style={{ padding: "12px 20px", borderTop: "var(--hub-border-subtle)", background: "var(--hub-surface-panel)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button className="hub-btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="hub-btn-primary" onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : "Save changes"}
-          </button>
-        </div>
-      </div>
-    </div>
+        <SheetFooter>
+          <DialogFooter className="hub-dialog-footer">
+            <Button variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button variant="default" onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

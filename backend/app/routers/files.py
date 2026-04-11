@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.fs import ensure_within_base, resolve_project_path
-from app.routers.projects import ensure_project_workflow_cache, trigger_workflow_rebuild
+from app.services.project_facade_service import ensure_project_workflow_cache, trigger_project_workflow_rebuild
 
 router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])
 
@@ -123,7 +123,7 @@ def put_file_content(project_id: str, payload: FileContentRequest = Body(...)) -
 
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(payload.content, encoding="utf-8")
-    trigger_workflow_rebuild(project_id, changed_paths=[payload.path])
+    trigger_project_workflow_rebuild(project_id, changed_paths=[payload.path])
     return {"status": "saved", "path": payload.path}
 
 
@@ -148,7 +148,7 @@ def create_folder(project_id: str, payload: FolderCreateRequest = Body(...)) -> 
 
     target.mkdir(parents=True, exist_ok=True)
     relative_path = str(target.relative_to(project_path))
-    trigger_workflow_rebuild(project_id, changed_paths=[relative_path])
+    trigger_project_workflow_rebuild(project_id, changed_paths=[relative_path])
     return {"status": "created", "path": relative_path}
 
 
@@ -173,7 +173,7 @@ def create_model(project_id: str, payload: ModelCreateRequest = Body(...)) -> di
 
     relative_dir = str(model_dir.relative_to(project_path))
     relative_file = str(model_yml_path.relative_to(project_path))
-    trigger_workflow_rebuild(project_id, changed_paths=[relative_dir, relative_file])
+    trigger_project_workflow_rebuild(project_id, changed_paths=[relative_dir, relative_file])
     return {
         "status": "created",
         "path": relative_dir,
@@ -202,7 +202,7 @@ def rename_file_or_directory(project_id: str, payload: RenameRequest = Body(...)
 
     target = ensure_within_base(project_path, source.parent / payload.new_name)
     source.rename(target)
-    trigger_workflow_rebuild(
+    trigger_project_workflow_rebuild(
         project_id,
         changed_paths=[payload.path, str(target.relative_to(project_path))],
     )
@@ -235,5 +235,5 @@ def delete_file_or_directory(project_id: str, path: str = Query(..., min_length=
                 child.rmdir()
         target.rmdir()
 
-    trigger_workflow_rebuild(project_id, changed_paths=[path])
+    trigger_project_workflow_rebuild(project_id, changed_paths=[path])
     return {"status": "deleted", "path": path}

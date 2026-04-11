@@ -73,25 +73,11 @@ def get_catalog_entities(
     if not service.is_available():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Catalog not loaded")
 
-    query = search.strip().lower()
-    all_entities = service.list_entities()
-    filtered = [
-        entity
-        for entity in all_entities
-        if not query or query in entity.name.lower() or query in entity.display_name.lower() or query in entity.module.lower()
-    ]
+    entities, total = service.search_entities_with_total(query=search, limit=limit)
 
     return {
-        "entities": [
-            {
-                "name": entity.name,
-                "display_name": entity.display_name,
-                "module": entity.module,
-                "attribute_count": len(entity.attributes),
-            }
-            for entity in filtered[:limit]
-        ],
-        "total": len(filtered),
+        "entities": entities,
+        "total": total,
     }
 
 

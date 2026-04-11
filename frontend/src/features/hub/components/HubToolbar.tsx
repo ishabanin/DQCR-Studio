@@ -1,3 +1,6 @@
+import Badge from "../../../shared/components/ui/Badge";
+import Button from "../../../shared/components/ui/Button";
+import Input from "../../../shared/components/ui/Input";
 import type { FilterState } from "../types";
 
 interface HubToolbarProps {
@@ -10,43 +13,11 @@ interface HubToolbarProps {
 
 function SearchInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <div style={{ position: "relative", flex: 1, maxWidth: 320 }}>
-      <span
-        style={{
-          position: "absolute",
-          left: 9,
-          top: "50%",
-          transform: "translateY(-50%)",
-          fontSize: 12,
-          color: "var(--color-text-tertiary)",
-          pointerEvents: "none",
-        }}
-      >
-        ⌕
-      </span>
-      <input
-        className="hub-input hub-focus-ring"
-        style={{ paddingLeft: 28 }}
-        placeholder="Search projects…"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
+    <div className="hub-search-wrap">
+      <span className="hub-search-icon">⌕</span>
+      <Input className="hub-input hub-search-input" placeholder="Search projects…" value={value} onChange={(event) => onChange(event.target.value)} />
       {value && (
-        <button
-          style={{
-            position: "absolute",
-            right: 8,
-            top: "50%",
-            transform: "translateY(-50%)",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: 12,
-            color: "var(--color-text-tertiary)",
-            padding: "2px 4px",
-          }}
-          onClick={() => onChange("")}
-        >
+        <button type="button" className="hub-search-clear" onClick={() => onChange("")}>
           ✕
         </button>
       )}
@@ -56,10 +27,7 @@ function SearchInput({ value, onChange }: { value: string; onChange: (v: string)
 
 function PillFilter({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <button
-      className={active ? "hub-toolbar-pill active" : "hub-toolbar-pill"}
-      onClick={onClick}
-    >
+    <button type="button" aria-pressed={active} className={active ? "hub-toolbar-pill active" : "hub-toolbar-pill"} onClick={onClick}>
       {label}
     </button>
   );
@@ -71,7 +39,9 @@ function ViewToggle({ value, onChange }: { value: "grid" | "list"; onChange: (v:
       {(["grid", "list"] as const).map((variant) => (
         <button
           key={variant}
+          type="button"
           onClick={() => onChange(variant)}
+          aria-pressed={value === variant}
           className={value === variant ? "hub-view-btn active" : "hub-view-btn"}
         >
           {variant === "grid" ? "⊞" : "≡"}
@@ -82,9 +52,13 @@ function ViewToggle({ value, onChange }: { value: "grid" | "list"; onChange: (v:
 }
 
 export function HubToolbar({ filters, onFilter, view, setView, onOpenCatalog }: HubToolbarProps) {
+  const activeVisibility = filters.visibility ? 1 : 0;
   return (
     <div className="hub-toolbar">
       <SearchInput value={filters.search} onChange={(value) => onFilter({ search: value })} />
+      <Badge variant="secondary" className="hub-filter-badge">
+        Visibility {activeVisibility > 0 ? `(${activeVisibility})` : ""}
+      </Badge>
       <PillFilter
         label="◎ Public"
         active={filters.visibility === "public"}
@@ -95,9 +69,9 @@ export function HubToolbar({ filters, onFilter, view, setView, onOpenCatalog }: 
         active={filters.visibility === "private"}
         onClick={() => onFilter({ visibility: filters.visibility === "private" ? null : "private" })}
       />
-      <button className="hub-btn-secondary" onClick={onOpenCatalog}>
+      <Button variant="secondary" onClick={onOpenCatalog}>
         Data Catalog
-      </button>
+      </Button>
       <div className="hub-toolbar-spacer" />
       <ViewToggle value={view} onChange={setView} />
     </div>

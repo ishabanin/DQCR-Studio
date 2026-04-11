@@ -45,9 +45,14 @@ export function useProjects() {
     mutationFn: (payload: CreateProjectPayload) => createProject(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      addToast("Project created", "success");
+      addToast("Project created", "success", {
+        description: "New project is now available in the workspace list.",
+      });
     },
-    onError: () => addToast("Failed to create project", "error"),
+    onError: () =>
+      addToast("Failed to create project", "error", {
+        description: "Please check project ID and try again.",
+      }),
   });
 
   const importMutation = useMutation({
@@ -67,30 +72,45 @@ export function useProjects() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      addToast("Project imported", "success");
+      addToast("Project imported", "success", {
+        description: "Imported files were added to the workspace.",
+      });
     },
-    onError: () => addToast("Failed to import project", "error"),
+    onError: () =>
+      addToast("Failed to import project", "error", {
+        description: "Upload format is invalid or server rejected the payload.",
+      }),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ projectId, data }: { projectId: string; data: MetadataUpdatePayload }) => patchProjectMetadata(projectId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      addToast("Project updated", "success");
+      addToast("Project updated", "success", {
+        description: "Metadata changes were saved.",
+      });
     },
-    onError: () => addToast("Failed to update project", "error"),
+    onError: () =>
+      addToast("Failed to update project", "error", {
+        description: "Could not save metadata at this time.",
+      }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (projectId: string) => deleteProject(projectId),
     onSuccess: (_, projectId) => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      addToast("Project removed from workspace", "success");
+      addToast("Project removed from workspace", "success", {
+        description: "The project no longer appears in this workspace.",
+      });
       if (useProjectStore.getState().currentProjectId === projectId) {
         useProjectStore.getState().setProject(null);
       }
     },
-    onError: () => addToast("Failed to delete project", "error"),
+    onError: () =>
+      addToast("Failed to delete project", "error", {
+        description: "Project may be locked or unavailable.",
+      }),
   });
 
   return {

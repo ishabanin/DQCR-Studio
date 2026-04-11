@@ -1,17 +1,27 @@
+import Badge from "../../../shared/components/ui/Badge";
+import Button from "../../../shared/components/ui/Button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableRow,
+} from "../../../shared/components/ui/Table";
 import type { ProjectListItem, SortDir, SortKey } from "../types";
 import { CACHE_LABELS, formatRelativeDate, getProjectPalette } from "../utils";
 
 const TABLE_COLUMNS = [
-  { key: "icon", label: "", width: 40, sortable: false },
-  { key: "name", label: "Project", width: null, sortable: true },
-  { key: "visibility", label: "Visibility", width: 80, sortable: false },
-  { key: "type", label: "Type", width: 80, sortable: false },
-  { key: "tags", label: "Tags", width: 140, sortable: false },
-  { key: "models", label: "Models", width: 60, sortable: true },
-  { key: "sql_count", label: "SQL files", width: 70, sortable: true },
-  { key: "cache", label: "Cache", width: 100, sortable: false },
-  { key: "modified", label: "Modified", width: 110, sortable: true },
-  { key: "actions", label: "", width: 60, sortable: false },
+  { key: "icon", label: "", widthClass: "hub-table-col-icon", sortable: false },
+  { key: "name", label: "Project", widthClass: "", sortable: true },
+  { key: "visibility", label: "Visibility", widthClass: "hub-table-col-sm", sortable: false },
+  { key: "type", label: "Type", widthClass: "hub-table-col-sm", sortable: false },
+  { key: "tags", label: "Tags", widthClass: "hub-table-col-tags", sortable: false },
+  { key: "models", label: "Models", widthClass: "hub-table-col-xs", sortable: true },
+  { key: "sql_count", label: "SQL files", widthClass: "hub-table-col-xs", sortable: true },
+  { key: "cache", label: "Cache", widthClass: "hub-table-col-cache", sortable: false },
+  { key: "modified", label: "Modified", widthClass: "hub-table-col-date", sortable: true },
+  { key: "actions", label: "", widthClass: "hub-table-col-actions", sortable: false },
 ] as const;
 
 interface ProjectsTableProps {
@@ -34,134 +44,95 @@ function toSortKey(key: (typeof TABLE_COLUMNS)[number]["key"]): SortKey | null {
 
 export function ProjectsTable({ projects, sortBy, sortDir, onSort, onOpen, onEdit, onDelete }: ProjectsTableProps) {
   return (
-    <div style={{ border: "var(--hub-border-subtle)", borderRadius: "var(--hub-radius-card)", overflow: "hidden" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-        <thead>
-          <tr>
-            {TABLE_COLUMNS.map((col) => {
-              const columnSortKey = toSortKey(col.key);
+    <div className="hub-table-wrap">
+      <Table>
+        <TableHead>
+          <TableRow>
+            {TABLE_COLUMNS.map((column) => {
+              const columnSortKey = toSortKey(column.key);
               return (
-                <th
-                  key={col.key}
-                  style={{
-                    width: col.width ?? undefined,
-                    padding: "6px 12px",
-                    fontSize: "var(--hub-text-2xs)",
-                    fontWeight: "var(--hub-weight-medium)",
-                    color: "var(--color-text-tertiary)",
-                    textAlign: "left",
-                    background: "var(--hub-surface-panel)",
-                    borderBottom: "var(--hub-border-subtle)",
-                    whiteSpace: "nowrap",
-                    cursor: col.sortable ? "pointer" : "default",
-                    userSelect: "none",
-                  }}
-                  onClick={columnSortKey ? () => onSort(columnSortKey) : undefined}
-                >
-                  {col.label}
-                  {columnSortKey && sortBy === columnSortKey && <span style={{ marginLeft: 4, fontSize: 10 }}>{sortDir === "asc" ? "▲" : "▼"}</span>}
-                </th>
+                <TableHeaderCell key={column.key} className={`hub-table-header ${column.widthClass}`}>
+                  {columnSortKey ? (
+                    <button type="button" className="hub-table-sort-btn" onClick={() => onSort(columnSortKey)}>
+                      {column.label}
+                      {sortBy === columnSortKey ? <span className="hub-table-sort-icon">{sortDir === "asc" ? "▲" : "▼"}</span> : null}
+                    </button>
+                  ) : (
+                    <span>{column.label}</span>
+                  )}
+                </TableHeaderCell>
               );
             })}
-          </tr>
-        </thead>
-        <tbody>
+          </TableRow>
+        </TableHead>
+        <TableBody>
           {projects.map((project) => {
             const palette = getProjectPalette(project.project_id);
             return (
-              <tr key={project.project_id} className="hub-table-row" onClick={() => onOpen(project.project_id)}>
-                <td style={{ padding: "var(--hub-cell-py) var(--hub-cell-px)" }}>
-                  <div
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: "var(--hub-radius-md)",
-                      background: palette.bg,
-                      color: palette.color,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 12,
-                      fontWeight: "var(--hub-weight-medium)",
-                    }}
-                  >
+              <TableRow key={project.project_id} className="hub-table-row" onClick={() => onOpen(project.project_id)}>
+                <TableCell className="hub-table-cell">
+                  <div className="hub-project-avatar hub-project-avatar-sm" style={{ background: palette.bg, color: palette.color }}>
                     {project.name.charAt(0).toUpperCase()}
                   </div>
-                </td>
-                <td style={{ padding: "var(--hub-cell-py) var(--hub-cell-px)" }}>
-                  <div style={{ fontWeight: "var(--hub-weight-medium)", fontSize: "var(--hub-text-base)", color: "var(--color-text-primary)" }}>{project.name}</div>
-                  <div
-                    style={{
-                      fontSize: "var(--hub-text-xs)",
-                      color: "var(--color-text-secondary)",
-                      marginTop: 2,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      maxWidth: 320,
-                    }}
-                  >
-                    {project.description}
-                  </div>
-                </td>
-                <td style={{ padding: "var(--hub-cell-py) var(--hub-cell-px)" }}>
-                  <span className={`hub-badge hub-badge-${project.visibility}`}>{project.visibility === "public" ? "◎" : "◉"}</span>
-                </td>
-                <td style={{ padding: "var(--hub-cell-py) var(--hub-cell-px)" }}>
-                  <span className={`hub-badge hub-badge-${project.project_type}`}>{project.project_type}</span>
-                </td>
-                <td style={{ padding: "var(--hub-cell-py) var(--hub-cell-px)" }}>
-                  <div style={{ display: "flex", gap: 3, flexWrap: "nowrap", overflow: "hidden" }}>
+                </TableCell>
+                <TableCell className="hub-table-cell">
+                  <div className="hub-table-project-name">{project.name}</div>
+                  <div className="hub-table-project-desc">{project.description}</div>
+                </TableCell>
+                <TableCell className="hub-table-cell">
+                  <Badge className={`hub-badge-${project.visibility}`}>{project.visibility === "public" ? "◎" : "◉"}</Badge>
+                </TableCell>
+                <TableCell className="hub-table-cell">
+                  <Badge className={`hub-badge-${project.project_type}`}>{project.project_type}</Badge>
+                </TableCell>
+                <TableCell className="hub-table-cell">
+                  <div className="hub-table-tags">
                     {project.tags.slice(0, 2).map((tag) => (
-                      <span key={tag} className="hub-badge hub-badge-tag">
+                      <Badge key={tag} className="hub-badge-tag">
                         {tag}
-                      </span>
+                      </Badge>
                     ))}
-                    {project.tags.length > 2 && (
-                      <span className="hub-badge" style={{ background: "var(--hub-surface-panel)", color: "var(--color-text-tertiary)" }}>
-                        +{project.tags.length - 2}
-                      </span>
-                    )}
+                    {project.tags.length > 2 ? <Badge className="hub-project-tag-overflow">+{project.tags.length - 2}</Badge> : null}
                   </div>
-                </td>
-                <td style={{ padding: "var(--hub-cell-py) var(--hub-cell-px)", fontSize: "var(--hub-text-sm)" }}>{project.model_count}</td>
-                <td style={{ padding: "var(--hub-cell-py) var(--hub-cell-px)", fontSize: "var(--hub-text-sm)" }}>{project.sql_count}</td>
-                <td style={{ padding: "var(--hub-cell-py) var(--hub-cell-px)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                </TableCell>
+                <TableCell className="hub-table-cell">{project.model_count}</TableCell>
+                <TableCell className="hub-table-cell">{project.sql_count}</TableCell>
+                <TableCell className="hub-table-cell">
+                  <div className="hub-table-cache">
                     <div className={`hub-cache-dot hub-cache-${project.cache_status}`} />
-                    <span style={{ fontSize: "var(--hub-text-xs)", color: "var(--color-text-secondary)" }}>{CACHE_LABELS[project.cache_status]}</span>
+                    <span className="hub-table-cache-text">{CACHE_LABELS[project.cache_status]}</span>
                   </div>
-                </td>
-                <td style={{ padding: "var(--hub-cell-py) var(--hub-cell-px)", fontSize: "var(--hub-text-xs)" }}>{formatRelativeDate(project.modified_at)}</td>
-                <td style={{ padding: "var(--hub-cell-py) var(--hub-cell-px)" }}>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <button
-                      className="hub-btn-secondary"
-                      style={{ padding: "2px 6px", fontSize: 11 }}
+                </TableCell>
+                <TableCell className="hub-table-cell">{formatRelativeDate(project.modified_at)}</TableCell>
+                <TableCell className="hub-table-cell">
+                  <div className="hub-table-actions">
+                    <Button
+                      variant="secondary"
+                      className="hub-table-action-btn"
                       onClick={(event) => {
                         event.stopPropagation();
                         onEdit(project.project_id);
                       }}
                     >
                       ⚙
-                    </button>
-                    <button
-                      className="hub-btn-secondary"
-                      style={{ padding: "2px 6px", fontSize: 11 }}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="hub-table-action-btn"
                       onClick={(event) => {
                         event.stopPropagation();
                         onDelete(project.project_id);
                       }}
                     >
                       ✕
-                    </button>
+                    </Button>
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

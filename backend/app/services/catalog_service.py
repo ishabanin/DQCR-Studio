@@ -172,8 +172,13 @@ class CatalogService:
         return self.catalog_file.exists() and self.catalog_file.is_file()
 
     def search_entities(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
+        matched, _ = self.search_entities_with_total(query=query, limit=limit)
+        return matched
+
+    def search_entities_with_total(self, query: str, limit: int = 20) -> tuple[list[dict[str, Any]], int]:
         normalized_query = query.strip().lower()
         matched: list[dict[str, Any]] = []
+        total = 0
         for entity in self.list_entities():
             if (
                 normalized_query
@@ -182,17 +187,17 @@ class CatalogService:
                 and normalized_query not in entity.module.lower()
             ):
                 continue
-            matched.append(
-                {
-                    "name": entity.name,
-                    "display_name": entity.display_name,
-                    "module": entity.module,
-                    "attribute_count": len(entity.attributes),
-                }
-            )
-            if len(matched) >= limit:
-                break
-        return matched
+            total += 1
+            if len(matched) < limit:
+                matched.append(
+                    {
+                        "name": entity.name,
+                        "display_name": entity.display_name,
+                        "module": entity.module,
+                        "attribute_count": len(entity.attributes),
+                    }
+                )
+        return matched, total
 
     def get_entity(self, name: str) -> CatalogEntity | None:
         wanted = name.strip().lower()

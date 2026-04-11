@@ -1,4 +1,3 @@
-import io
 import json
 import logging
 from datetime import datetime, timezone
@@ -6,11 +5,9 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
-import zipfile
 from uuid import uuid4
 
 from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -27,6 +24,18 @@ from app.services.catalog_service import CatalogService
 from app.services.project_build_history_service import (
     get_project_build_history as _service_get_project_build_history,
     record_build_result as _service_record_build_result,
+)
+from app.services.application.projects_helpers import (
+    build_files_tree as _build_files_tree_helper,
+    extract_model_id_from_project_path as _extract_model_id_from_project_path_helper,
+    render_engine_preview_sql as _render_engine_preview_sql_helper,
+    resolve_model_id_for_validation as _resolve_model_id_for_validation_helper,
+    resolve_models_for_rebuild as _resolve_models_for_rebuild_helper,
+)
+from app.services.application.validation_history_store import (
+    VALIDATION_HISTORY as _VALIDATION_HISTORY,
+    append_validation_history as _append_validation_history_store,
+    get_validation_history as _get_validation_history_store,
 )
 from app.services import (
     FWService,
@@ -80,7 +89,6 @@ WITH_NEXT_CTE_PATTERN = re.compile(r"(?is),\s*([A-Za-z_][\w]*)\s+as\s*\(")
 ENABLED_CONTEXTS_PATTERN = re.compile(r"^\s*contexts:\s*\[([^\]]*)\]\s*$", re.MULTILINE)
 ENABLED_BOOL_PATTERN = re.compile(r"^\s*enabled:\s*(true|false)\s*$", re.MULTILINE | re.IGNORECASE)
 INLINE_CONFIG_BLOCK_PATTERN = re.compile(r"@config\s*\((.*?)\)", re.IGNORECASE | re.DOTALL)
-_VALIDATION_HISTORY: dict[str, list[dict[str, object]]] = {}
 _BUILD_HISTORY: dict[str, list[dict[str, object]]] = {}
 _SUPPORTED_BUILD_ENGINES = {"dqcr", "airflow", "oracle_plsql", "dbt"}
 _BUILD_HISTORY_LIMIT = 10
@@ -113,6 +121,14 @@ def _record_build_result(project_id: str, result: dict[str, object]) -> None:
         workflow_state_for_model_fn=_workflow_state_for_model,
         workflow_updated_at_for_model_fn=_workflow_updated_at_for_model,
     )
+
+
+def _append_validation_history(project_id: str, result: dict[str, object]) -> None:
+    _append_validation_history_store(project_id, result, max_items=20)
+
+
+def _get_validation_history(project_id: str, limit: int = 5) -> list[dict[str, object]]:
+    return _get_validation_history_store(project_id, limit=limit)
 
 
 def _extract_parameter_name(raw: str) -> str | None:
@@ -931,23 +947,7 @@ def _extract_cte_settings(model_cfg_path: Path) -> dict[str, object]:
 
 
 def _render_engine_preview_sql(raw_sql: str, engine: str) -> str:
-    normalized = raw_sql.strip()
-    if engine == "oracle_plsql":
-        return "\n".join(
-            [
-                "BEGIN",
-                "  EXECUTE IMMEDIATE q'[",
-                normalized,
-                "]';",
-                "END;",
-                "/",
-            ]
-        )
-    if engine == "airflow":
-        return f"-- airflow.sql preview\n{normalized}"
-    if engine == "dbt":
-        return f"-- dbt model preview\n{normalized}"
-    return normalized
+    return _render_engine_preview_sql_helper(raw_sql, engine)
 
 
 def _list_sql_files_for_model(project_path: Path, model_id: str) -> list[Path]:
@@ -1087,41 +1087,7 @@ def _resolve_existing_build_output_dir(project_id: str, build_id: str) -> Path:
 
 
 def _build_files_tree(items: list[dict[str, object]]) -> dict[str, object]:
-    root: dict[str, object] = {"name": "root", "path": "", "type": "directory", "children": []}
-
-    for item in items:
-        raw_path = item.get("path")
-        if not isinstance(raw_path, str) or not raw_path:
-            continue
-        parts = [part for part in Path(raw_path).parts if part not in {"", "."}]
-        cursor = root
-        children = cursor.setdefault("children", [])
-        if not isinstance(children, list):
-            continue
-        for idx, part in enumerate(parts):
-            is_last = idx == len(parts) - 1
-            existing = next((node for node in children if node.get("name") == part), None)
-            if existing is None:
-                existing = {
-                    "name": part,
-                    "path": str(Path(*parts[: idx + 1])),
-                    "type": "file" if is_last else "directory",
-                }
-                if not is_last:
-                    existing["children"] = []
-                children.append(existing)
-            if is_last:
-                existing["size_bytes"] = item.get("size_bytes")
-                existing["source_path"] = item.get("source_path")
-            else:
-                if "children" not in existing:
-                    existing["children"] = []
-                next_children = existing["children"]
-                if not isinstance(next_children, list):
-                    existing["children"] = []
-                children = existing["children"]
-
-    return root
+    return _build_files_tree_helper(items)
 
 
 def _build_validation_result(
@@ -1236,15 +1202,11 @@ def _build_validation_result(
 
 
 def _resolve_model_id_for_validation(project_path: Path, explicit_model_id: str | None) -> str:
-    if explicit_model_id:
-        _ = _resolve_model_path(project_path, explicit_model_id)
-        return explicit_model_id
-
-    model_root = project_path / "model"
-    candidates = sorted([item.name for item in model_root.iterdir() if item.is_dir()], key=str.lower) if model_root.exists() else []
-    if not candidates:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No models found in project.")
-    return candidates[0]
+    return _resolve_model_id_for_validation_helper(
+        project_path=project_path,
+        explicit_model_id=explicit_model_id,
+        resolve_model_path_fn=_resolve_model_path,
+    )
 
 
 def _list_model_ids(project_path: Path) -> list[str]:
@@ -1260,46 +1222,15 @@ def _resolve_project_workflow_status(project_path: Path) -> dict[str, object]:
 
 
 def _extract_model_id_from_project_path(path: str) -> str | None:
-    normalized = path.replace("\\", "/").strip().strip("/")
-    if not normalized:
-        return None
-    parts = [part for part in normalized.split("/") if part]
-    if len(parts) < 2:
-        return None
-    if parts[0].lower() not in {"model", "models"}:
-        return None
-    return parts[1]
+    return _extract_model_id_from_project_path_helper(path)
 
 
 def _resolve_models_for_rebuild(project_path: Path, changed_paths: list[str] | None) -> list[str]:
-    all_models = _list_model_ids(project_path)
-    if not all_models:
-        return []
-    if not changed_paths:
-        return all_models
-
-    explicit_models: set[str] = set()
-    requires_all = False
-
-    for raw_path in changed_paths:
-        if not isinstance(raw_path, str):
-            continue
-        normalized = raw_path.replace("\\", "/").strip().lstrip("/")
-        if not normalized:
-            continue
-        model_id = _extract_model_id_from_project_path(normalized)
-        if model_id:
-            explicit_models.add(model_id)
-            continue
-        if normalized == "project.yml" or normalized.startswith("contexts/") or normalized.startswith("parameters/"):
-            requires_all = True
-            break
-
-    if requires_all:
-        return all_models
-    if not explicit_models:
-        return []
-    return sorted([model_id for model_id in explicit_models if model_id in all_models], key=str.lower)
+    return _resolve_models_for_rebuild_helper(
+        project_path=project_path,
+        changed_paths=changed_paths,
+        list_model_ids_fn=_list_model_ids,
+    )
 
 
 def _normalize_sql_relative_path(
@@ -2421,6 +2352,79 @@ FW_SERVICE = FWService(
     cli_command=settings.fw_cli_command,
     prefer_cli=settings.fw_use_cli,
 )
+
+
+def resolve_model_id_for_validation(project_path: Path, explicit_model_id: str | None) -> str:
+    return _resolve_model_id_for_validation(project_path, explicit_model_id)
+
+
+def build_validation_result(
+    project_path: Path,
+    project_id: str,
+    model_id: str,
+    categories: list[str] | None,
+) -> dict[str, object]:
+    return _build_validation_result(project_path, project_id, model_id, categories)
+
+
+def attach_workflow_context(payload: dict[str, object], project_path: Path, model_id: str) -> dict[str, object]:
+    return _attach_workflow_context(payload, project_path, model_id)
+
+
+def record_build_result(project_id: str, result: dict[str, object]) -> None:
+    _record_build_result(project_id, result)
+
+
+def resolve_model_id_from_file_path(project_path: Path, file_path: str | None) -> str | None:
+    return _resolve_model_id_from_file_path(project_path, file_path)
+
+
+def apply_quickfix_add_field(project_path: Path, model_id: str, field_name: str) -> dict[str, object]:
+    return _apply_quickfix_add_field(project_path, model_id, field_name)
+
+
+def apply_quickfix_rename_folder(project_path: Path, file_path: str, new_name: str | None) -> dict[str, object]:
+    return _apply_quickfix_rename_folder(project_path, file_path, new_name)
+
+
+def append_validation_history(project_id: str, result: dict[str, object]) -> None:
+    _append_validation_history(project_id, result)
+
+
+def get_validation_history(project_id: str, limit: int = 5) -> list[dict[str, object]]:
+    return _get_validation_history(project_id, limit)
+
+
+def resolve_model_id_for_build(project_path: Path, explicit_model_id: str | None) -> str:
+    return _resolve_model_id_for_build(project_path, explicit_model_id)
+
+
+def get_project_build_history(project_id: str) -> list[dict[str, object]]:
+    return _get_project_build_history(project_id)
+
+
+def find_project_build(project_id: str, build_id: str) -> dict[str, object]:
+    return _find_project_build(project_id, build_id)
+
+
+def build_files_tree(items: list[dict[str, object]]) -> dict[str, object]:
+    return _build_files_tree(items)
+
+
+def resolve_existing_build_output_dir(project_id: str, build_id: str) -> Path:
+    return _resolve_existing_build_output_dir(project_id, build_id)
+
+
+def get_supported_build_engines() -> set[str]:
+    return set(_SUPPORTED_BUILD_ENGINES)
+
+
+def resolve_model_path(project_path: Path, model_id: str) -> Path:
+    return _resolve_model_path(project_path, model_id)
+
+
+def render_engine_preview_sql(raw_sql: str, engine: str) -> str:
+    return _render_engine_preview_sql(raw_sql, engine)
 
 
 def _strip_yaml_quotes(value: str) -> str:
@@ -4067,200 +4071,3 @@ def save_model_from_object(project_id: str, model_id: str, payload: dict[str, ob
         "path": str(model_yml_path.relative_to(project_path)),
         "saved": True,
     }
-
-
-@router.post("/{project_id}/build")
-def run_project_build(project_id: str, payload: dict[str, object] = Body(default={})) -> dict[str, object]:
-    project_path = FW_SERVICE.load_project(project_id)
-
-    model_id_raw = payload.get("model_id") if isinstance(payload, dict) else None
-    model_id = _resolve_model_id_for_build(project_path, model_id_raw if isinstance(model_id_raw, str) else None)
-
-    engine_raw = payload.get("engine") if isinstance(payload, dict) else None
-    engine = str(engine_raw).strip() if isinstance(engine_raw, str) and engine_raw.strip() else "dqcr"
-
-    context_raw = payload.get("context") if isinstance(payload, dict) else None
-    context = str(context_raw).strip() if isinstance(context_raw, str) and context_raw.strip() else "default"
-
-    dry_run_raw = payload.get("dry_run") if isinstance(payload, dict) else None
-    dry_run = bool(dry_run_raw) if dry_run_raw is not None else False
-
-    output_path_raw = payload.get("output_path") if isinstance(payload, dict) else None
-    output_path = str(output_path_raw).strip() if isinstance(output_path_raw, str) and output_path_raw.strip() else None
-
-    result_raw = FW_SERVICE.run_generation(project_id, model_id, engine, context, dry_run, output_path)
-    result = _attach_workflow_context(result_raw, project_path, model_id)
-    _record_build_result(project_id, result)
-    return result
-
-
-@router.get("/{project_id}/build/history")
-def get_project_build_history(project_id: str) -> list[dict[str, object]]:
-    return _get_project_build_history(project_id)
-
-
-@router.get("/{project_id}/build/{build_id}/files")
-def get_project_build_files(project_id: str, build_id: str) -> dict[str, object]:
-    build_item = _find_project_build(project_id, build_id)
-    files_raw = build_item.get("files")
-    files = files_raw if isinstance(files_raw, list) else []
-    return {
-        "project_id": project_id,
-        "build_id": build_id,
-        "engine": build_item.get("engine"),
-        "output_path": build_item.get("output_path"),
-        "files": files,
-        "tree": _build_files_tree([item for item in files if isinstance(item, dict)]),
-    }
-
-
-@router.get("/{project_id}/build/{build_id}/download")
-def download_project_build(project_id: str, build_id: str, path: str | None = Query(default=None)) -> StreamingResponse:
-    output_dir = _resolve_existing_build_output_dir(project_id, build_id)
-
-    if path and path.strip():
-        target_file = ensure_within_base(output_dir, output_dir / path.strip())
-        if not target_file.exists() or not target_file.is_file():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Build file '{path}' not found.")
-        buffer = io.BytesIO(target_file.read_bytes())
-        buffer.seek(0)
-        filename = target_file.name
-        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
-        return StreamingResponse(buffer, media_type="application/octet-stream", headers=headers)
-
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for file_path in sorted(output_dir.rglob("*"), key=lambda item: str(item).lower()):
-            if not file_path.is_file():
-                continue
-            arcname = file_path.relative_to(output_dir)
-            archive.write(file_path, arcname=str(arcname))
-    buffer.seek(0)
-
-    filename = f"{project_id}-{build_id}.zip"
-    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
-    return StreamingResponse(buffer, media_type="application/zip", headers=headers)
-
-
-@router.get("/{project_id}/build/{build_id}/files/content")
-def get_project_build_file_content(project_id: str, build_id: str, path: str = Query(...)) -> dict[str, str]:
-    output_dir = _resolve_existing_build_output_dir(project_id, build_id)
-    target_file = ensure_within_base(output_dir, output_dir / path)
-    if not target_file.exists() or not target_file.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Build file '{path}' not found.")
-    return {
-        "build_id": build_id,
-        "path": path,
-        "content": target_file.read_text(encoding="utf-8", errors="ignore"),
-    }
-
-
-@router.post("/{project_id}/build/{build_id}/preview")
-def preview_generated_sql(
-    project_id: str,
-    build_id: str,
-    payload: dict[str, str] = Body(...),
-) -> dict[str, str]:
-    model_id = payload.get("model_id")
-    sql_path = payload.get("sql_path")
-    inline_sql = payload.get("inline_sql")
-
-    if not model_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="model_id is required.")
-    if not sql_path:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="sql_path is required.")
-
-    if build_id not in _SUPPORTED_BUILD_ENGINES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported engine '{build_id}'.",
-        )
-
-    base_projects = Path(settings.projects_path)
-    project_path = resolve_project_path(base_projects, project_id)
-    _ = _resolve_model_path(project_path, model_id)
-    sql_file = ensure_within_base(project_path, project_path / sql_path)
-    if not sql_file.exists() or not sql_file.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"SQL file '{sql_path}' not found.")
-
-    raw_sql = inline_sql if inline_sql is not None else sql_file.read_text(encoding="utf-8")
-    rendered = _render_engine_preview_sql(raw_sql, build_id)
-    return {
-        "project_id": project_id,
-        "model_id": model_id,
-        "engine": build_id,
-        "sql_path": sql_path,
-        "preview": rendered,
-    }
-
-
-@router.post("/{project_id}/validate")
-def run_project_validation(project_id: str, payload: dict[str, object] = Body(default={})) -> dict[str, object]:
-    project_path = FW_SERVICE.load_project(project_id)
-
-    model_id = _resolve_model_id_for_validation(project_path, payload.get("model_id") if isinstance(payload, dict) else None)
-    categories = payload.get("categories") if isinstance(payload, dict) else None
-    categories_list = categories if isinstance(categories, list) else None
-
-    result_raw = FW_SERVICE.run_validation(project_id, model_id, categories_list)
-    result = _attach_workflow_context(result_raw, project_path, model_id)
-    history = _VALIDATION_HISTORY.setdefault(project_id, [])
-    history.insert(0, result)
-    _VALIDATION_HISTORY[project_id] = history[:20]
-    return result
-
-
-@router.post("/{project_id}/validate/quickfix")
-def apply_validation_quickfix(project_id: str, payload: dict[str, object] = Body(default={})) -> dict[str, object]:
-    base_projects = Path(settings.projects_path)
-    project_path = resolve_project_path(base_projects, project_id)
-
-    fix_type = payload.get("type") if isinstance(payload, dict) else None
-    if not isinstance(fix_type, str) or not fix_type:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="type is required.")
-
-    file_path = payload.get("file_path") if isinstance(payload, dict) else None
-    file_path_value = file_path if isinstance(file_path, str) else None
-
-    explicit_model_id = payload.get("model_id") if isinstance(payload, dict) else None
-    model_id = explicit_model_id if isinstance(explicit_model_id, str) else None
-    if model_id is None:
-        model_id = _resolve_model_id_from_file_path(project_path, file_path_value)
-    if model_id is None:
-        model_id = _resolve_model_id_for_validation(project_path, None)
-
-    result: dict[str, object]
-    if fix_type == "add_field":
-        field_name = payload.get("field_name") if isinstance(payload, dict) else None
-        field_name_value = field_name if isinstance(field_name, str) and field_name.strip() else "description"
-        result = _apply_quickfix_add_field(project_path, model_id, field_name_value)
-    elif fix_type == "rename_folder":
-        if not file_path_value:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="file_path is required for rename_folder.")
-        new_name = payload.get("new_name") if isinstance(payload, dict) else None
-        new_name_value = new_name if isinstance(new_name, str) else None
-        result = _apply_quickfix_rename_folder(project_path, file_path_value, new_name_value)
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported quickfix type '{fix_type}'.")
-
-    rerun_payload = payload.get("rerun") if isinstance(payload, dict) else None
-    rerun = bool(rerun_payload) if rerun_payload is not None else True
-    validation_result: dict[str, object] | None = None
-    if rerun:
-        validation_result = _build_validation_result(project_path, project_id, model_id, None)
-        history = _VALIDATION_HISTORY.setdefault(project_id, [])
-        history.insert(0, validation_result)
-        _VALIDATION_HISTORY[project_id] = history[:20]
-
-    return {
-        "project_id": project_id,
-        "model_id": model_id,
-        "type": fix_type,
-        **result,
-        "validation": validation_result,
-    }
-
-
-@router.get("/{project_id}/validate/history")
-def get_validation_history(project_id: str) -> list[dict[str, object]]:
-    return _VALIDATION_HISTORY.get(project_id, [])[:5]

@@ -8,12 +8,12 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.core.config import settings
 from app.services.terminal_service import TerminalService
-from app.routers.projects import (
-    FW_SERVICE,
-    _attach_workflow_context,
-    _build_validation_result,
-    _record_build_result,
-    _resolve_model_id_for_validation,
+from app.services.project_facade_service import (
+    attach_workflow_context,
+    build_validation_result,
+    get_fw_service,
+    record_build_result,
+    resolve_model_id_for_validation,
 )
 from app.core.fs import resolve_project_path
 
@@ -65,8 +65,8 @@ async def ws_validation(project_id: str, websocket: WebSocket):
 
         base_projects = Path(settings.projects_path)
         project_path = resolve_project_path(base_projects, project_id)
-        resolved_model_id = _resolve_model_id_for_validation(project_path, model_id)
-        result = _build_validation_result(project_path, project_id, resolved_model_id, categories)
+        resolved_model_id = resolve_model_id_for_validation(project_path, model_id)
+        result = build_validation_result(project_path, project_id, resolved_model_id, categories)
 
         await asyncio.sleep(0.1)
         await websocket.send_json({"type": "progress", "percent": 100, "stage": "completed"})
@@ -101,12 +101,13 @@ async def ws_build(project_id: str, websocket: WebSocket):
         await asyncio.sleep(0.1)
         await websocket.send_json({"type": "progress", "percent": 24, "stage": "loading_project"})
 
-        project_path = FW_SERVICE.load_project(project_id)
-        model_id = _resolve_model_id_for_validation(project_path, model_id_input)
+        fw_service = get_fw_service()
+        project_path = fw_service.load_project(project_id)
+        model_id = resolve_model_id_for_validation(project_path, model_id_input)
 
         await asyncio.sleep(0.1)
         await websocket.send_json({"type": "progress", "percent": 58, "stage": "rendering_sql"})
-        result = FW_SERVICE.run_generation(
+        result = fw_service.run_generation(
             project_id=project_id,
             model_id=model_id,
             engine=engine,
@@ -114,8 +115,8 @@ async def ws_build(project_id: str, websocket: WebSocket):
             dry_run=dry_run,
             output_path=output_path,
         )
-        result = _attach_workflow_context(result, project_path, model_id)
-        _record_build_result(project_id, result)
+        result = attach_workflow_context(result, project_path, model_id)
+        record_build_result(project_id, result)
 
         await asyncio.sleep(0.1)
         await websocket.send_json({"type": "progress", "percent": 100, "stage": "completed"})

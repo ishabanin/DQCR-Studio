@@ -1,6 +1,9 @@
-import { SelectHTMLAttributes } from "react";
+import { forwardRef, type SelectHTMLAttributes } from "react";
 
-export default function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className="ui-select" {...props} />;
-}
+import { cn } from "../../lib/cn";
 
+const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(function Select({ className, ...props }, ref) {
+  return <select ref={ref} className={cn("ui-select", className)} {...props} />;
+});
+
+export default Select;

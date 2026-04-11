@@ -1,0 +1,15 @@
+project: distr
+tools:
+  - adb
+  - oracle
+  - postgresql
+
+constants:
+  schema: DEFAULT_SCHEMA
+
+flags:
+  enable_heavy_calc: true
+  debug_mode: false
+  overduecalcmethod:
+    fifo: true
+    lifo: false

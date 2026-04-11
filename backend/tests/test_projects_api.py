@@ -613,6 +613,45 @@ def test_build_api_history_and_files(api_client: TestClient) -> None:
     assert download_response.headers["content-type"].startswith("application/zip")
 
 
+def test_build_preview_uses_engine_from_build_record(api_client: TestClient) -> None:
+    build_response = api_client.post(
+        "/api/v1/projects/demo/build",
+        json={
+            "model_id": "SampleModel",
+            "engine": "airflow",
+            "context": "default",
+            "dry_run": False,
+        },
+    )
+    assert build_response.status_code == 200, build_response.text
+    build_id = build_response.json()["build_id"]
+
+    preview_response = api_client.post(
+        f"/api/v1/projects/demo/build/{build_id}/preview",
+        json={
+            "model_id": "SampleModel",
+            "sql_path": "model/SampleModel/workflow/01_stage/001_main.sql",
+        },
+    )
+    assert preview_response.status_code == 200, preview_response.text
+    body = preview_response.json()
+    assert body["build_id"] == build_id
+    assert body["engine"] == "airflow"
+    assert body["preview"].startswith("-- airflow.sql preview")
+
+
+def test_build_preview_fails_for_unknown_build_id(api_client: TestClient) -> None:
+    preview_response = api_client.post(
+        "/api/v1/projects/demo/build/bld-does-not-exist/preview",
+        json={
+            "model_id": "SampleModel",
+            "sql_path": "model/SampleModel/workflow/01_stage/001_main.sql",
+        },
+    )
+    assert preview_response.status_code == 404
+    assert "not found" in preview_response.json()["detail"].lower()
+
+
 def test_build_history_persists_after_memory_reset(api_client: TestClient) -> None:
     build_response = api_client.post(
         "/api/v1/projects/demo/build",

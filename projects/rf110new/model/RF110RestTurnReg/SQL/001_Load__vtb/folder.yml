@@ -1,3 +1,4 @@
 001_Load__vtb:
-      enabled:
-        contexts: [vtb]
+  enabled:
+    contexts: [default]
+  materialized: insert_fc

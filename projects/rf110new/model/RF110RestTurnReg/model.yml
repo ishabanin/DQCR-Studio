@@ -1,44 +1,106 @@
 target_table:
-  name: RF110RestTurnReg
+  name: LetOfCredRisk
+  table: LetOfCredRisk
   schema: RF110
   attributes:
     - name: description
       domain_type: string
       required: false
+    - name: DateBegin
+      domain_type: datetime
+      is_key: true
+      required: true
+    - name: DateEnd
+      domain_type: datetime
+      is_key: false
+      required: true
+    - name: MainDealID
+      domain_type: decimal
+      is_key: false
+      required: true
+    - name: DebtQuality
+      domain_type: decimal(19,0)
+      is_key: false
+      required: false
+    - name: ResRate
+      domain_type: decimal(28,10)
+      is_key: false
+      required: false
+    - name: RiskGroup
+      domain_type: decimal(19,0)
+      is_key: false
+      required: false
+    - name: ReservePortfID
+      domain_type: decimal
+      is_key: false
+      required: false
+    - name: RID
+      domain_type: bigint
+      is_key: false
+      required: true
+    - name: RowStatus
+      domain_type: varchar(1)
+      is_key: false
+      required: true
     - name: dealid
       domain_type: number
       is_key: true
-      constraints: [PRIMARY_KEY]
+      required: false
     - name: accountid
       domain_type: number
       is_key: true
-      constraints: [PRIMARY_KEY]      
+      required: false
     - name: objectid
       domain_type: number
       is_key: true
-      constraints: [PRIMARY_KEY]            
+      required: false
     - name: calcid
       domain_type: number
       is_key: true
-      constraints: [PRIMARY_KEY]            
+      required: false
     - name: fininstrcategory
-      domain_type: string  
+      domain_type: string
+      is_key: false
+      required: false
     - name: datefrom
       domain_type: date
+      is_key: false
+      required: false
     - name: accountnumber
       domain_type: string
+      is_key: false
+      required: false
     - name: clientinn
       domain_type: string
+      is_key: false
+      required: false
     - name: clientid
       domain_type: number
+      is_key: false
+      required: false
     - name: loanrepokind
       domain_type: string
+      is_key: false
+      required: false
     - name: somerequiredattribute
       domain_type: string
-      required: True
-      default_value: "test"
+      is_key: false
+      required: true
+      default_value: test
+
 workflow:
   description: Заполнение реестра остатков и оборотов для формы 110
 
-  post: 
-    prepost
+  folders:
+    001_Load__distr:
+      enabled: true
+      materialization: insert_fc
+    001_Load__distr/004_applySettings_iter:
+      enabled: true
+      materialization: insert_fc
+    001_Load__vtb:
+      enabled: true
+      materialization: insert_fc
+    002_Update:
+      enabled: true
+      materialization: upsert_fc

@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 
 import { useProjectStore } from "../../app/store/projectStore";
+import Button from "../../shared/components/ui/Button";
+import Empty from "../../shared/components/ui/Empty";
 import { CreateProjectModal } from "./components/CreateProjectModal";
 import { DeleteProjectModal } from "./components/DeleteProjectModal";
 import { EditProjectModal } from "./components/EditProjectModal";
@@ -126,12 +128,12 @@ export default function ProjectsHub() {
               </p>
             </div>
             <div className="hub-hero-actions">
-              <button className="hub-btn-primary" onClick={() => setModal({ type: "create", mode: "create" })}>
+              <Button variant="default" onClick={() => setModal({ type: "create", mode: "create" })}>
                 + New project
-              </button>
-              <button className="hub-btn-secondary" onClick={() => setModal({ type: "create", mode: "import" })}>
+              </Button>
+              <Button variant="secondary" onClick={() => setModal({ type: "create", mode: "import" })}>
                 ↓ Import
-              </button>
+              </Button>
             </div>
           </div>
           {!hasActiveFilters && !isLoading && (
@@ -152,14 +154,16 @@ export default function ProjectsHub() {
         {isLoading && <StatsRowSkeleton />}
 
         {isError && (
-          <div className="hub-state hub-state-error">
-            <div className="hub-state-icon hub-state-icon-danger">⚠</div>
-            <h3 className="hub-state-title">Failed to load projects</h3>
-            <p className="hub-state-message">{error?.message ?? "Unknown error"}</p>
-            <button className="hub-btn-secondary" onClick={() => void refetch()}>
+          <Empty
+            className="hub-state hub-state-error"
+            icon="⚠"
+            title="Failed to load projects"
+            description={error?.message ?? "Unknown error"}
+          >
+            <Button variant="secondary" onClick={() => void refetch()}>
               ↻ Retry
-            </button>
-          </div>
+            </Button>
+          </Empty>
         )}
 
         {isLoading && (
@@ -171,32 +175,34 @@ export default function ProjectsHub() {
         )}
 
         {!isLoading && !isError && projects.length === 0 && (
-          <div className="hub-state hub-state-empty">
-            <div className="hub-state-icon hub-state-icon-muted">⊟</div>
-            <h3 className="hub-state-title hub-state-title-lg">No projects yet</h3>
-            <p className="hub-state-message hub-state-message-narrow">
-              Create your first DQCR project or import an existing one to get started.
-            </p>
+          <Empty
+            className="hub-state hub-state-empty"
+            icon="⊟"
+            title="No projects yet"
+            description="Create your first DQCR project or import an existing one to get started."
+          >
             <div className="hub-state-actions">
-              <button className="hub-btn-primary" onClick={() => setModal({ type: "create", mode: "create" })}>
+              <Button variant="default" onClick={() => setModal({ type: "create", mode: "create" })}>
                 + New project
-              </button>
-              <button className="hub-btn-secondary" onClick={() => setModal({ type: "create", mode: "import" })}>
+              </Button>
+              <Button variant="secondary" onClick={() => setModal({ type: "create", mode: "import" })}>
                 ↓ Import
-              </button>
+              </Button>
             </div>
-          </div>
+          </Empty>
         )}
 
         {!isLoading && !isError && projects.length > 0 && filtered.length === 0 && (
-          <div className="hub-state hub-state-empty">
-            <div className="hub-state-icon hub-state-icon-faded">⊘</div>
-            <h3 className="hub-state-title">No projects match filters</h3>
-            <p className="hub-state-message hub-state-message-muted">Try changing the search query or removing filters.</p>
-            <button className="hub-btn-secondary" onClick={clearFilters}>
+          <Empty
+            className="hub-state hub-state-empty"
+            icon="⊘"
+            title="No projects match filters"
+            description="Try changing the search query or removing filters."
+          >
+            <Button variant="secondary" onClick={clearFilters}>
               Clear all filters
-            </button>
-          </div>
+            </Button>
+          </Empty>
         )}
 
         {!isLoading && !isError && filtered.length > 0 && (

@@ -1,0 +1,8 @@
+{
+  "project_id": "110",
+  "model_id": "RF110RestTurnReg",
+  "status": "error",
+  "updated_at": "2026-04-10T21:43:20.683651+00:00",
+  "source": "framework_cli",
+  "error": "Failed to run workflow build: Framework CLI is unavailable for workflow build."
+}

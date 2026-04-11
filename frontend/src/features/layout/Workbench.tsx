@@ -1,5 +1,6 @@
 import { Suspense, lazy } from "react";
 import { useEditorStore } from "../../app/store/editorStore";
+import Badge from "../../shared/components/ui/Badge";
 
 const AdminScreen = lazy(() => import("../admin/AdminScreen"));
 const BuildScreen = lazy(() => import("../build/BuildScreen"));
@@ -47,22 +48,48 @@ export default function Workbench() {
     screen = <AdminScreen />;
   }
 
+  const title = tabTitleMap[activeTab] ?? "Редактор";
+
   return (
     <Suspense
       fallback={
-        <section className="workbench">
-          <h1>Загрузка…</h1>
-          <p>Подготавливаем раздел редактора.</p>
+        <section className="workbench-shell">
+          <header className="workbench-headline">
+            <div className="workbench-breadcrumb">
+              <span>Workspace</span>
+              <span>/</span>
+              <span className="workbench-breadcrumb-current">Loading</span>
+            </div>
+            <h1>Загрузка…</h1>
+          </header>
+          <div className="workbench">
+            <p>Подготавливаем раздел редактора.</p>
+          </div>
         </section>
       }
     >
-      {screen ?? (
-        <section className="workbench">
-          <h1>{tabTitleMap[activeTab]}</h1>
-          <p>Текущий срез реализации: layout + навигация по проекту + дерево файлов.</p>
-          <p>Открытые файлы: {openFiles.length > 0 ? openFiles.join(", ") : "нет"}</p>
-        </section>
-      )}
+      <section className="workbench-shell">
+        <header className="workbench-headline">
+          <div className="workbench-breadcrumb">
+            <span>Workspace</span>
+            <span>/</span>
+            <span>Editor</span>
+            <span>/</span>
+            <span className="workbench-breadcrumb-current">{title}</span>
+          </div>
+          <div className="workbench-headline-row">
+            <h1>{title}</h1>
+            <Badge variant="secondary">Open files: {openFiles.length}</Badge>
+          </div>
+        </header>
+
+        {screen ?? (
+          <section className="workbench">
+            <p>Текущий срез реализации: layout + навигация по проекту + дерево файлов.</p>
+            <p>Открытые файлы: {openFiles.length > 0 ? openFiles.join(", ") : "нет"}</p>
+          </section>
+        )}
+      </section>
     </Suspense>
   );
 }

@@ -138,13 +138,19 @@
 4. Митигировать: выносить в компонентные слои и variants.
 
 ## 11. Практический backlog (порядок задач)
-1. Инициализация shadcn + `components.json`.
-2. Базовые primitives в `shared/components/ui`.
-3. `HubToolbar`.
-4. `ProjectCard`.
-5. `ProjectsTable`.
-6. `Create/Edit/Delete` modals.
-7. States + toasts.
-8. Layout/sidebar.
-9. Cleanup legacy CSS.
+1. [x] Инициализация shadcn + `components.json`.
+2. [x] Базовые primitives в `shared/components/ui`.
+3. [x] `HubToolbar`.
+4. [x] `ProjectCard`.
+5. [x] `ProjectsTable`.
+6. [x] `Create/Edit/Delete` modals.
+7. [x] States + toasts.
+8. [x] Layout/sidebar.
+9. [x] Cleanup legacy CSS.
 
+## 12. Статус выполнения
+1. [x] Этапы 1-7 реализованы в коде.
+2. [x] Этап 8 (тестирование и приёмка): `typecheck`, `lint`, `test`, `build` пройдены.
+3. [x] Этап 9 подготовлен: релиз возможен поэтапно (Hub -> Workbench) без блокеров по сборке.
+4. [x] Этап 10 отработан: legacy CSS очищен, инлайн-стили в ключевых hub-компонентах сокращены.
+5. [x] План выполнен полностью.

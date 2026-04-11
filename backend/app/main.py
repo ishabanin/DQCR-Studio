@@ -13,12 +13,39 @@ from app.core.logging import setup_logging
 from app.routers.admin import router as admin_router
 from app.routers.catalog import router as catalog_router
 from app.routers.files import router as files_router
+from app.routers import projects as projects_module
 from app.routers.projects import router as projects_router
+from app.routers.projects_build import router as projects_build_router
+from app.routers.projects_validation import router as projects_validation_router
 from app.routers.ws import router as ws_router
 from app.services import FWError
+from app.services.project_facade_service import configure_project_facade
 
 setup_logging(settings.log_level)
 logger = logging.getLogger("dqcr.backend")
+
+configure_project_facade(
+    fw_service=projects_module.FW_SERVICE,
+    resolve_model_id_for_validation_fn=projects_module.resolve_model_id_for_validation,
+    build_validation_result_fn=projects_module.build_validation_result,
+    attach_workflow_context_fn=projects_module.attach_workflow_context,
+    record_build_result_fn=projects_module.record_build_result,
+    ensure_project_workflow_cache_fn=projects_module.ensure_project_workflow_cache,
+    trigger_workflow_rebuild_fn=projects_module.trigger_workflow_rebuild,
+    resolve_model_id_from_file_path_fn=projects_module.resolve_model_id_from_file_path,
+    apply_quickfix_add_field_fn=projects_module.apply_quickfix_add_field,
+    apply_quickfix_rename_folder_fn=projects_module.apply_quickfix_rename_folder,
+    append_validation_history_fn=projects_module.append_validation_history,
+    get_validation_history_fn=projects_module.get_validation_history,
+    resolve_model_id_for_build_fn=projects_module.resolve_model_id_for_build,
+    get_project_build_history_fn=projects_module.get_project_build_history,
+    find_project_build_fn=projects_module.find_project_build,
+    build_files_tree_fn=projects_module.build_files_tree,
+    resolve_existing_build_output_dir_fn=projects_module.resolve_existing_build_output_dir,
+    get_supported_build_engines_fn=projects_module.get_supported_build_engines,
+    resolve_model_path_fn=projects_module.resolve_model_path,
+    render_engine_preview_sql_fn=projects_module.render_engine_preview_sql,
+)
 
 
 def _check_writable_directory(path_value: str) -> dict[str, object]:
@@ -106,6 +133,8 @@ def ready(request: Request) -> JSONResponse:
 
 
 app.include_router(projects_router, prefix=settings.api_prefix)
+app.include_router(projects_build_router, prefix=settings.api_prefix)
+app.include_router(projects_validation_router, prefix=settings.api_prefix)
 app.include_router(files_router, prefix=settings.api_prefix)
 app.include_router(admin_router, prefix=settings.api_prefix)
 app.include_router(catalog_router, prefix=settings.api_prefix)
