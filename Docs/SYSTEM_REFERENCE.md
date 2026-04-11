@@ -262,6 +262,11 @@ Workflow cache находится внутри проекта:
 
 Этот слой производный и может быть rebuilt.
 
+Начиная с Phase 1 backend нормализует cache к IDE-контракту:
+- payload получает `workflow_schema_version` и `payload_features[]`;
+- meta дополнительно хранит `diagnostics`;
+- старые cache-файлы без этих полей читаются backward-compatible и считаются `legacy payload`.
+
 ### 5.8 Build и validation artifacts
 
 Build artifacts:
@@ -316,6 +321,18 @@ Workbench содержит вкладки:
 - `parameters`
 - `build`
 - `admin`
+
+Во вкладке `lineage` поддерживаются два режима визуализации:
+- `Lineage` (folder-level граф, legacy поведение);
+- `Execution` (step-level граф на базе `workflow/graph` + lazy step inspector), включая scope-стили (`flags/pre/params/sql/post`) и tool overlay filter.
+
+Execution inspector показывает heavy SQL-артефакты и metadata refs (`_w/_m`, `cte_table_names`, `inline_*`) по запросу `workflow/steps/{step_id}`.
+
+Для всех workflow-зависимых экранов (`lineage`, `parameters`, `validate`) используется унифицированный diagnostics UX:
+- общий формат отображения статуса cache;
+- список причин деградации payload (`issues`);
+- рекомендации по восстановлению;
+- coverage-сводка полноты execution payload.
 
 ### 6.5 Создание модели
 
@@ -684,14 +701,44 @@ Build и validation по-прежнему запускаются из backend п
 `.dqcr_workflow_cache/`
 
 - кеш workflow payload и meta.
+- обычно содержит:
+  - `<ModelId>.json` или `<ModelId>__<context>.json` - вычисленный workflow payload, нормализованный до IDE contract (`workflow_schema_version`, `payload_features`);
+  - `<ModelId>.meta.json` - статус (`ready/stale/building/error/missing`), `updated_at`, `error`, `source`, `workflow_schema_version`, `payload_features`, `diagnostics`.
 
 `.dqcr_builds/`
 
 - generated output.
+- обычно содержит:
+  - `<build_id>/...` - файлы результата generate/build;
+  - `history.json` - история build-операций по проекту.
 
 `.dqcr_validation_runs/`
 
 - validation reports and artifacts.
+- обычно содержит:
+  - `<run_id>/<ModelId>_validation.json`
+  - `<run_id>/<ModelId>_validation.html`
+
+### 10.1.1 Когда эти каталоги наполняются
+
+`.dqcr_workflow_cache/` обновляется при:
+
+- создании/импорте/подключении проекта;
+- изменении внутренних metadata проекта;
+- изменении файлов проекта (save/create/rename/delete);
+- изменении параметров проекта/модели (create/update/delete);
+- сохранении model object (`PUT /projects/{project_id}/models/{model_id}`);
+- явном rebuild (`POST /projects/{project_id}/models/{model_id}/workflow/rebuild`);
+- ленивом автопостроении, когда cache отсутствует (например при `GET /projects/{project_id}/files/tree` и ряде workflow/autocomplete чтений).
+
+`.dqcr_builds/` обновляется при:
+
+- запуске build/generate (`POST /projects/{project_id}/build` и связанные use-cases),
+- записи/обновлении `history.json` после завершения build.
+
+`.dqcr_validation_runs/` обновляется при:
+
+- запуске validation, когда backend вызывает framework CLI (`fw2 validate`) и сохраняет артефакты run в новый `<run_id>`.
 
 ### 10.2 Реестр проектов
 
@@ -1004,6 +1051,52 @@ Payload:
 Project summary (`GET /projects`) возвращает `cache_status`.
 
 Model/workflow endpoints возвращают более детализированное состояние через model-level payload.
+
+С Phase 1 model-level workflow API возвращает:
+- `workflow_schema_version`
+- `payload_features`
+- `diagnostics`
+
+Отдельный diagnostics endpoint:
+- `GET /api/v1/projects/{project_id}/models/{model_id}/workflow/diagnostics`
+
+Phase 2 execution endpoints:
+- `GET /api/v1/projects/{project_id}/models/{model_id}/workflow/graph` - step-level execution DAG (`nodes/edges/summary`) без heavy SQL строк;
+- `GET /api/v1/projects/{project_id}/models/{model_id}/workflow/steps` - lightweight index шагов;
+- `GET /api/v1/projects/{project_id}/models/{model_id}/workflow/steps/{step_id}` - heavy step payload для inspector (`source/prepared/rendered SQL`, metadata, param_model).
+
+Diagnostics summary описывает:
+- legacy ли payload;
+- готов ли payload для execution-aware UI;
+- какие contract-поля отсутствуют;
+- насколько покрыты heavy SQL artifacts (`source/prepared/rendered/metadata`);
+- почему IDE работает в degraded/fallback режиме.
+
+### 13.4 Триггеры rebuild workflow cache
+
+Основной orchestrator: `trigger_workflow_rebuild(project_id, changed_paths)`.
+
+Ключевые источники вызова:
+
+- `POST /api/v1/projects` (`create|import|connect`);
+- `POST /api/v1/projects/import-upload`;
+- `PATCH /api/v1/projects/{project_id}/metadata` (для internal проектов);
+- файловые endpoints:
+  - `PUT /api/v1/projects/{project_id}/files/content`
+  - `POST /api/v1/projects/{project_id}/files/folder`
+  - `POST /api/v1/projects/{project_id}/files/model`
+  - `POST /api/v1/projects/{project_id}/files/rename`
+  - `DELETE /api/v1/projects/{project_id}/files`
+- параметры:
+  - `POST /api/v1/projects/{project_id}/parameters`
+  - `PUT /api/v1/projects/{project_id}/parameters/{parameter_id}`
+  - `DELETE /api/v1/projects/{project_id}/parameters/{parameter_id}`
+- `PUT /api/v1/projects/{project_id}/models/{model_id}`;
+- `POST /api/v1/projects/{project_id}/models/{model_id}/workflow/rebuild`.
+
+Ленивая инициализация cache:
+
+- `ensure_project_workflow_cache(...)` вызывается при `GET /api/v1/projects/{project_id}/files/tree` и достраивает отсутствующие cache-файлы.
 
 ---
 

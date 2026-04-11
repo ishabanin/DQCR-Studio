@@ -1,4 +1,5 @@
 interface LineageSummaryProps {
+  graphKind?: "lineage" | "execution";
   folders: number;
   queries: number;
   params: number;
@@ -9,6 +10,7 @@ interface LineageSummaryProps {
 }
 
 export function LineageSummary({
+  graphKind = "lineage",
   folders,
   queries,
   params,
@@ -27,10 +29,11 @@ export function LineageSummary({
     <div className="lg-summary">
       <span className="lg-sum-badge">
         <b>{isFiltered && visibleFolders !== undefined ? visibleFolders : folders}</b>
-        {isFiltered && visibleFolders !== undefined && visibleFolders !== folders ? ` / ${folders}` : ""} folders
+        {isFiltered && visibleFolders !== undefined && visibleFolders !== folders ? ` / ${folders}` : ""}{" "}
+        {graphKind === "lineage" ? "folders" : "steps"}
       </span>
       <span className="lg-sum-badge">
-        <b>{queries}</b> queries
+        <b>{queries}</b> {graphKind === "lineage" ? "queries" : "sql steps"}
       </span>
       <span className="lg-sum-badge">
         <b>{params}</b> params

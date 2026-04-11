@@ -1,33 +1,38 @@
 interface FilterNoteProps {
+  graphKind?: "lineage" | "execution";
   searchTerm: string;
   searchHidden: number;
-  contextHidden: number;
+  overlayHidden: number;
+  overlayLabel?: string;
   visibleCount: number;
   onClearSearch: () => void;
   onClearAll: () => void;
 }
 
 export function FilterNote({
+  graphKind = "lineage",
   searchTerm,
   searchHidden,
-  contextHidden,
+  overlayHidden,
+  overlayLabel = "context",
   visibleCount,
   onClearSearch,
   onClearAll,
 }: FilterNoteProps) {
+  const unit = graphKind === "lineage" ? "folder" : "step";
   const hasSearch = searchTerm.length > 0;
-  const hasContext = contextHidden > 0;
+  const hasOverlay = overlayHidden > 0;
 
-  if (!hasSearch && !hasContext) return null;
+  if (!hasSearch && !hasOverlay) return null;
 
   const parts: string[] = [];
-  if (hasSearch) parts.push(`search "${searchTerm}" hides ${searchHidden} folder${searchHidden !== 1 ? "s" : ""}`);
-  if (hasContext) parts.push(`context hides ${contextHidden} folder${contextHidden !== 1 ? "s" : ""}`);
+  if (hasSearch) parts.push(`search "${searchTerm}" hides ${searchHidden} ${unit}${searchHidden !== 1 ? "s" : ""}`);
+  if (hasOverlay) parts.push(`${overlayLabel} hides ${overlayHidden} ${unit}${overlayHidden !== 1 ? "s" : ""}`);
 
   return (
     <div className="lg-filter-note">
       <span>
-        Showing <strong>{visibleCount}</strong> folders
+        Showing <strong>{visibleCount}</strong> {unit}s
         {parts.length > 0 ? ` · ${parts.join(" · ")}` : ""}
       </span>
       {hasSearch ? (

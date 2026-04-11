@@ -718,6 +718,10 @@ def test_workflow_status_and_model_workflow_endpoints(api_client: TestClient) ->
     status_payload = status_response.json()
     assert status_payload["project_id"] == "demo"
     assert isinstance(status_payload["models"], list)
+    sample_model_status = next(item for item in status_payload["models"] if item["model_id"] == "SampleModel")
+    assert "workflow_schema_version" in sample_model_status
+    assert "payload_features" in sample_model_status
+    assert "diagnostics" in sample_model_status
 
     model_response = api_client.get("/api/v1/projects/demo/models/SampleModel/workflow")
     assert model_response.status_code == 200
@@ -725,13 +729,307 @@ def test_workflow_status_and_model_workflow_endpoints(api_client: TestClient) ->
     assert model_payload["project_id"] == "demo"
     assert model_payload["model_id"] == "SampleModel"
     assert model_payload["status"] in {"ready", "stale", "building", "error", "missing"}
+    assert "workflow_schema_version" in model_payload
+    assert "payload_features" in model_payload
+    assert "diagnostics" in model_payload
 
     rebuild_response = api_client.post("/api/v1/projects/demo/models/SampleModel/workflow/rebuild")
     assert rebuild_response.status_code == 200
     rebuild_payload = rebuild_response.json()
     assert rebuild_payload["model_id"] == "SampleModel"
     assert rebuild_payload["status"] in {"ready", "stale", "building", "error", "missing"}
+    assert "workflow_schema_version" in rebuild_payload
+    assert "payload_features" in rebuild_payload
+    assert "diagnostics" in rebuild_payload
 
+
+def test_model_workflow_normalizes_legacy_contract_metadata(api_client: TestClient, tmp_path: Path) -> None:
+    projects_root = tmp_path / "projects"
+    cache_file = projects_root / "demo" / ".dqcr_workflow_cache" / "SampleModel.json"
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(
+        json.dumps(
+            {
+                "steps": [
+                    {
+                        "step_id": "01_stage.001_main.sql",
+                        "step_scope": "sql",
+                        "step_type": "sql",
+                        "enabled": True,
+                        "dependencies": [],
+                        "folder": "01_stage",
+                        "context": "default",
+                        "full_name": "01_stage/001_main/sql",
+                        "sql_model": {
+                            "name": "001_main",
+                            "path": "model/SampleModel/workflow/01_stage/001_main.sql",
+                            "source_sql": "select 1 as id",
+                            "prepared_sql": {"oracle": "select 1 as id"},
+                            "rendered_sql": {"oracle": "select 1 as id"},
+                            "metadata": {"parameters": [], "cte": {}},
+                        },
+                    }
+                ],
+                "all_contexts": ["default"],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = api_client.get("/api/v1/projects/demo/models/SampleModel/workflow")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["workflow_schema_version"] == 1
+    assert "steps" in body["payload_features"]
+    assert "sql_model" in body["payload_features"]
+    assert body["diagnostics"]["legacy_payload"] is True
+    assert body["workflow"]["workflow_schema_version"] == 1
+    assert "payload_features" in body["workflow"]
+
+
+def test_workflow_diagnostics_reports_contract_gaps_and_missing_heavy_fields(api_client: TestClient, tmp_path: Path) -> None:
+    projects_root = tmp_path / "projects"
+    cache_file = projects_root / "demo" / ".dqcr_workflow_cache" / "SampleModel.json"
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(
+        json.dumps(
+            {
+                "steps": [
+                    {
+                        "step_type": "sql",
+                        "folder": "01_stage",
+                        "context": "default",
+                        "dependencies": [],
+                        "enabled": True,
+                        "sql_model": {
+                            "name": "001_main",
+                            "path": "model/SampleModel/workflow/01_stage/001_main.sql",
+                        },
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = api_client.get("/api/v1/projects/demo/models/SampleModel/workflow/diagnostics")
+    assert response.status_code == 200
+    body = response.json()
+    issue_codes = {item["code"] for item in body["diagnostics"]["issues"]}
+    assert "legacy_payload" in issue_codes
+    assert "missing_heavy_fields" in issue_codes
+    assert "contract_gaps" in issue_codes
+    assert any(field.endswith(".step_id") for field in body["diagnostics"]["missing_fields"])
+
+
+def test_workflow_rebuild_persists_schema_version_and_payload_features(api_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        projects_router.FW_SERVICE,
+        "run_workflow_build",
+        lambda project_id, model_id, context=None: {
+            "workflow": {
+                "steps": [
+                    {
+                        "step_id": "01_stage.001_main.sql",
+                        "step_scope": "sql",
+                        "step_type": "sql",
+                        "enabled": True,
+                        "dependencies": [],
+                        "folder": "01_stage",
+                        "context": "default",
+                        "full_name": "01_stage/001_main/sql",
+                        "sql_model": {
+                            "name": "001_main",
+                            "path": "model/SampleModel/workflow/01_stage/001_main.sql",
+                            "source_sql": "select 1 as id",
+                            "prepared_sql": {"oracle": "select 1 as id"},
+                            "rendered_sql": {"oracle": "select 1 as id"},
+                            "metadata": {"parameters": [], "cte": {}},
+                        },
+                    }
+                ],
+                "all_contexts": ["default"],
+            }
+        },
+    )
+
+    rebuild_response = api_client.post("/api/v1/projects/demo/models/SampleModel/workflow/rebuild")
+    assert rebuild_response.status_code == 200
+    body = rebuild_response.json()
+    assert body["workflow_schema_version"] == 1
+    assert "sql_model" in body["payload_features"]
+
+    meta_path = Path(projects_router.settings.projects_path) / "demo" / ".dqcr_workflow_cache" / "SampleModel.meta.json"
+    meta_payload = json.loads(meta_path.read_text(encoding="utf-8"))
+    assert meta_payload["workflow_schema_version"] == 1
+    assert "steps" in meta_payload["payload_features"]
+    assert meta_payload["diagnostics"]["execution_ui_ready"] is True
+
+
+def test_workflow_graph_returns_step_level_execution_nodes(api_client: TestClient, tmp_path: Path) -> None:
+    projects_root = tmp_path / "projects"
+    cache_file = projects_root / "demo" / ".dqcr_workflow_cache" / "SampleModel.json"
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(
+        json.dumps(
+            {
+                "steps": [
+                    {
+                        "step_id": "flags.step",
+                        "step_scope": "flags",
+                        "step_type": "flags",
+                        "name": "flags",
+                        "context": "all",
+                        "enabled": True,
+                        "dependencies": [],
+                    },
+                    {
+                        "step_id": "pre.001",
+                        "step_scope": "pre",
+                        "step_type": "sql",
+                        "name": "pre_sql",
+                        "folder": "00_pre",
+                        "context": "default",
+                        "enabled": True,
+                        "dependencies": ["flags.step"],
+                        "tools": ["oracle"],
+                        "sql_model": {
+                            "name": "001_pre",
+                            "path": "model/SampleModel/workflow/00_pre/001_pre.sql",
+                            "source_sql": "select 1 as id",
+                        },
+                    },
+                    {
+                        "step_id": "param.start",
+                        "step_scope": "params",
+                        "step_type": "param",
+                        "name": "date_start",
+                        "context": "default",
+                        "enabled": True,
+                        "dependencies": ["flags.step"],
+                        "param_model": {"name": "date_start"},
+                    },
+                    {
+                        "step_id": "sql.main",
+                        "step_scope": "sql",
+                        "step_type": "sql",
+                        "name": "001_main",
+                        "folder": "01_stage",
+                        "context": "default",
+                        "enabled": True,
+                        "dependencies": ["pre.001", "param.start"],
+                        "sql_model": {
+                            "name": "001_main",
+                            "path": "model/SampleModel/workflow/01_stage/001_main.sql",
+                            "source_sql": "select 1 as id",
+                        },
+                    },
+                    {
+                        "step_id": "post.001",
+                        "step_scope": "post",
+                        "step_type": "sql",
+                        "name": "001_post",
+                        "folder": "99_post",
+                        "context": "vtb",
+                        "enabled": False,
+                        "dependencies": ["sql.main"],
+                        "tools": ["postgresql"],
+                        "sql_model": {
+                            "name": "001_post",
+                            "path": "model/SampleModel/workflow/99_post/001_post.sql",
+                            "source_sql": "select 2 as id",
+                        },
+                    },
+                ],
+                "graph": {"kind": "fw-native"},
+                "template": {"name": "dqcr"},
+                "sql_objects": [{"name": "obj_1"}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    response = api_client.get("/api/v1/projects/demo/models/SampleModel/workflow/graph")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"]["steps"] == 5
+    assert body["summary"]["edges"] == 5
+    assert body["summary"]["scopes"]["flags"] == 1
+    assert body["summary"]["scopes"]["params"] == 1
+    assert body["summary"]["scopes"]["sql"] == 1
+    assert body["summary"]["scopes"]["pre"] == 1
+    assert body["summary"]["scopes"]["post"] == 1
+    assert body["summary"]["tools"]["oracle"] == 1
+    assert body["summary"]["tools"]["postgresql"] == 1
+    assert body["summary"]["tools"]["all_tools"] == 3
+    assert body["advanced"]["graph"] == {"kind": "fw-native"}
+    assert body["advanced"]["template"] == {"name": "dqcr"}
+    assert body["advanced"]["sql_objects"] == [{"name": "obj_1"}]
+
+    pre_step = next(item for item in body["nodes"] if item["step_id"] == "pre.001")
+    assert pre_step["step_scope"] == "pre"
+    assert pre_step["step_type"] == "sql"
+    assert pre_step["context"] == "default"
+    assert pre_step["tools"] == ["oracle"]
+    assert pre_step["enabled"] is True
+    assert pre_step["dependencies"] == ["flags.step"]
+    assert pre_step["has_sql_model"] is True
+    assert "sql_model" not in pre_step
+
+
+def test_workflow_steps_and_step_detail_split_light_and_heavy_payload(api_client: TestClient, tmp_path: Path) -> None:
+    projects_root = tmp_path / "projects"
+    cache_file = projects_root / "demo" / ".dqcr_workflow_cache" / "SampleModel.json"
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(
+        json.dumps(
+            {
+                "steps": [
+                    {
+                        "step_id": "sql.main",
+                        "step_scope": "sql",
+                        "step_type": "sql",
+                        "name": "001_main",
+                        "folder": "01_stage",
+                        "context": "default",
+                        "enabled": True,
+                        "dependencies": [],
+                        "sql_model": {
+                            "name": "001_main",
+                            "path": "model/SampleModel/workflow/01_stage/001_main.sql",
+                            "source_sql": "select 1 as id",
+                            "prepared_sql": {"oracle": "select 1 as id"},
+                            "rendered_sql": {"oracle": "select 1 as id"},
+                            "metadata": {"parameters": ["date_start"], "cte": {}},
+                        },
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    steps_response = api_client.get("/api/v1/projects/demo/models/SampleModel/workflow/steps")
+    assert steps_response.status_code == 200
+    steps_body = steps_response.json()
+    assert len(steps_body["steps"]) == 1
+    step_row = steps_body["steps"][0]
+    assert step_row["step_id"] == "sql.main"
+    assert step_row["has_sql_model"] is True
+    assert "sql_model" not in step_row
+
+    detail_response = api_client.get("/api/v1/projects/demo/models/SampleModel/workflow/steps/sql.main")
+    assert detail_response.status_code == 200
+    detail_body = detail_response.json()
+    assert detail_body["step_id"] == "sql.main"
+    assert detail_body["sql_model"]["source_sql"] == "select 1 as id"
+    assert detail_body["sql_model"]["prepared_sql"]["oracle"] == "select 1 as id"
+    assert detail_body["sql_model"]["rendered_sql"]["oracle"] == "select 1 as id"
+    assert detail_body["sql_model"]["metadata"]["parameters"] == ["date_start"]
 
 def test_files_create_folder_and_content(api_client: TestClient) -> None:
     folder_response = api_client.post(

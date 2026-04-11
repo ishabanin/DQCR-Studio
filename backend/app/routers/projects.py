@@ -1511,6 +1511,225 @@ def _build_lineage_from_workflow(
     }
 
 
+def _resolve_execution_step_id(step: dict[str, object], index: int) -> str:
+    raw_step_id = step.get("step_id")
+    if isinstance(raw_step_id, str) and raw_step_id.strip():
+        return raw_step_id.strip()
+    raw_full_name = step.get("full_name")
+    if isinstance(raw_full_name, str) and raw_full_name.strip():
+        return raw_full_name.strip()
+    folder = str(step.get("folder", "")).strip()
+    name = str(step.get("name", "")).strip()
+    step_type = str(step.get("step_type", "")).strip().lower() or "unknown"
+    if folder and name:
+        return f"{folder}.{name}.{step_type}"
+    if folder:
+        return f"{folder}.{step_type}.{index + 1}"
+    return f"step-{index + 1}"
+
+
+def _normalize_step_dependencies(step: dict[str, object]) -> list[str]:
+    raw_dependencies = step.get("dependencies")
+    if not isinstance(raw_dependencies, list):
+        return []
+    dependencies: list[str] = []
+    seen: set[str] = set()
+    for item in raw_dependencies:
+        if not isinstance(item, str):
+            continue
+        value = item.strip()
+        if not value or value in seen:
+            continue
+        dependencies.append(value)
+        seen.add(value)
+    return dependencies
+
+
+def _normalize_step_tools(step: dict[str, object]) -> list[str] | None:
+    raw_tools = step.get("tools")
+    if not isinstance(raw_tools, list):
+        return None
+    tools: list[str] = []
+    seen: set[str] = set()
+    for item in raw_tools:
+        if not isinstance(item, str):
+            continue
+        value = item.strip()
+        if not value or value in seen:
+            continue
+        tools.append(value)
+        seen.add(value)
+    return tools or None
+
+
+def _build_execution_step_index(step: dict[str, object], index: int) -> dict[str, object]:
+    step_id = _resolve_execution_step_id(step, index)
+    raw_context = step.get("context")
+    context = str(raw_context).strip() if isinstance(raw_context, str) and raw_context.strip() else "all"
+    step_scope_raw = step.get("step_scope")
+    step_scope = str(step_scope_raw).strip().lower() if isinstance(step_scope_raw, str) and step_scope_raw.strip() else "unknown"
+    step_type_raw = step.get("step_type")
+    step_type = str(step_type_raw).strip().lower() if isinstance(step_type_raw, str) and step_type_raw.strip() else "unknown"
+    folder_raw = step.get("folder")
+    folder = str(folder_raw).strip().replace("\\", "/") if isinstance(folder_raw, str) and folder_raw.strip() else None
+    name_raw = step.get("name")
+    name = str(name_raw).strip() if isinstance(name_raw, str) and name_raw.strip() else None
+    dependencies = _normalize_step_dependencies(step)
+    tools = _normalize_step_tools(step)
+
+    return {
+        "step_id": step_id,
+        "full_name": step.get("full_name") if isinstance(step.get("full_name"), str) else None,
+        "name": name,
+        "folder": folder,
+        "step_scope": step_scope,
+        "step_type": step_type,
+        "context": context,
+        "tools": tools,
+        "enabled": _enabled_rule_to_bool(step.get("enabled")),
+        "dependencies": dependencies,
+        "is_ephemeral": bool(step.get("is_ephemeral")) if isinstance(step.get("is_ephemeral"), bool) else None,
+        "asynch": bool(step.get("asynch")) if isinstance(step.get("asynch"), bool) else None,
+        "loop_step_ref": str(step.get("loop_step_ref")).strip()
+        if isinstance(step.get("loop_step_ref"), str) and str(step.get("loop_step_ref")).strip()
+        else None,
+        "has_sql_model": isinstance(step.get("sql_model"), dict),
+        "has_param_model": isinstance(step.get("param_model"), dict),
+    }
+
+
+def _build_execution_steps_index(workflow_payload: dict[str, object]) -> list[dict[str, object]]:
+    steps_raw = workflow_payload.get("steps")
+    if not isinstance(steps_raw, list):
+        return []
+    steps = [item for item in steps_raw if isinstance(item, dict)]
+    return [_build_execution_step_index(step, index) for index, step in enumerate(steps)]
+
+
+def _build_execution_graph_response(
+    project_id: str,
+    model_id: str,
+    workflow_payload: dict[str, object],
+) -> dict[str, object]:
+    nodes = _build_execution_steps_index(workflow_payload)
+    node_ids = {str(node.get("step_id")) for node in nodes if isinstance(node.get("step_id"), str)}
+
+    edge_pairs: set[tuple[str, str]] = set()
+    unresolved_dependencies: list[str] = []
+    for node in nodes:
+        target = node.get("step_id")
+        if not isinstance(target, str):
+            continue
+        dependencies = node.get("dependencies")
+        if not isinstance(dependencies, list):
+            continue
+        for dependency in dependencies:
+            if not isinstance(dependency, str):
+                continue
+            if dependency in node_ids:
+                edge_pairs.add((dependency, target))
+            else:
+                unresolved_dependencies.append(dependency)
+
+    scope_counts: dict[str, int] = {}
+    context_counts: dict[str, int] = {}
+    tool_counts: dict[str, int] = {}
+
+    for node in nodes:
+        scope = str(node.get("step_scope", "unknown"))
+        scope_counts[scope] = scope_counts.get(scope, 0) + 1
+        context = str(node.get("context", "all"))
+        context_counts[context] = context_counts.get(context, 0) + 1
+        tools = node.get("tools")
+        if isinstance(tools, list) and tools:
+            for tool in tools:
+                if not isinstance(tool, str):
+                    continue
+                tool_counts[tool] = tool_counts.get(tool, 0) + 1
+        else:
+            tool_counts["all_tools"] = tool_counts.get("all_tools", 0) + 1
+
+    edges = [
+        {
+            "id": f"{source}->{target}",
+            "source": source,
+            "target": target,
+            "status": "resolved",
+        }
+        for source, target in sorted(edge_pairs)
+    ]
+
+    return {
+        "project_id": project_id,
+        "model_id": model_id,
+        "nodes": nodes,
+        "edges": edges,
+        "summary": {
+            "steps": len(nodes),
+            "edges": len(edges),
+            "scopes": scope_counts,
+            "contexts": context_counts,
+            "tools": tool_counts,
+            "unresolved_dependencies": sorted(set(unresolved_dependencies)),
+        },
+    }
+
+
+def _extract_workflow_advanced_fields(workflow_payload: dict[str, object]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for field_name in ("graph", "template", "sql_objects"):
+        value = workflow_payload.get(field_name)
+        if value is not None:
+            result[field_name] = value
+    return result
+
+
+def _find_workflow_step(
+    workflow_payload: dict[str, object],
+    step_id: str,
+) -> tuple[dict[str, object] | None, int]:
+    normalized_requested = step_id.strip()
+    steps_raw = workflow_payload.get("steps")
+    if not isinstance(steps_raw, list):
+        return None, -1
+    steps = [item for item in steps_raw if isinstance(item, dict)]
+    for index, step in enumerate(steps):
+        if _resolve_execution_step_id(step, index) == normalized_requested:
+            return step, index
+    return None, -1
+
+
+def _build_step_heavy_payload(step: dict[str, object], index: int) -> dict[str, object]:
+    step_id = _resolve_execution_step_id(step, index)
+    sql_model_raw = step.get("sql_model")
+    sql_model = sql_model_raw if isinstance(sql_model_raw, dict) else None
+    param_model_raw = step.get("param_model")
+    param_model = param_model_raw if isinstance(param_model_raw, dict) else None
+
+    sql_payload: dict[str, object] | None = None
+    if isinstance(sql_model, dict):
+        sql_payload = {
+            "source_sql": sql_model.get("source_sql"),
+            "prepared_sql": sql_model.get("prepared_sql") if isinstance(sql_model.get("prepared_sql"), dict) else {},
+            "rendered_sql": sql_model.get("rendered_sql") if isinstance(sql_model.get("rendered_sql"), dict) else {},
+            "metadata": sql_model.get("metadata") if isinstance(sql_model.get("metadata"), dict) else {},
+            "cte_table_names": sql_model.get("cte_table_names") if isinstance(sql_model.get("cte_table_names"), dict) else {},
+            "materialization": sql_model.get("materialization"),
+            "cte_materialization": sql_model.get("cte_materialization"),
+            "target_table": sql_model.get("target_table"),
+            "attributes": sql_model.get("attributes") if isinstance(sql_model.get("attributes"), list) else [],
+            "name": sql_model.get("name"),
+            "path": sql_model.get("path"),
+        }
+
+    return {
+        "step_id": step_id,
+        "step": step,
+        "sql_model": sql_payload,
+        "param_model": param_model,
+    }
+
+
 def _extract_ordered_folders_from_workflow(workflow_payload: dict[str, object]) -> list[str]:
     steps_raw = workflow_payload.get("steps")
     steps = [item for item in steps_raw if isinstance(item, dict)] if isinstance(steps_raw, list) else []
@@ -2212,6 +2431,7 @@ def _ensure_workflow_payload(
                 status_value=_WORKFLOW_STATUS_READY,
                 error=None,
                 source=_WORKFLOW_SOURCE_FRAMEWORK,
+                workflow_payload=cached,
             )
         return cached
 
@@ -2234,6 +2454,7 @@ def _ensure_workflow_payload(
                     status_value=_WORKFLOW_STATUS_STALE,
                     error="Workflow build returned invalid payload.",
                     source=_WORKFLOW_SOURCE_FALLBACK,
+                    workflow_payload=cached,
                 )
             else:
                 _write_workflow_meta(
@@ -2251,6 +2472,7 @@ def _ensure_workflow_payload(
             status_value=_WORKFLOW_STATUS_READY,
             error=None,
             source=_WORKFLOW_SOURCE_FRAMEWORK,
+            workflow_payload=workflow_payload_raw,
         )
         LOGGER.info(
             "workflow.rebuild.succeeded project_id=%s model_id=%s source=%s",
@@ -2267,6 +2489,7 @@ def _ensure_workflow_payload(
                 status_value=_WORKFLOW_STATUS_STALE,
                 error=str(exc),
                 source=_WORKFLOW_SOURCE_FALLBACK,
+                workflow_payload=cached,
             )
             LOGGER.warning(
                 "workflow.rebuild.soft_failed project_id=%s model_id=%s source=%s error=%s",
@@ -3718,6 +3941,9 @@ def get_model_workflow(project_id: str, model_id: str) -> dict[str, object]:
         "updated_at": state.get("updated_at"),
         "error": state.get("error"),
         "source": state.get("source"),
+        "workflow_schema_version": state.get("workflow_schema_version"),
+        "payload_features": state.get("payload_features"),
+        "diagnostics": state.get("diagnostics"),
         "workflow": workflow_payload if isinstance(workflow_payload, dict) else None,
     }
 
@@ -3742,7 +3968,135 @@ def rebuild_model_workflow(project_id: str, model_id: str) -> dict[str, object]:
         "updated_at": state.get("updated_at"),
         "error": state.get("error"),
         "source": state.get("source"),
+        "workflow_schema_version": state.get("workflow_schema_version"),
+        "payload_features": state.get("payload_features"),
+        "diagnostics": state.get("diagnostics"),
         "workflow": workflow_payload if isinstance(workflow_payload, dict) else None,
+    }
+
+
+@router.get("/{project_id}/models/{model_id}/workflow/diagnostics")
+def get_model_workflow_diagnostics(project_id: str, model_id: str) -> dict[str, object]:
+    project_path = FW_SERVICE.load_project(project_id)
+    _ = FW_SERVICE.load_model(project_id, model_id)
+    _ = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
+    state = _workflow_state_for_model(project_path, model_id)
+    return {
+        "project_id": project_id,
+        "model_id": model_id,
+        "status": state.get("status"),
+        "updated_at": state.get("updated_at"),
+        "error": state.get("error"),
+        "source": state.get("source"),
+        "workflow_schema_version": state.get("workflow_schema_version"),
+        "payload_features": state.get("payload_features"),
+        "diagnostics": state.get("diagnostics"),
+    }
+
+
+@router.get("/{project_id}/models/{model_id}/workflow/graph")
+def get_model_workflow_graph(project_id: str, model_id: str) -> dict[str, object]:
+    project_path = FW_SERVICE.load_project(project_id)
+    _ = FW_SERVICE.load_model(project_id, model_id)
+    workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
+    state = _workflow_state_for_model(project_path, model_id)
+    if not isinstance(workflow_payload, dict):
+        _log_workflow_fallback(
+            endpoint="model-workflow-graph",
+            project_id=project_id,
+            model_id=model_id,
+            reason="workflow_payload_missing",
+        )
+        return {
+            "project_id": project_id,
+            "model_id": model_id,
+            "status": state.get("status"),
+            "updated_at": state.get("updated_at"),
+            "error": state.get("error"),
+            "source": state.get("source"),
+            "workflow_schema_version": state.get("workflow_schema_version"),
+            "payload_features": state.get("payload_features"),
+            "diagnostics": state.get("diagnostics"),
+            "nodes": [],
+            "edges": [],
+            "summary": {
+                "steps": 0,
+                "edges": 0,
+                "scopes": {},
+                "contexts": {},
+                "tools": {},
+                "unresolved_dependencies": [],
+            },
+            "advanced": {},
+        }
+
+    graph_payload = _build_execution_graph_response(project_id, model_id, workflow_payload)
+    return {
+        **graph_payload,
+        "status": state.get("status"),
+        "updated_at": state.get("updated_at"),
+        "error": state.get("error"),
+        "source": state.get("source"),
+        "workflow_schema_version": state.get("workflow_schema_version"),
+        "payload_features": state.get("payload_features"),
+        "diagnostics": state.get("diagnostics"),
+        "advanced": _extract_workflow_advanced_fields(workflow_payload),
+    }
+
+
+@router.get("/{project_id}/models/{model_id}/workflow/steps")
+def get_model_workflow_steps(project_id: str, model_id: str) -> dict[str, object]:
+    project_path = FW_SERVICE.load_project(project_id)
+    _ = FW_SERVICE.load_model(project_id, model_id)
+    workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
+    state = _workflow_state_for_model(project_path, model_id)
+    steps = _build_execution_steps_index(workflow_payload) if isinstance(workflow_payload, dict) else []
+    return {
+        "project_id": project_id,
+        "model_id": model_id,
+        "status": state.get("status"),
+        "updated_at": state.get("updated_at"),
+        "error": state.get("error"),
+        "source": state.get("source"),
+        "workflow_schema_version": state.get("workflow_schema_version"),
+        "payload_features": state.get("payload_features"),
+        "diagnostics": state.get("diagnostics"),
+        "steps": steps,
+    }
+
+
+@router.get("/{project_id}/models/{model_id}/workflow/steps/{step_id:path}")
+def get_model_workflow_step_detail(project_id: str, model_id: str, step_id: str) -> dict[str, object]:
+    project_path = FW_SERVICE.load_project(project_id)
+    _ = FW_SERVICE.load_model(project_id, model_id)
+    workflow_payload = _ensure_workflow_payload(project_id, model_id, force_rebuild=False)
+    state = _workflow_state_for_model(project_path, model_id)
+    if not isinstance(workflow_payload, dict):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="workflow payload is unavailable.")
+
+    normalized_step_id = step_id.strip()
+    if not normalized_step_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="step_id is required.")
+
+    step, step_index = _find_workflow_step(workflow_payload, normalized_step_id)
+    if not isinstance(step, dict) or step_index < 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"step '{normalized_step_id}' not found in workflow.")
+
+    heavy_payload = _build_step_heavy_payload(step, step_index)
+    return {
+        "project_id": project_id,
+        "model_id": model_id,
+        "status": state.get("status"),
+        "updated_at": state.get("updated_at"),
+        "error": state.get("error"),
+        "source": state.get("source"),
+        "workflow_schema_version": state.get("workflow_schema_version"),
+        "payload_features": state.get("payload_features"),
+        "diagnostics": state.get("diagnostics"),
+        "step_id": heavy_payload.get("step_id"),
+        "step": heavy_payload.get("step"),
+        "sql_model": heavy_payload.get("sql_model"),
+        "param_model": heavy_payload.get("param_model"),
     }
 
 

@@ -19,6 +19,7 @@ import { useTheme } from "../../app/providers/themeContext";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
 import ExpandedFieldEditorModal from "../../shared/components/ExpandedFieldEditorModal";
+import { WorkflowDiagnosticsPanel } from "../../shared/components/WorkflowDiagnosticsPanel";
 
 const DOMAIN_TYPES = ["string", "number", "date", "datetime", "bool", "sql.condition", "sql.expression", "sql.identifier"];
 const CONTEXT_NAME_PATTERN = /^[A-Za-z0-9_.-]+$/;
@@ -98,6 +99,13 @@ export default function ParametersScreen() {
   );
   const hasFallbackSource = useMemo(
     () => (workflowStatusQuery.data?.models ?? []).some((item) => item.source === "fallback"),
+    [workflowStatusQuery.data?.models],
+  );
+  const degradedModels = useMemo(
+    () =>
+      (workflowStatusQuery.data?.models ?? []).filter(
+        (item) => item.status !== "ready" || item.source === "fallback" || (item.diagnostics?.issues?.length ?? 0) > 0,
+      ),
     [workflowStatusQuery.data?.models],
   );
 
@@ -477,6 +485,16 @@ export default function ParametersScreen() {
         Workflow status: {workflowStatusQuery.data?.status ?? "missing"} | Source:{" "}
         {hasFallbackSource ? "fallback" : "framework_cli"} | Stale: {hasStaleModel ? "yes" : "no"}
       </p>
+      {degradedModels.slice(0, 3).map((model) => (
+        <WorkflowDiagnosticsPanel
+          key={model.model_id}
+          modelId={model.model_id}
+          status={model.status}
+          source={model.source}
+          diagnostics={model.diagnostics}
+          updatedAt={model.updated_at}
+        />
+      ))}
 
       <div className="parameters-layout">
         <aside className="parameters-list">

@@ -53,4 +53,21 @@ describe("dagLayout", () => {
     expect(result.nodes).toHaveLength(2);
     expect(result.nodes[0].position.y).toBeLessThan(result.nodes[1].position.y);
   });
+
+  it("adds execution scope class for step nodes", () => {
+    const executionNodes: LineageNode[] = [
+      {
+        id: "sql.main",
+        name: "001_main",
+        path: "workflow/steps/sql.main",
+        materialized: "sql",
+        enabled_contexts: ["default"],
+        queries: ["001_main.sql"],
+        parameters: [],
+        ctes: [],
+      },
+    ];
+    const nodes = toGraphNodes(executionNodes, null, "LR", false, "framework_cli", onNodeSelect);
+    expect(nodes[0].data.className).toContain("lg-node-scope-sql");
+  });
 });

@@ -1,4 +1,5 @@
 interface LineageHeaderProps {
+  graphKind?: "lineage" | "execution";
   modelName: string | null;
   contextMode: "single" | "multi";
   activeContext: string;
@@ -10,6 +11,7 @@ interface LineageHeaderProps {
 }
 
 export function LineageHeader({
+  graphKind = "lineage",
   modelName,
   contextMode,
   activeContext,
@@ -22,7 +24,7 @@ export function LineageHeader({
   return (
     <div className="lg-header">
       <div className="lg-header-top">
-        <span className="lg-title">Lineage</span>
+        <span className="lg-title">{graphKind === "lineage" ? "Lineage" : "Execution"}</span>
         {modelName ? (
           <>
             <span className="lg-model-sep">·</span>
@@ -45,10 +47,14 @@ export function LineageHeader({
 
         {isFiltered && totalCount > 0 ? (
           <span className={`lg-pill ${visibleCount === 0 ? "lg-pill-zero" : "lg-pill-filter"}`}>
-            {visibleCount === 0 ? "0 folders visible" : `${visibleCount} of ${totalCount} folders`}
+            {visibleCount === 0
+              ? `0 ${graphKind === "lineage" ? "folders" : "steps"} visible`
+              : `${visibleCount} of ${totalCount} ${graphKind === "lineage" ? "folders" : "steps"}`}
           </span>
         ) : null}
-        {!isFiltered && totalCount > 0 ? <span className="lg-pill lg-pill-neutral">{totalCount} folders</span> : null}
+        {!isFiltered && totalCount > 0 ? (
+          <span className="lg-pill lg-pill-neutral">{totalCount} {graphKind === "lineage" ? "folders" : "steps"}</span>
+        ) : null}
       </div>
     </div>
   );

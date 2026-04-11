@@ -15,7 +15,8 @@ export function nodeMatchesSearch(node: SearchableNode, query: string): boolean 
   return (
     node.name.toLowerCase().includes(normalized) ||
     node.path.toLowerCase().includes(normalized) ||
-    node.queries.some((queryName) => queryName.toLowerCase().includes(normalized))
+    node.queries.some((queryName) => queryName.toLowerCase().includes(normalized)) ||
+    node.parameters.some((parameter) => parameter.toLowerCase().includes(normalized))
   );
 }
 

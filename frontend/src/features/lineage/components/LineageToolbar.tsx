@@ -1,9 +1,15 @@
 type LineageViewMode = "horizontal" | "vertical" | "compact";
+type GraphKind = "lineage" | "execution";
 
 interface LineageToolbarProps {
   models: string[];
   selectedModel: string;
   onModelChange: (modelId: string) => void;
+  graphKind: GraphKind;
+  onGraphKindChange: (kind: GraphKind) => void;
+  toolOptions?: string[];
+  selectedTool?: string;
+  onToolChange?: (tool: string) => void;
   viewMode: LineageViewMode;
   onViewMode: (mode: LineageViewMode) => void;
   search: string;
@@ -15,6 +21,11 @@ export function LineageToolbar({
   models,
   selectedModel,
   onModelChange,
+  graphKind,
+  onGraphKindChange,
+  toolOptions = [],
+  selectedTool = "all_tools",
+  onToolChange,
   viewMode,
   onViewMode,
   search,
@@ -42,6 +53,45 @@ export function LineageToolbar({
 
       <div className="lg-tb-group">
         <div className="lg-mode-tog">
+          {(["lineage", "execution"] as const).map((mode) => (
+            <button
+              key={mode}
+              className={`lg-mode-btn ${graphKind === mode ? "active" : ""}`}
+              onClick={() => onGraphKindChange(mode)}
+              title={mode === "lineage" ? "Folder-level lineage graph" : "Step-level execution graph"}
+              type="button"
+            >
+              {mode === "lineage" ? "Lineage" : "Execution"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="lg-tb-sep" />
+
+      {graphKind === "execution" ? (
+        <>
+          <div className="lg-tb-group">
+            <select
+              className="lg-select"
+              style={{ minWidth: 130, maxWidth: 200 }}
+              value={selectedTool}
+              onChange={(event) => onToolChange?.(event.target.value)}
+            >
+              <option value="all_tools">All tools</option>
+              {toolOptions.map((tool) => (
+                <option key={tool} value={tool}>
+                  {tool}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="lg-tb-sep" />
+        </>
+      ) : null}
+
+      <div className="lg-tb-group">
+        <div className="lg-mode-tog">
           {(["horizontal", "vertical", "compact"] as const).map((mode) => (
             <button
               key={mode}
@@ -63,7 +113,7 @@ export function LineageToolbar({
           <span className="lg-search-icon">⌕</span>
           <input
             className="lg-search-input"
-            placeholder="Search folders, queries…"
+            placeholder={graphKind === "lineage" ? "Search folders, queries…" : "Search steps, scopes, ids…"}
             value={search}
             onChange={(event) => onSearch(event.target.value)}
           />

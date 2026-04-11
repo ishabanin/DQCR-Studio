@@ -273,6 +273,33 @@ export interface ValidationRunResult {
   workflow_source?: string;
 }
 
+export interface WorkflowDiagnosticsIssue {
+  code: string;
+  message: string;
+}
+
+export interface WorkflowPayloadCoverage {
+  steps_total: number;
+  sql_steps_total: number;
+  sql_steps_with_sql_model: number;
+  sql_steps_with_metadata: number;
+  sql_steps_with_source_sql: number;
+  sql_steps_with_prepared_sql: number;
+  sql_steps_with_rendered_sql: number;
+  param_steps_total: number;
+  param_steps_with_param_model: number;
+}
+
+export interface WorkflowDiagnostics {
+  schema_version: number | null;
+  payload_features: string[];
+  legacy_payload: boolean;
+  execution_ui_ready: boolean;
+  issues: WorkflowDiagnosticsIssue[];
+  missing_fields: string[];
+  coverage: WorkflowPayloadCoverage;
+}
+
 export interface WorkflowModelState {
   project_id: string;
   model_id: string;
@@ -280,7 +307,62 @@ export interface WorkflowModelState {
   updated_at: string | null;
   error: string | null;
   source: "framework_cli" | "fallback";
+  workflow_schema_version?: number | null;
+  payload_features?: string[];
+  diagnostics?: WorkflowDiagnostics;
   workflow?: Record<string, unknown> | null;
+}
+
+export interface WorkflowExecutionStep {
+  step_id: string;
+  full_name?: string | null;
+  name?: string | null;
+  folder?: string | null;
+  step_scope: string;
+  step_type: string;
+  context: string;
+  tools?: string[] | null;
+  enabled: boolean;
+  dependencies: string[];
+  is_ephemeral?: boolean | null;
+  asynch?: boolean | null;
+  loop_step_ref?: string | null;
+  has_sql_model: boolean;
+  has_param_model: boolean;
+}
+
+export interface WorkflowExecutionEdge {
+  id: string;
+  source: string;
+  target: string;
+  status: string;
+}
+
+export interface WorkflowGraphSummary {
+  steps: number;
+  edges: number;
+  scopes: Record<string, number>;
+  contexts: Record<string, number>;
+  tools: Record<string, number>;
+  unresolved_dependencies: string[];
+}
+
+export interface WorkflowGraphResponse extends WorkflowModelState {
+  nodes: WorkflowExecutionStep[];
+  edges: WorkflowExecutionEdge[];
+  summary: WorkflowGraphSummary;
+  advanced: Record<string, unknown>;
+}
+
+export interface WorkflowStepsResponse extends WorkflowModelState {
+  steps: WorkflowExecutionStep[];
+}
+
+export interface WorkflowStepDetailResponse extends WorkflowModelState {
+  step_id: string;
+  step: Record<string, unknown>;
+  sql_model?: Record<string, unknown> | null;
+  param_model?: Record<string, unknown> | null;
 }
 
 export type WorkflowStatus = "ready" | "stale" | "building" | "error" | "missing";
@@ -297,6 +379,9 @@ export interface WorkflowProjectStatus {
     error: string | null;
     source: "framework_cli" | "fallback";
     has_cache: boolean;
+    workflow_schema_version?: number | null;
+    payload_features?: string[];
+    diagnostics?: WorkflowDiagnostics;
   }>;
 }
 
@@ -553,6 +638,33 @@ export async function fetchModelWorkflow(projectId: string, modelId: string): Pr
 
 export async function rebuildModelWorkflow(projectId: string, modelId: string): Promise<WorkflowModelState> {
   const { data } = await apiClient.post<WorkflowModelState>(`/projects/${projectId}/models/${modelId}/workflow/rebuild`);
+  return data;
+}
+
+export async function fetchModelWorkflowDiagnostics(projectId: string, modelId: string): Promise<WorkflowModelState> {
+  const { data } = await apiClient.get<WorkflowModelState>(`/projects/${projectId}/models/${modelId}/workflow/diagnostics`);
+  return data;
+}
+
+export async function fetchModelWorkflowGraph(projectId: string, modelId: string): Promise<WorkflowGraphResponse> {
+  const { data } = await apiClient.get<WorkflowGraphResponse>(`/projects/${projectId}/models/${modelId}/workflow/graph`);
+  return data;
+}
+
+export async function fetchModelWorkflowSteps(projectId: string, modelId: string): Promise<WorkflowStepsResponse> {
+  const { data } = await apiClient.get<WorkflowStepsResponse>(`/projects/${projectId}/models/${modelId}/workflow/steps`);
+  return data;
+}
+
+export async function fetchModelWorkflowStepDetail(
+  projectId: string,
+  modelId: string,
+  stepId: string,
+): Promise<WorkflowStepDetailResponse> {
+  const encodedStepId = encodeURIComponent(stepId);
+  const { data } = await apiClient.get<WorkflowStepDetailResponse>(
+    `/projects/${projectId}/models/${modelId}/workflow/steps/${encodedStepId}`,
+  );
   return data;
 }
 

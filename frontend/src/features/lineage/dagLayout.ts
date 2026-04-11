@@ -79,6 +79,10 @@ function buildNodeClassName(
   source: "framework_cli" | "fallback" | null,
 ): string {
   const classes = ["lg-node", "nopan", "nodrag"];
+  const normalizedMaterialized = String(node.materialized || "").toLowerCase();
+  if (["flags", "pre", "params", "sql", "post"].includes(normalizedMaterialized)) {
+    classes.push(`lg-node-scope-${normalizedMaterialized}`);
+  }
   if (node.id === selectedNodeId) classes.push("selected");
   if (source === "fallback") classes.push("stale");
   if (compact) classes.push("compact");

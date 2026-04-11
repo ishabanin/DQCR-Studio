@@ -5,6 +5,7 @@ import {
   applyValidationQuickFix,
   fetchFileContent,
   fetchModelWorkflow,
+  fetchModelWorkflowDiagnostics,
   fetchProjectWorkflowStatus,
   fetchValidationHistory,
   getDryRunQuickFix,
@@ -16,6 +17,7 @@ import { useEditorStore } from "../../app/store/editorStore";
 import { useProjectStore } from "../../app/store/projectStore";
 import { useUiStore } from "../../app/store/uiStore";
 import { useValidationStore } from "../../app/store/validationStore";
+import { WorkflowDiagnosticsPanel } from "../../shared/components/WorkflowDiagnosticsPanel";
 import QuickFixPreviewModal from "./QuickFixPreviewModal";
 import { getRouteLabel, routeValidationError } from "./utils/fileRouter";
 
@@ -435,6 +437,18 @@ export default function ValidateScreen() {
     queryFn: () => fetchModelWorkflow(currentProjectId as string, activeRun?.model as string),
     enabled: Boolean(currentProjectId && activeRun?.model),
   });
+  const activeRunDiagnosticsQuery = useQuery({
+    queryKey: ["workflowDiagnostics", currentProjectId, activeRun?.model],
+    queryFn: () => fetchModelWorkflowDiagnostics(currentProjectId as string, activeRun?.model as string),
+    enabled: Boolean(currentProjectId && activeRun?.model),
+  });
+  const degradedModels = useMemo(
+    () =>
+      (workflowStatusQuery.data?.models ?? []).filter(
+        (item) => item.status !== "ready" || item.source === "fallback" || (item.diagnostics?.issues?.length ?? 0) > 0,
+      ),
+    [workflowStatusQuery.data?.models],
+  );
   const validationIsStale = useMemo(() => {
     const validationTimestamp = activeRun?.workflow_updated_at ?? null;
     const workflowTimestamp = activeRunWorkflowQuery.data?.updated_at ?? null;
@@ -484,6 +498,28 @@ export default function ValidateScreen() {
         <p className="validate-meta">
           Validation progress: {wsProgress}%{wsStage ? ` (${wsStage})` : ""}
         </p>
+      ) : null}
+      {activeRun?.model ? (
+        <WorkflowDiagnosticsPanel
+          modelId={activeRun.model}
+          status={(activeRunDiagnosticsQuery.data?.status ??
+            activeRunWorkflowQuery.data?.status ??
+            workflowStatusQuery.data?.status ??
+            "missing") as "ready" | "stale" | "building" | "error" | "missing"}
+          source={(activeRunDiagnosticsQuery.data?.source ??
+            activeRunWorkflowQuery.data?.source ??
+            null) as "framework_cli" | "fallback" | null}
+          diagnostics={activeRunDiagnosticsQuery.data?.diagnostics}
+          updatedAt={activeRunDiagnosticsQuery.data?.updated_at ?? activeRunWorkflowQuery.data?.updated_at ?? null}
+        />
+      ) : degradedModels[0] ? (
+        <WorkflowDiagnosticsPanel
+          modelId={degradedModels[0].model_id}
+          status={degradedModels[0].status}
+          source={degradedModels[0].source}
+          diagnostics={degradedModels[0].diagnostics}
+          updatedAt={degradedModels[0].updated_at}
+        />
       ) : null}
 
       <div className="validate-category-filter">
