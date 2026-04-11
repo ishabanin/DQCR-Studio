@@ -1,5 +1,82 @@
 [
   {
+    "build_id": "bld-1c3a519b",
+    "timestamp": "2026-04-11T14:32:23.121830+00:00",
+    "project": "rf110new",
+    "model": "RF110RestTurnReg",
+    "engine": "dqcr",
+    "context": "default",
+    "dry_run": false,
+    "output_path": ".dqcr_builds/bld-1c3a519b",
+    "files_count": 12,
+    "files": [
+      {
+        "path": "RF110RestTurnReg/SQL/001_Load__distr/001_Query.sql",
+        "source_path": "model/RF110RestTurnReg/SQL/001_Load__distr/001_Query.sql",
+        "size_bytes": 130
+      },
+      {
+        "path": "RF110RestTurnReg/SQL/001_Load__distr/001_RF110_Reg_Acc2.sql",
+        "source_path": "model/RF110RestTurnReg/SQL/001_Load__distr/001_RF110_Reg_Acc2.sql",
+        "size_bytes": 573
+      },
+      {
+        "path": "RF110RestTurnReg/SQL/001_Load__distr/002_RF110RestTurnReg_ACCDEMAND.sql",
+        "source_path": "model/RF110RestTurnReg/SQL/001_Load__distr/002_RF110RestTurnReg_ACCDEMAND.sql",
+        "size_bytes": 5626
+      },
+      {
+        "path": "RF110RestTurnReg/SQL/001_Load__distr/003_RF110RestTurnReg_ACCRSRV.sql",
+        "source_path": "model/RF110RestTurnReg/SQL/001_Load__distr/003_RF110RestTurnReg_ACCRSRV.sql",
+        "size_bytes": 362
+      },
+      {
+        "path": "RF110RestTurnReg/SQL/001_Load__distr/004_applySettings_iter/001_Query.sql",
+        "source_path": "model/RF110RestTurnReg/SQL/001_Load__distr/004_applySettings_iter/001_Query.sql",
+        "size_bytes": 130
+      },
+      {
+        "path": "RF110RestTurnReg/SQL/001_Load__distr/004_applySettings_iter/applySettings.sql",
+        "source_path": "model/RF110RestTurnReg/SQL/001_Load__distr/004_applySettings_iter/applySettings.sql",
+        "size_bytes": 191
+      },
+      {
+        "path": "RF110RestTurnReg/SQL/001_Load__vtb/001_Query.sql",
+        "source_path": "model/RF110RestTurnReg/SQL/001_Load__vtb/001_Query.sql",
+        "size_bytes": 130
+      },
+      {
+        "path": "RF110RestTurnReg/SQL/001_Load__vtb/001_RF110RestTurnReg_ACCDEMAND_vtb.sql",
+        "source_path": "model/RF110RestTurnReg/SQL/001_Load__vtb/001_RF110RestTurnReg_ACCDEMAND_vtb.sql",
+        "size_bytes": 5547
+      },
+      {
+        "path": "RF110RestTurnReg/SQL/001_Load__vtb/002_RF110RestTurnReg_ACCRSRV_vtb.sql",
+        "source_path": "model/RF110RestTurnReg/SQL/001_Load__vtb/002_RF110RestTurnReg_ACCRSRV_vtb.sql",
+        "size_bytes": 152
+      },
+      {
+        "path": "RF110RestTurnReg/SQL/002_Update/001_Query.sql",
+        "source_path": "model/RF110RestTurnReg/SQL/002_Update/001_Query.sql",
+        "size_bytes": 130
+      },
+      {
+        "path": "RF110RestTurnReg/SQL/002_Update/001_RF110RestTurnReg_INN.sql",
+        "source_path": "model/RF110RestTurnReg/SQL/002_Update/001_RF110RestTurnReg_INN.sql",
+        "size_bytes": 205
+      },
+      {
+        "path": "RF110RestTurnReg/SQL/002_Update/001_RF110RestTurnReg_QUALITY.sql",
+        "source_path": "model/RF110RestTurnReg/SQL/002_Update/001_RF110RestTurnReg_QUALITY.sql",
+        "size_bytes": 792
+      }
+    ],
+    "workflow_updated_at": "2026-04-11T14:27:50.102525+00:00",
+    "workflow_status": "stale",
+    "workflow_source": "fallback",
+    "workflow_attached": true
+  },
+  {
     "build_id": "bld-20260324082930",
     "timestamp": "2026-03-24T08:29:31.128638+00:00",
     "project": "rf110new",

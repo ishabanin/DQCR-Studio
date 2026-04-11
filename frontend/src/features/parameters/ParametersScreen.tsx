@@ -610,7 +610,7 @@ export default function ParametersScreen() {
                       {Object.entries(draft.values).map(([context, row]) => (
                         <tr key={context}>
                           <td>
-                            <input className="ui-input" value={context} onBlur={(event) => renameContext(context, event.target.value)} />
+                            <input className="ui-input" defaultValue={context} onBlur={(event) => renameContext(context, event.target.value)} />
                           </td>
                           <td>
                             <select

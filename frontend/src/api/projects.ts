@@ -1,3 +1,4 @@
+import axios from "axios";
 import { apiClient } from "./client";
 
 export interface ProjectItem {
@@ -365,6 +366,68 @@ export interface WorkflowStepDetailResponse extends WorkflowModelState {
   param_model?: Record<string, unknown> | null;
 }
 
+function isNotFoundError(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 404;
+}
+
+function toWorkflowGraphFallback(projectId: string, modelId: string, lineage: LineageResponse): WorkflowGraphResponse {
+  const dependencyMap = new Map<string, string[]>();
+  for (const edge of lineage.edges) {
+    const current = dependencyMap.get(edge.target) ?? [];
+    current.push(edge.source);
+    dependencyMap.set(edge.target, current);
+  }
+
+  const scopeCounters: Record<string, number> = {};
+  for (const node of lineage.nodes) {
+    const scope = String(node.materialized || "unknown");
+    scopeCounters[scope] = (scopeCounters[scope] ?? 0) + 1;
+  }
+
+  return {
+    project_id: projectId,
+    model_id: modelId,
+    status: "missing",
+    updated_at: null,
+    error: "Execution graph endpoint is unavailable; fallback graph is built from lineage data.",
+    source: "fallback",
+    workflow_schema_version: null,
+    payload_features: [],
+    nodes: lineage.nodes.map((node) => ({
+      step_id: node.id,
+      full_name: node.path,
+      name: node.name,
+      folder: null,
+      step_scope: String(node.materialized || "unknown"),
+      step_type: "fallback_lineage_node",
+      context: "all",
+      tools: ["all_tools"],
+      enabled: true,
+      dependencies: dependencyMap.get(node.id) ?? [],
+      is_ephemeral: null,
+      asynch: null,
+      loop_step_ref: null,
+      has_sql_model: node.queries.length > 0,
+      has_param_model: node.parameters.length > 0,
+    })),
+    edges: lineage.edges.map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      status: edge.status,
+    })),
+    summary: {
+      steps: lineage.nodes.length,
+      edges: lineage.edges.length,
+      scopes: scopeCounters,
+      contexts: { all: lineage.nodes.length },
+      tools: { all_tools: lineage.nodes.length },
+      unresolved_dependencies: [],
+    },
+    advanced: {},
+  };
+}
+
 export type WorkflowStatus = "ready" | "stale" | "building" | "error" | "missing";
 
 export interface WorkflowProjectStatus {
@@ -642,13 +705,39 @@ export async function rebuildModelWorkflow(projectId: string, modelId: string): 
 }
 
 export async function fetchModelWorkflowDiagnostics(projectId: string, modelId: string): Promise<WorkflowModelState> {
-  const { data } = await apiClient.get<WorkflowModelState>(`/projects/${projectId}/models/${modelId}/workflow/diagnostics`);
-  return data;
+  try {
+    const { data } = await apiClient.get<WorkflowModelState>(`/projects/${projectId}/models/${modelId}/workflow/diagnostics`);
+    return data;
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      throw error;
+    }
+    return {
+      project_id: projectId,
+      model_id: modelId,
+      status: "missing",
+      updated_at: null,
+      error: "Workflow diagnostics endpoint is unavailable.",
+      source: "fallback",
+      workflow_schema_version: null,
+      payload_features: [],
+      diagnostics: undefined,
+      workflow: null,
+    };
+  }
 }
 
 export async function fetchModelWorkflowGraph(projectId: string, modelId: string): Promise<WorkflowGraphResponse> {
-  const { data } = await apiClient.get<WorkflowGraphResponse>(`/projects/${projectId}/models/${modelId}/workflow/graph`);
-  return data;
+  try {
+    const { data } = await apiClient.get<WorkflowGraphResponse>(`/projects/${projectId}/models/${modelId}/workflow/graph`);
+    return data;
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      throw error;
+    }
+    const lineage = await fetchModelLineage(projectId, modelId);
+    return toWorkflowGraphFallback(projectId, modelId, lineage);
+  }
 }
 
 export async function fetchModelWorkflowSteps(projectId: string, modelId: string): Promise<WorkflowStepsResponse> {
